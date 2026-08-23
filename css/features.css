@@ -1,0 +1,46 @@
+/* 오늘한칸 v0.4 - drag/date/someday additions */
+#featureSomedayCard .list,
+#taskList {
+  min-height: 52px;
+  border-radius: 8px;
+  transition: background .15s ease, outline-color .15s ease;
+}
+.feature-drop-active {
+  background: var(--accent-soft) !important;
+  outline: 1px dashed var(--accent);
+  outline-offset: -2px;
+}
+.feature-calendar-drop-active {
+  background: var(--accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.cal-event[draggable="true"],
+.day-timed-event[draggable="true"],
+.day-list .row[draggable="true"],
+#featureSomedayList .row[draggable="true"] {
+  cursor: grab;
+}
+.feature-dragging {
+  opacity: .45;
+}
+#featureMoveDialog .feature-dialog-actions {
+  align-items: center;
+}
+#featureMoveDialog .feature-dialog-spacer {
+  flex: 1;
+}
+#featureMoveDialog #featureSomedayBtn {
+  margin-right: auto;
+}
+#featureSomedayCard .card-meta {
+  white-space: nowrap;
+}
+@media (max-width: 680px) {
+  .dash-row {
+    grid-template-columns: 1fr;
+  }
+  #featureSomedayCard .card-meta {
+    white-space: normal;
+    text-align: right;
+  }
+}
