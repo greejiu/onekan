@@ -10,6 +10,7 @@ const pad = (n) => String(n).padStart(2, "0");
 let drag = null;
 let suppressClick = false;
 let observer = null;
+let prepareTimer = null;
 
 function minuteText(minute) {
   return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`;
@@ -42,21 +43,23 @@ function rowHeight(timeline) {
 }
 
 function indexAt(timeline, clientY) {
+  const rows = getRows(timeline);
+  if (!rows.length) return 0;
   const rect = timeline.getBoundingClientRect();
   const index = Math.floor((clientY - rect.top) / rowHeight(timeline));
-  return Math.max(0, Math.min(getRows(timeline).length - 1, index));
+  return Math.max(0, Math.min(rows.length - 1, index));
 }
 
 function clearPreview(target = drag) {
   target?.preview?.remove();
-  if (target?.element) {
+  if (target?.element?.isConnected) {
     target.element.style.transform = "";
     target.element.classList.remove("day-event-moving");
   }
 }
 
 function paintCreatePreview() {
-  if (!drag || drag.type !== "create") return;
+  if (!drag || drag.type !== "create" || !drag.timeline?.isConnected) return;
   drag.preview?.remove();
   const first = Math.min(drag.startIndex, drag.currentIndex);
   const last = Math.max(drag.startIndex, drag.currentIndex);
@@ -80,15 +83,16 @@ function openRangeDialog(dateKey, startMinute, endMinute) {
 }
 
 function currentTimelineDate(timeline) {
-  return timeline.dataset.featureCalendarDate || $("#timelineEventDate")?.value || "";
+  return timeline?.dataset.featureCalendarDate || $("#timelineEventDate")?.value || "";
 }
 
 function prepareTimeline() {
   const timeline = $("#calendarBody .day-timeline");
   if (!timeline) return;
   timeline.dataset.unifiedDayDrag = "true";
+
   $$(".day-timed-event", timeline).forEach((element) => {
-    element.draggable = false;
+    if (element.getAttribute("draggable") !== "false") element.setAttribute("draggable", "false");
     element.title = "드래그해서 시간 이동";
   });
 
@@ -98,15 +102,21 @@ function prepareTimeline() {
   }
 }
 
+function schedulePrepare() {
+  clearTimeout(prepareTimer);
+  prepareTimer = setTimeout(prepareTimeline, 30);
+}
+
 function installListeners() {
   if (document.documentElement.dataset.unifiedDayDragWired) return;
   document.documentElement.dataset.unifiedDayDragWired = "1";
 
   document.addEventListener("pointerdown", (event) => {
-    const timeline = event.target.closest?.("#calendarBody .day-timeline");
-    if (!timeline || event.button !== 0) return;
+    const target = event.target instanceof Element ? event.target : null;
+    const timeline = target?.closest("#calendarBody .day-timeline");
+    if (!timeline || event.button !== 0 || !getRows(timeline).length) return;
 
-    const eventEl = event.target.closest(".day-timed-event[data-feature-id]");
+    const eventEl = target.closest(".day-timed-event[data-feature-id]");
     const index = indexAt(timeline, event.clientY);
 
     if (eventEl) {
@@ -121,11 +131,12 @@ function installListeners() {
         startY: event.clientY,
         moved: false,
       };
+      event.preventDefault();
       event.stopImmediatePropagation();
       return;
     }
 
-    if (!event.target.closest(".day-time-row,.day-time-lane")) return;
+    if (!target.closest(".day-time-row,.day-time-lane")) return;
     drag = {
       type: "create",
       timeline,
@@ -140,7 +151,7 @@ function installListeners() {
   }, true);
 
   document.addEventListener("pointermove", (event) => {
-    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (!drag || event.pointerId !== drag.pointerId || !drag.timeline?.isConnected) return;
     drag.currentIndex = indexAt(drag.timeline, event.clientY);
 
     if (drag.type === "create") {
@@ -154,8 +165,10 @@ function installListeners() {
     if (movedPx < 4 && !drag.moved) return;
     drag.moved = true;
     const delta = drag.currentIndex - drag.startIndex;
-    drag.element.classList.add("day-event-moving");
-    drag.element.style.transform = `translateY(${delta * rowHeight(drag.timeline)}px)`;
+    if (drag.element?.isConnected) {
+      drag.element.classList.add("day-event-moving");
+      drag.element.style.transform = `translateY(${delta * rowHeight(drag.timeline)}px)`;
+    }
     event.preventDefault();
     event.stopImmediatePropagation();
   }, true);
@@ -179,7 +192,7 @@ function installListeners() {
     clearPreview(current);
     if (!current.moved) return;
     suppressClick = true;
-    setTimeout(() => { suppressClick = false; }, 80);
+    setTimeout(() => { suppressClick = false; }, 120);
 
     const targetMinute = START + current.currentIndex * SLOT;
     try {
@@ -210,7 +223,8 @@ function installListeners() {
 
   document.addEventListener("click", (event) => {
     if (!suppressClick) return;
-    if (!event.target.closest?.(".day-timed-event")) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest(".day-timed-event")) return;
     event.preventDefault();
     event.stopImmediatePropagation();
   }, true);
@@ -220,8 +234,13 @@ function observeTimeline() {
   if (observer) return;
   const body = $("#calendarBody");
   if (!body) return;
-  observer = new MutationObserver(() => prepareTimeline());
-  observer.observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-feature-id", "draggable"] });
+  observer = new MutationObserver(schedulePrepare);
+  observer.observe(body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["data-feature-id", "data-feature-calendar-date"],
+  });
 }
 
 function injectStyle() {
@@ -231,7 +250,8 @@ function injectStyle() {
   style.textContent = `
     .day-unified-selection{position:absolute;left:62px;right:8px;z-index:20;pointer-events:none;border:1.5px dashed #77818c;border-radius:7px;background:rgba(71,85,105,.10)}
     .day-event-moving{opacity:.72;box-shadow:0 4px 14px rgba(15,23,42,.12);cursor:grabbing!important}
-    #calendarBody .day-timed-event{cursor:grab;touch-action:pan-x}
+    #calendarBody .day-timed-event{cursor:grab;touch-action:none;user-select:none}
+    #calendarBody .day-time-lane{touch-action:none}
   `;
   document.head.appendChild(style);
 }
@@ -240,7 +260,7 @@ function init() {
   injectStyle();
   installListeners();
   observeTimeline();
-  prepareTimeline();
+  schedulePrepare();
 }
 
 supabase.auth.onAuthStateChange((_event, session) => {
