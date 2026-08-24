@@ -1,0 +1,51 @@
+name: Development Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: ai-main-chat development task ID
+        required: true
+        type: string
+      worker:
+        description: Development worker
+        required: true
+        type: choice
+        options:
+          - codex
+          - claude
+      task_packet_json:
+        description: Confirmed manual-v1 task packet JSON
+        required: true
+        type: string
+      branch_name:
+        description: New task branch
+        required: true
+        type: string
+      base_branch:
+        description: Approved base branch
+        required: true
+        type: string
+      callback_url:
+        description: Signed status callback endpoint
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  run:
+    uses: gkdbzl3-prog/ai-dev-worker/.github/workflows/development-worker.yml@main
+    with:
+      job_id: ${{ inputs.job_id }}
+      worker: ${{ inputs.worker }}
+      task_packet_json: ${{ inputs.task_packet_json }}
+      branch_name: ${{ inputs.branch_name }}
+      base_branch: ${{ inputs.base_branch }}
+      callback_url: ${{ inputs.callback_url }}
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      WORKER_CALLBACK_SECRET: ${{ secrets.WORKER_CALLBACK_SECRET }}
