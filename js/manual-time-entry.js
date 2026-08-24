@@ -5,6 +5,7 @@ const pad = (n) => String(n).padStart(2, "0");
 let historyObserver = null;
 let historyTimer = null;
 let renderingHistory = false;
+let draggedSessionId = null;
 
 function localDateKey(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -62,53 +63,70 @@ function defaultTimes() {
   return { start: minuteText(start), end: minuteText(end) };
 }
 
-async function readSessions() {
+async function readCloudState() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return [];
+  if (!session?.user) return null;
   const { data, error } = await supabase
     .from("onekan_state")
     .select("data")
     .eq("user_id", session.user.id)
     .maybeSingle();
   if (error) throw error;
-  return Array.isArray(data?.data?.sessions) ? data.data.sessions : [];
+  const state = data?.data && typeof data.data === "object" ? data.data : {};
+  state.sessions = Array.isArray(state.sessions) ? state.sessions : [];
+  return { user: session.user, state };
+}
+
+async function readSessions() {
+  const current = await readCloudState();
+  return current?.state.sessions || [];
+}
+
+async function writeCloudState(mutator) {
+  const current = await readCloudState();
+  if (!current) throw new Error("로그인이 필요합니다.");
+  mutator(current.state);
+  const { error } = await supabase
+    .from("onekan_state")
+    .upsert({ user_id: current.user.id, data: current.state }, { onConflict: "user_id" });
+  if (error) throw error;
+  $("#reloadCloudBtn")?.click();
+  scheduleHistoryRender();
 }
 
 async function addSession({ title, date, startTime, endTime }) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) throw new Error("로그인이 필요합니다.");
-
   const start = new Date(`${date}T${startTime}:00`);
   const end = new Date(`${date}T${endTime}:00`);
   if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) throw new Error("시간을 확인해 주세요.");
   if (end <= start) throw new Error("종료 시간은 시작 시간보다 뒤여야 해요.");
 
-  const { data, error } = await supabase
-    .from("onekan_state")
-    .select("data")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
-  if (error) throw error;
-
-  const state = data?.data && typeof data.data === "object" ? data.data : {};
-  state.sessions = Array.isArray(state.sessions) ? state.sessions : [];
-  state.sessions.push({
-    id: crypto.randomUUID(),
-    taskId: null,
-    title,
-    start: start.toISOString(),
-    end: end.toISOString(),
-    durationMs: end.getTime() - start.getTime(),
-    manual: true,
+  await writeCloudState((state) => {
+    state.sessions.push({
+      id: crypto.randomUUID(),
+      taskId: null,
+      title,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      durationMs: end.getTime() - start.getTime(),
+      manual: true,
+    });
   });
+}
 
-  const { error: saveError } = await supabase
-    .from("onekan_state")
-    .upsert({ user_id: session.user.id, data: state }, { onConflict: "user_id" });
-  if (saveError) throw saveError;
-
-  $("#reloadCloudBtn")?.click();
-  scheduleHistoryRender();
+async function moveSessionToDate(sessionId, targetKey) {
+  await writeCloudState((state) => {
+    const item = state.sessions.find((session) => session.id === sessionId);
+    if (!item) return;
+    const start = new Date(item.start || item.end);
+    const end = new Date(item.end || item.start);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return;
+    const durationMs = Math.max(0, Number(item.durationMs || (end - start)));
+    const [year, month, day] = targetKey.split("-").map(Number);
+    start.setFullYear(year, month - 1, day);
+    item.start = start.toISOString();
+    item.end = new Date(start.getTime() + durationMs).toISOString();
+    item.durationMs = durationMs;
+  });
 }
 
 function ensureDialog() {
@@ -170,11 +188,14 @@ function injectStyle() {
     #page-tracking .timer-panel{grid-template-columns:minmax(0,1fr)!important}
     #page-tracking .tracking-today-card-hidden{display:none!important}
     #page-tracking .tracking-history-card .card-header{align-items:center}
-    #page-tracking .tracking-history-group{padding:4px 0 14px}
+    #page-tracking .tracking-history-group{padding:4px 0 14px;border-radius:8px;transition:background .12s ease,outline-color .12s ease}
     #page-tracking .tracking-history-group + .tracking-history-group{border-top:1px solid var(--line);padding-top:16px}
     #page-tracking .tracking-history-date{font-size:13px;font-weight:700;color:var(--text);margin:0 0 7px}
-    #page-tracking .tracking-history-group .history-row{padding:9px 2px}
+    #page-tracking .tracking-history-group .history-row{padding:9px 2px;cursor:grab;user-select:none}
+    #page-tracking .tracking-history-group .history-row:active{cursor:grabbing}
     #page-tracking .tracking-history-group .history-row + .history-row{border-top:1px solid var(--line)}
+    #page-tracking .history-row.dragging{opacity:.45}
+    #page-tracking .tracking-history-group.drag-over{background:var(--hover,#f3f5f7);outline:1.5px dashed var(--line-strong,#b8c0cb);outline-offset:3px}
   `;
   document.head.appendChild(style);
 }
@@ -205,6 +226,49 @@ function simplifyTrackingLayout() {
     actions.appendChild(button);
     allHeader.appendChild(actions);
   }
+}
+
+function wireHistoryDrag(container) {
+  container.querySelectorAll(".history-row[data-context-id]").forEach((row) => {
+    row.draggable = true;
+    row.title = "다른 날짜 그룹으로 드래그해서 날짜 이동";
+    row.addEventListener("dragstart", (event) => {
+      draggedSessionId = row.dataset.contextId;
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/session-id", draggedSessionId);
+      row.classList.add("dragging");
+    });
+    row.addEventListener("dragend", () => {
+      row.classList.remove("dragging");
+      draggedSessionId = null;
+      container.querySelectorAll(".tracking-history-group.drag-over").forEach((group) => group.classList.remove("drag-over"));
+    });
+  });
+
+  container.querySelectorAll(".tracking-history-group[data-history-date]").forEach((group) => {
+    group.addEventListener("dragover", (event) => {
+      if (!draggedSessionId && !event.dataTransfer.types.includes("text/session-id")) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      group.classList.add("drag-over");
+    });
+    group.addEventListener("dragleave", (event) => {
+      if (!group.contains(event.relatedTarget)) group.classList.remove("drag-over");
+    });
+    group.addEventListener("drop", async (event) => {
+      event.preventDefault();
+      group.classList.remove("drag-over");
+      const sessionId = event.dataTransfer.getData("text/session-id") || draggedSessionId;
+      const targetKey = group.dataset.historyDate;
+      if (!sessionId || !targetKey) return;
+      try {
+        await moveSessionToDate(sessionId, targetKey);
+      } catch (error) {
+        console.error(error);
+        window.alert("시간 기록 날짜를 옮기지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
+    });
+  });
 }
 
 async function renderGroupedHistory() {
@@ -238,6 +302,7 @@ async function renderGroupedHistory() {
           return `<div class="history-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${String(session.title || "기록").replace(/[&<>\"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#039;"}[char]))}</div><div class="history-meta">${time}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`;
         }).join("")}
       </section>`).join("");
+    wireHistoryDrag(container);
   } catch (error) {
     console.error("시간 기록 그룹화 실패", error);
   } finally {
