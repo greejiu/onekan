@@ -270,4 +270,4 @@ supabase.auth.onAuthStateChange((_event, session) => {
 const { data: { session } } = await supabase.auth.getSession();
 if (session?.user) init();
 
-import("./context-menu.js?v=1").catch((error) => console.error("오른쪽 클릭 메뉴 로드 실패", error));
+import("./context-menu.js?v=2").catch((error) => console.error("오른쪽 클릭 메뉴 로드 실패", error));
