@@ -47,11 +47,11 @@ function indexAt(timeline, clientY) {
   return Math.max(0, Math.min(getRows(timeline).length - 1, index));
 }
 
-function clearPreview() {
-  drag?.preview?.remove();
-  if (drag?.element) {
-    drag.element.style.transform = "";
-    drag.element.classList.remove("day-event-moving");
+function clearPreview(target = drag) {
+  target?.preview?.remove();
+  if (target?.element) {
+    target.element.style.transform = "";
+    target.element.classList.remove("day-event-moving");
   }
 }
 
@@ -176,7 +176,7 @@ function installListeners() {
       return;
     }
 
-    clearPreview();
+    clearPreview(current);
     if (!current.moved) return;
     suppressClick = true;
     setTimeout(() => { suppressClick = false; }, 80);
