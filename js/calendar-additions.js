@@ -1,6 +1,7 @@
 import { supabase } from "./supabase.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const pad = (n) => String(n).padStart(2, "0");
 const START_MIN = 6 * 60;
 const END_MIN = 22 * 60;
@@ -9,6 +10,8 @@ const SLOT = 30;
 let cloudState = null;
 let observer = null;
 let enhanceTimer = null;
+let draggedCalendarItem = null;
+let movingCalendarItem = false;
 
 function localDateKey(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -49,6 +52,9 @@ async function writeCloudState(mutator) {
     .upsert({ user_id: current.user.id, data: current.state }, { onConflict: "user_id" });
   if (error) throw error;
   cloudState = current.state;
+
+  // 전체 페이지 새로고침 대신 앱 상태만 다시 읽는다.
+  // 그래서 달력에서 드래그해도 집으로 돌아가지 않는다.
   const reload = $("#reloadCloudBtn");
   if (reload) reload.click();
   return true;
@@ -221,6 +227,102 @@ function wireDayTimeline() {
   timeline.addEventListener("pointercancel", clear);
 }
 
+function calendarDropTarget(target) {
+  return target.closest?.(
+    "#calendarBody .day-cell[data-feature-calendar-date], #calendarBody .week-col[data-feature-calendar-date], #calendarBody .day-list[data-feature-calendar-date], #calendarBody .day-timeline[data-feature-calendar-date], #calendarBody .untimed-box[data-feature-calendar-date]"
+  ) || null;
+}
+
+function moveEventToDate(item, dateKey) {
+  if (!item?.start || !dateKey) return;
+  const previousStart = new Date(item.start);
+  const nextStart = new Date(previousStart);
+  const [year, month, day] = dateKey.split("-").map(Number);
+  nextStart.setFullYear(year, month - 1, day);
+  item.start = nextStart.toISOString();
+
+  // 종료 시간이 있으면 기존 길이를 그대로 유지한다.
+  if (item.end) {
+    const previousEnd = new Date(item.end);
+    const duration = Math.max(0, previousEnd.getTime() - previousStart.getTime());
+    item.end = new Date(nextStart.getTime() + duration).toISOString();
+  }
+}
+
+function clearCalendarDropHighlight() {
+  $$("#calendarBody .feature-calendar-drop-active").forEach((element) => {
+    element.classList.remove("feature-calendar-drop-active");
+  });
+}
+
+function wireUnifiedCalendarDrag() {
+  if (document.documentElement.dataset.unifiedCalendarDragWired) return;
+  document.documentElement.dataset.unifiedCalendarDragWired = "true";
+
+  document.addEventListener("dragstart", (event) => {
+    const entry = event.target.closest?.("#calendarBody [data-feature-kind][data-feature-id]");
+    if (!entry) return;
+    const kind = entry.dataset.featureKind;
+    const id = entry.dataset.featureId;
+    if (!id || (kind !== "task" && kind !== "event")) return;
+    draggedCalendarItem = { kind, id };
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(kind === "task" ? "text/task-id" : "text/event-id", id);
+  }, true);
+
+  document.addEventListener("dragover", (event) => {
+    if (!draggedCalendarItem) return;
+    const target = calendarDropTarget(event.target);
+    if (!target) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    target.classList.add("feature-calendar-drop-active");
+  }, true);
+
+  document.addEventListener("dragleave", (event) => {
+    const target = calendarDropTarget(event.target);
+    if (target) target.classList.remove("feature-calendar-drop-active");
+  }, true);
+
+  // 기존 features.js의 드롭 처리보다 먼저 받아서 같은 방식으로 통일한다.
+  // 특히 기존 전체 새로고침을 막아 달력에서 집으로 튀는 현상을 없앤다.
+  document.addEventListener("drop", async (event) => {
+    const target = calendarDropTarget(event.target);
+    if (!target || !draggedCalendarItem || movingCalendarItem) return;
+    const dateKey = target.dataset.featureCalendarDate;
+    if (!dateKey) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    clearCalendarDropHighlight();
+
+    const { kind, id } = draggedCalendarItem;
+    movingCalendarItem = true;
+    try {
+      await writeCloudState((state) => {
+        if (kind === "task") {
+          const task = state.tasks.find((item) => item.id === id);
+          if (task) task.date = dateKey;
+          return;
+        }
+        const item = state.events.find((eventItem) => eventItem.id === id);
+        if (item) moveEventToDate(item, dateKey);
+      });
+    } catch (error) {
+      console.error(error);
+      window.alert("날짜를 옮기지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      movingCalendarItem = false;
+      draggedCalendarItem = null;
+    }
+  }, true);
+
+  document.addEventListener("dragend", () => {
+    draggedCalendarItem = null;
+    clearCalendarDropHighlight();
+  }, true);
+}
+
 function scheduleEnhance() {
   clearTimeout(enhanceTimer);
   enhanceTimer = setTimeout(async () => {
@@ -242,6 +344,7 @@ function observeCalendar() {
 async function init() {
   wireCalendarTaskButton();
   wireTimelineEventDialog();
+  wireUnifiedCalendarDrag();
   observeCalendar();
   try { await readCloudState(); } catch (error) { console.error(error); }
   scheduleEnhance();
