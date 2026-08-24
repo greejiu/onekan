@@ -55,8 +55,9 @@ async function writeCloudState(mutator) {
 }
 
 function activeCalendarDate() {
-  const dated = $("#calendarBody [data-feature-calendar-date]");
-  return dated?.dataset.featureCalendarDate || appDayKey();
+  const timeline = $("#calendarBody .day-timeline[data-feature-calendar-date]");
+  const dayList = $("#calendarBody .day-list[data-feature-calendar-date]");
+  return timeline?.dataset.featureCalendarDate || dayList?.dataset.featureCalendarDate || appDayKey();
 }
 
 function wireCalendarTaskButton() {
