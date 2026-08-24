@@ -240,6 +240,58 @@ function wireCalendarClick(){
     if(cell)openQuick(cell.dataset.featureCalendarDate);
   });
 }
+
+function calendarDropDate(target){
+  return target.closest?.("[data-feature-calendar-date]")?.dataset.featureCalendarDate||null;
+}
+function wireCalendarDragStay(){
+  if(document.documentElement.dataset.calendarDragStayWired)return;
+  document.documentElement.dataset.calendarDragStayWired="1";
+
+  document.addEventListener("dragover",e=>{
+    if(!e.target.closest?.("#calendarBody"))return;
+    const types=Array.from(e.dataTransfer?.types||[]);
+    if(!types.includes("text/task-id")&&!types.includes("text/event-id"))return;
+    if(!calendarDropDate(e.target))return;
+    e.preventDefault();
+  },true);
+
+  document.addEventListener("drop",async e=>{
+    if(!e.target.closest?.("#calendarBody"))return;
+    const taskId=e.dataTransfer?.getData("text/task-id");
+    const eventId=e.dataTransfer?.getData("text/event-id");
+    if(!taskId&&!eventId)return;
+    const targetDate=calendarDropDate(e.target);
+    if(!targetDate)return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    try{
+      await writeState(s=>{
+        if(taskId){
+          const task=s.tasks.find(x=>x.id===taskId);
+          if(task)task.date=targetDate;
+          return;
+        }
+        const item=s.events.find(x=>x.id===eventId);
+        if(!item?.start)return;
+        const oldStart=new Date(item.start);
+        const oldEnd=item.end?new Date(item.end):null;
+        const duration=oldEnd&&oldEnd>oldStart?oldEnd-oldStart:SLOT*60000;
+        const [y,m,d]=targetDate.split("-").map(Number);
+        oldStart.setFullYear(y,m-1,d);
+        item.start=oldStart.toISOString();
+        if(item.end)item.end=new Date(oldStart.getTime()+duration).toISOString();
+      });
+    }catch(err){
+      console.error(err);
+      alert("날짜를 이동하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+  },true);
+}
+
 function addHint(){
   const bar=$(".calendar-toolbar");if(!bar||bar.querySelector(".calendar-click-hint"))return;
   const span=document.createElement("span");span.className="calendar-click-hint";span.textContent="날짜 칸을 클릭해 바로 추가";bar.querySelector("strong")?.after(span);
@@ -247,12 +299,12 @@ function addHint(){
 function observe(){
   if(observer)return;
   const time=$("#timeGrid"),cal=$("#calendarBody");
-  observer=new MutationObserver(()=>{wireTimeGrid();wireBlockEditor();wireCalendarClick();addHint();scheduleArrange();});
+  observer=new MutationObserver(()=>{wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarDragStay();addHint();scheduleArrange();});
   if(time)observer.observe(time,{childList:true,subtree:true});
   if(cal)observer.observe(cal,{childList:true,subtree:true,attributes:true,attributeFilter:["data-feature-id","data-feature-calendar-date"]});
 }
 async function init(){
-  injectStyle();ensureQuickDialog();wireTimeGrid();wireBlockEditor();wireCalendarClick();addHint();observe();
+  injectStyle();ensureQuickDialog();wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarDragStay();addHint();observe();
   try{await readState();}catch(e){console.error(e);}
   scheduleArrange();
 }
