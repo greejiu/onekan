@@ -52,6 +52,13 @@ async function refreshCloudState() {
   return cloudState;
 }
 
+async function syncVisibleUI() {
+  renderSomedayTasks();
+  wireHomeDropTargets();
+  scheduleCalendarEnhance();
+  $("#reloadCloudBtn")?.click();
+}
+
 async function mutateCloud(mutator, { reload = true } = {}) {
   if (!currentUser) return;
   await waitForAppSaved();
@@ -65,7 +72,7 @@ async function mutateCloud(mutator, { reload = true } = {}) {
     return;
   }
   cloudState = latest;
-  if (reload) window.location.reload();
+  if (reload) await syncVisibleUI();
 }
 
 function ensureMoveDialog() {
@@ -288,7 +295,7 @@ function itemsForDate(state, dateKey) {
     .map((item) => ({ kind: "event", id: item.id, title: item.title, startDate: new Date(item.start) }));
   const tasks = state.tasks
     .filter((item) => item.date === dateKey)
-    .map((item) => ({ kind: "task", id: item.id, title: item.title, startDate: null }));
+    .map((item) => ({ id: item.id, kind: "task", title: item.title, startDate: null }));
   return [...events, ...tasks].sort((a, b) => {
     const rankA = a.kind === "event" ? 0 : 1;
     const rankB = b.kind === "event" ? 0 : 1;
