@@ -112,21 +112,12 @@ async function renderAll() {
   wireDynamicDragSources();
 }
 
-async function chooseUpcomingDate() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const value = window.prompt("다가오는 날짜를 입력해 주세요. (YYYY-MM-DD)", dateKey(tomorrow));
-  return /^\d{4}-\d{2}-\d{2}$/.test(value || "") ? value : null;
-}
-
 async function moveTask(taskId, destination) {
-  let targetDate = destination;
-  if (destination === "upcoming") targetDate = await chooseUpcomingDate();
-  if (destination === "upcoming" && !targetDate) return;
+  const isDateDestination = /^\d{4}-\d{2}-\d{2}$/.test(destination);
   await writeState((current) => {
     const task = current.tasks.find((item) => item.id === taskId);
     if (!task) return;
-    task.date = destination === "today" ? appDayKey() : destination === "someday" ? null : targetDate;
+    task.date = destination === "today" ? appDayKey() : destination === "someday" ? null : isDateDestination ? destination : task.date;
     if (destination !== "today") delete task.timeBlockTemplateId;
   });
 }
@@ -166,7 +157,7 @@ function wireDynamicDragSources() {
   });
   wireDropZone($("#dailyBlockBoard") || $("#homeLeftColumn"), "today");
   wireDropZone($("#featureSomedayCard") || $("#somedayHomeSlot"), "someday");
-  wireDropZone($("#upcomingList"), "upcoming");
+  $$('[data-upcoming-date]').forEach((group) => wireDropZone(group, group.dataset.upcomingDate));
 }
 
 function wireUI() {

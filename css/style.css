@@ -242,6 +242,12 @@ button:disabled { opacity: .5; cursor: default; }
 .task-details div { margin-top: 6px; padding: 8px; border-radius: 7px; background: var(--panel-soft); white-space: pre-wrap; }
 .workspace-drop-active { outline: 2px dashed var(--accent) !important; outline-offset: -3px; background: var(--accent-soft) !important; }
 .upcoming-row.task { cursor: grab; }
+.upcoming-date-group { margin: 0 0 10px; padding: 0 4px 5px; border-radius: 9px; }
+.upcoming-date-group:last-child { margin-bottom: 0; }
+.upcoming-date-heading { display: flex; align-items: center; justify-content: space-between; min-height: 32px; padding: 3px 7px; border-bottom: 1px solid var(--line); }
+.upcoming-date-heading strong { font-size: 12px; }
+.upcoming-date-heading span { color: var(--muted); font-size: 9px; opacity: 0; transition: opacity .15s ease; }
+.upcoming-date-group.workspace-drop-active .upcoming-date-heading span { opacity: 1; }
 
 .habit-history { overflow-x: auto; }
 .habit-matrix { min-width: 650px; padding: 14px; border-radius: var(--radius); background: #fff; box-shadow: var(--shadow); }

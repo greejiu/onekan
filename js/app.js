@@ -460,10 +460,21 @@ function renderUpcoming() {
     container.innerHTML = '<div class="empty">다가오는 일정과 할일이 없어요.</div>';
     return;
   }
-  container.innerHTML = items.map((item) => {
-    const isTask = item.upcomingKind === "task";
-    const when = new Intl.DateTimeFormat("ko-KR", isTask ? { month: "numeric", day: "numeric" } : { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(item.when);
-    return `<div class="row editable-row upcoming-row ${isTask ? "task" : "schedule"}" draggable="${isTask}" data-context-kind="${item.upcomingKind}" data-context-id="${item.id}" data-upcoming-task-id="${isTask ? item.id : ""}"><span class="pill">${isTask ? "할일" : "일정"}</span><span class="row-title" style="cursor:default">${esc(item.title)}</span><span class="card-meta">${when}</span></div>`;
+  const groups = new Map();
+  for (const item of items) {
+    const key = localDateKey(item.when);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+  container.innerHTML = [...groups].map(([key, groupItems]) => {
+    const date = new Date(`${key}T12:00:00`);
+    const label = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(date);
+    const rows = groupItems.map((item) => {
+      const isTask = item.upcomingKind === "task";
+      const time = isTask ? "" : new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(item.when);
+      return `<div class="row editable-row upcoming-row ${isTask ? "task" : "schedule"}" draggable="${isTask}" data-context-kind="${item.upcomingKind}" data-context-id="${item.id}" data-upcoming-task-id="${isTask ? item.id : ""}"><span class="pill">${isTask ? "할일" : "일정"}</span><span class="row-title" style="cursor:default">${esc(item.title)}</span>${time ? `<span class="card-meta">${time}</span>` : ""}</div>`;
+    }).join("");
+    return `<section class="upcoming-date-group" data-upcoming-date="${key}"><div class="upcoming-date-heading"><strong>${label}</strong><span>여기로 끌어오기</span></div>${rows}</section>`;
   }).join("");
 }
 
