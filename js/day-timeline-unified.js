@@ -274,3 +274,4 @@ import("./context-menu.js?v=2").catch((error) => console.error("오른쪽 클릭
 import("./manual-time-entry.js?v=2").catch((error) => console.error("직접 시간 기록 기능 로드 실패", error));
 import("./time-block-planner.js?v=2").catch((error) => console.error("시간블럭 기능 로드 실패", error));
 import("./time-block-table-style.js?v=2").catch((error) => console.error("시간블럭 표 스타일 로드 실패", error));
+import("./calendar-timeblock-projection.js?v=1").catch((error) => console.error("달력 시간블럭 표시 로드 실패", error));
