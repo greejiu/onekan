@@ -26,8 +26,8 @@ function applyHomeLayout() {
   if (dashboard) dashboard.classList.add("span-2");
 
   const unassignedLabel = $("#dailyBlockBoard .daily-block-row.unassigned .daily-block-time");
-  if (unassignedLabel && unassignedLabel.textContent !== "오늘 할일") {
-    unassignedLabel.textContent = "오늘 할일";
+  if (unassignedLabel && unassignedLabel.textContent !== "하루종일") {
+    unassignedLabel.textContent = "하루종일";
   }
 }
 
@@ -98,6 +98,7 @@ function injectTableStyle() {
     }
     #dailyBlockBoard .daily-block-task:hover{background:var(--hover,#f3f5f7)!important}
     #dailyBlockBoard .daily-block-empty{font-size:0!important;min-height:24px;padding:0!important}
+    #dailyBlockBoard .daily-block-empty::after{content:"할일 0개";font-size:11px;color:var(--muted,#787774)}
     @media(max-width:720px){
       #page-home .home-timeblock-left,#page-home .home-someday-right{grid-column:1/-1!important}
     }

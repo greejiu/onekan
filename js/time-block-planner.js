@@ -447,7 +447,7 @@ function openNewTaskInput(templateId = "") {
     const section = document.createElement("section");
     section.className = "daily-block-row unassigned";
     section.dataset.templateId = "";
-    section.innerHTML = '<div class="daily-block-time-cell"><div class="daily-block-time">미배치</div></div><div class="daily-block-list-cell" data-block-drop=""></div>';
+    section.innerHTML = '<div class="daily-block-time-cell"><div class="daily-block-time">하루종일</div></div><div class="daily-block-list-cell" data-block-drop=""></div>';
     table.prepend(section);
     zone = $("[data-block-drop='']", section);
   }
