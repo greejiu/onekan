@@ -87,7 +87,8 @@ function renderHabitsPage() {
     const done = Boolean(state.habitDays[day.key]?.[habit.id]);
     return `<button class="habit-day-check${done ? " checked" : ""}" data-habit-id="${esc(habit.id)}" data-habit-day="${day.key}" type="button" aria-label="${esc(habit.title)} ${day.key}">${done ? "✓" : ""}</button>`;
   }).join("")}</div>`).join("");
-  $("#habitHistory").innerHTML = state.habitTemplates.length ? `<div class="habit-matrix">${head}${rows}</div>` : '<div class="empty">아직 습관이 없어요. 첫 습관을 추가해 보세요.</div>';
+  const manage = state.habitTemplates.length ? `<section class="habit-manage"><h2>습관 목록</h2><div id="habitManageList">${state.habitTemplates.map((habit) => `<div class="habit-manage-row" data-context-kind="habit" data-context-id="${esc(habit.id)}"><span>${esc(habit.title)}</span><small>클릭하여 수정 · 오른쪽 클릭하여 삭제</small></div>`).join("")}</div></section>` : "";
+  $("#habitHistory").innerHTML = state.habitTemplates.length ? `<div class="habit-matrix">${head}${rows}</div>${manage}` : '<div class="empty">아직 습관이 없어요. 첫 습관을 추가해 보세요.</div>';
 }
 
 function completedDate(task) {
@@ -158,6 +159,72 @@ function wireDynamicDragSources() {
   wireDropZone($("#dailyBlockBoard") || $("#homeLeftColumn"), "today");
   wireDropZone($("#featureSomedayCard") || $("#somedayHomeSlot"), "someday");
   $$('[data-upcoming-date]').forEach((group) => wireDropZone(group, group.dataset.upcomingDate));
+  wireTaskTabDrops();
+  wireProjectDrag();
+}
+
+function wireTaskTabDrops() {
+  const destinations = { today: "today", someday: "someday", done: "done" };
+  $$('[data-task-tab]').forEach((button) => {
+    const destination = destinations[button.dataset.taskTab];
+    if (!destination || button.dataset.taskDropWired) return;
+    button.dataset.taskDropWired = "1";
+    button.addEventListener("dragover", (event) => {
+      if (!Array.from(event.dataTransfer.types).includes("text/task-id")) return;
+      event.preventDefault();
+      button.classList.add("workspace-drop-active");
+    });
+    button.addEventListener("dragleave", () => button.classList.remove("workspace-drop-active"));
+    button.addEventListener("drop", async (event) => {
+      const id = event.dataTransfer.getData("text/task-id");
+      if (!id) return;
+      event.preventDefault();
+      button.classList.remove("workspace-drop-active");
+      if (destination === "done") {
+        await writeState((current) => {
+          const task = current.tasks.find((item) => item.id === id);
+          if (task) { task.done = true; task.completedAt = new Date().toISOString(); }
+        });
+      } else await moveTask(id, destination);
+      taskTab = button.dataset.taskTab;
+      renderTasksPage();
+    });
+  });
+}
+
+function wireProjectDrag() {
+  $$('.project-row[draggable="true"]').forEach((row) => {
+    if (row.dataset.projectDragWired) return;
+    row.dataset.projectDragWired = "1";
+    row.addEventListener("dragstart", (event) => {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/project-id", row.dataset.projectId);
+      row.classList.add("dragging");
+    });
+    row.addEventListener("dragend", () => row.classList.remove("dragging"));
+  });
+  $$('.project-status-drop').forEach((section) => {
+    if (section.dataset.projectDropWired) return;
+    section.dataset.projectDropWired = "1";
+    section.addEventListener("dragover", (event) => {
+      if (!Array.from(event.dataTransfer.types).includes("text/project-id")) return;
+      event.preventDefault();
+      section.classList.add("workspace-drop-active");
+    });
+    section.addEventListener("dragleave", (event) => { if (!section.contains(event.relatedTarget)) section.classList.remove("workspace-drop-active"); });
+    section.addEventListener("drop", async (event) => {
+      const id = event.dataTransfer.getData("text/project-id");
+      if (!id) return;
+      event.preventDefault();
+      section.classList.remove("workspace-drop-active");
+      await writeState((current) => {
+        const project = current.projects.find((item) => item.id === id);
+        if (!project) return;
+        project.status = section.dataset.projectStatus;
+        if (project.status === "완료") project.progress = 100;
+      });
+    });
+  });
 }
 
 function wireUI() {

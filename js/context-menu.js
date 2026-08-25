@@ -447,8 +447,10 @@ function installListeners() {
       event.stopImmediatePropagation();
       return;
     }
-    if (element.closest("button,input,textarea,select,a,[contenteditable='true']")) return;
+    if (element.closest("button,input,textarea,select,a,summary,[contenteditable='true']")) return;
     const editable = element.closest([
+      "#tasksPageList .workspace-task[data-context-kind='task']",
+      "#habitManageList .habit-manage-row[data-context-kind='habit']",
       "#habitList .row",
       "#upcomingList .row",
       "#calendarBody .cal-event",

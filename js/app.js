@@ -630,7 +630,7 @@ function renderDayTimeline(date) {
   const timed = items.filter((item) => item.startDate);
   let html = "";
   if (untimed.length) html += `<div class="untimed-box"><div class="untimed-title">시간 미정</div>${untimed.map(calendarEntryMarkup).join("")}</div>`;
-  html += '<div class="day-timeline" id="dayTimeline">';
+  html += `<div class="day-timeline" id="dayTimeline" data-feature-calendar-date="${localDateKey(date)}">`;
   for (let minute = START_MIN; minute < END_MIN; minute += SLOT) html += `<div class="day-time-row" data-minute="${minute}"><div class="day-time-label">${minuteLabel(minute)}</div><div class="day-time-lane"></div></div>`;
   html += "</div>";
   $("#calendarBody").innerHTML = html;
@@ -693,7 +693,7 @@ function renderMultiDayList(startDate, count) {
     const date = new Date(start);
     date.setDate(date.getDate() + index);
     const items = eventsForDate(date);
-    html += `<section class="multi-day-list-section"><h3>${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</h3>${items.length ? items.map(calendarListEntryMarkup).join("") : '<div class="empty">항목이 없어요.</div>'}</section>`;
+    html += `<section class="multi-day-list-section" data-feature-calendar-date="${localDateKey(date)}"><h3>${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</h3>${items.length ? items.map(calendarListEntryMarkup).join("") : '<div class="empty">항목이 없어요.</div>'}</section>`;
   }
   $("#calendarBody").innerHTML = `${html}</div>`;
   bindCalendarChecks();
@@ -718,7 +718,7 @@ function renderMultiDayTimeline(startDate, count) {
   for (let index = 0; index < count; index++) {
     const date = new Date(start);
     date.setDate(date.getDate() + index);
-    html += `<div class="multi-day-lane" data-date="${localDateKey(date)}"><div class="multi-plan-lane"></div><div class="multi-actual-lane"></div></div>`;
+    html += `<div class="multi-day-lane" data-date="${localDateKey(date)}" data-feature-calendar-date="${localDateKey(date)}"><div class="multi-plan-lane"></div><div class="multi-actual-lane"></div></div>`;
   }
   $("#calendarBody").innerHTML = `${html}</div>`;
   $$(".multi-day-lane", $("#calendarBody")).forEach((lane, index) => {
@@ -871,7 +871,7 @@ function renderProjects() {
   const statuses = ["목표", "작업", "보류", "완료"];
   $("#projectSections").innerHTML = statuses.map((status) => {
     const projects = state.projects.filter((project) => project.status === status);
-    return `<section class="section-card"><div class="section-head"><span>${status}</span><span class="card-meta">${projects.length}</span></div><div class="project-list">${projects.length ? projects.map((project) => `<div class="project-row editable-row" data-project-id="${project.id}" data-context-kind="project" data-context-id="${project.id}"><div><strong>${esc(project.title)}</strong><div class="project-meta">${esc(project.category || "")}</div></div><div><div class="progress"><i style="width:${Math.max(0, Math.min(100, Number(project.progress || 0)))}%"></i></div><div class="project-meta">${Math.max(0, Math.min(100, Number(project.progress || 0)))}%</div></div><span class="pill">${project.deadline ? new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(`${project.deadline}T12:00:00`)) : "기한 없음"}</span></div>`).join("") : '<div class="empty">항목이 없어요.</div>'}</div></section>`;
+    return `<section class="section-card project-status-drop" data-project-status="${status}"><div class="section-head"><span>${status}</span><span class="card-meta">${projects.length}</span></div><div class="project-list">${projects.length ? projects.map((project) => `<div class="project-row editable-row" draggable="true" data-project-id="${project.id}" data-context-kind="project" data-context-id="${project.id}"><div><strong>${esc(project.title)}</strong><div class="project-meta">${esc(project.category || "")}</div></div><div><div class="progress"><i style="width:${Math.max(0, Math.min(100, Number(project.progress || 0)))}%"></i></div><div class="project-meta">${Math.max(0, Math.min(100, Number(project.progress || 0)))}%</div></div><span class="pill">${project.deadline ? new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(`${project.deadline}T12:00:00`)) : "기한 없음"}</span></div>`).join("") : '<div class="empty">여기로 작업을 끌어오세요.</div>'}</div></section>`;
   }).join("");
 }
 

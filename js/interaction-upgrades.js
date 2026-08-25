@@ -127,7 +127,7 @@ function wireTimeGrid(){
           return;
         }
         const task=s.tasks.find(x=>x.id===taskId); if(!task)return;
-        if(!task.date)task.date=todayKey();
+        task.date=todayKey();
         s.timeBlocks.push({id:crypto.randomUUID(),taskId:task.id,sourceTitle:task.title,detail:task.title,startMinute:minute,duration:SLOT,date:todayKey()});
       });
     }catch(err){console.error(err);alert("시간 계획을 저장하지 못했어요.");}
@@ -197,13 +197,28 @@ function wireCalendarClick(){
   body.dataset.quickAddWired="1";
   body.addEventListener("click",e=>{
     if(e.target.closest(".cal-event,.day-timed-event,.row,button,input,select,a"))return;
-    const cell=e.target.closest(".day-cell[data-feature-calendar-date],.week-col[data-feature-calendar-date]");
+    const cell=e.target.closest("[data-feature-calendar-date]");
     if(cell)openQuick(cell.dataset.featureCalendarDate);
   });
 }
 
 function calendarDropDate(target){
   return target.closest?.("[data-feature-calendar-date]")?.dataset.featureCalendarDate||null;
+}
+function wireCalendarSources(){
+  $$("#calendarBody [data-calendar-kind][data-calendar-id]").forEach(element=>{
+    if(element.dataset.nativeCalendarDragWired)return;
+    element.dataset.nativeCalendarDragWired="1";
+    element.draggable=true;
+    element.addEventListener("dragstart",event=>{
+      const kind=element.dataset.calendarKind,id=element.dataset.calendarId;
+      if(!kind||!id)return;
+      event.dataTransfer.effectAllowed="move";
+      event.dataTransfer.setData(kind==="event"?"text/event-id":"text/task-id",id);
+      element.classList.add("dragging");
+    });
+    element.addEventListener("dragend",()=>element.classList.remove("dragging"));
+  });
 }
 function wireCalendarDragStay(){
   if(document.documentElement.dataset.calendarDragStayWired)return;
@@ -260,12 +275,12 @@ function addHint(){
 function observe(){
   if(observer)return;
   const time=$("#timeGrid"),cal=$("#calendarBody");
-  observer=new MutationObserver(()=>{wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarDragStay();addHint();scheduleArrange();});
+  observer=new MutationObserver(()=>{wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarSources();wireCalendarDragStay();addHint();scheduleArrange();});
   if(time)observer.observe(time,{childList:true,subtree:true});
   if(cal)observer.observe(cal,{childList:true,subtree:true,attributes:true,attributeFilter:["data-feature-id","data-feature-calendar-date"]});
 }
 async function init(){
-  injectStyle();ensureQuickDialog();wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarDragStay();addHint();observe();
+  injectStyle();wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarSources();wireCalendarDragStay();addHint();observe();
   try{await readState();}catch(e){console.error(e);}
   scheduleArrange();
 }

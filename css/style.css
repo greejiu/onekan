@@ -259,6 +259,15 @@ button:disabled { opacity: .5; cursor: default; }
 .habit-matrix-row strong { font-size: 13px; }
 .habit-day-check { width: 32px; height: 32px; justify-self: center; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: #fff; cursor: pointer; }
 .habit-day-check.checked { border-color: var(--accent); background: var(--accent); }
+.habit-manage { margin-top: 14px; padding: 14px; border-radius: var(--radius); background: #fff; box-shadow: var(--shadow); }
+.habit-manage h2 { margin: 0 0 8px; font-size: 14px; }
+.habit-manage-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; padding: 7px 8px; border-bottom: 1px solid var(--line); cursor: text; }
+.habit-manage-row:last-child { border-bottom: 0; }
+.habit-manage-row:hover { background: var(--panel-soft); }
+.habit-manage-row span { font-size: 13px; }
+.habit-manage-row small { color: var(--muted); font-size: 10px; }
+.project-row[draggable="true"] { cursor: grab; }
+.project-row.dragging { opacity: .45; }
 
 .activity-summary { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
 .activity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
