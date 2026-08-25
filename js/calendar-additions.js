@@ -99,6 +99,7 @@ function wireTimelineEventDialog() {
         id: crypto.randomUUID(),
         title,
         type: "schedule",
+        groupId: $("#timelineEventGroup")?.value || state.eventGroups?.[0]?.id || "default",
         start: start.toISOString(),
         end: end.toISOString(),
       }));

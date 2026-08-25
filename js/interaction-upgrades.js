@@ -189,47 +189,8 @@ function wireBlockEditor(){
   },true);
 }
 
-function ensureQuickDialog(){
-  if($("#calendarQuickAddDialog"))return;
-  const d=document.createElement("dialog");d.id="calendarQuickAddDialog";d.className="app-dialog";
-  d.innerHTML=`<form method="dialog" id="calendarQuickAddForm">
-    <h3>이 날짜에 추가</h3>
-    <div class="quick-add-type" role="group" aria-label="추가할 항목 종류">
-      <button type="button" class="active" data-quick-type="event">일정</button><button type="button" data-quick-type="task">할일</button>
-    </div>
-    <div class="field"><label>제목</label><input id="calendarQuickTitle" required></div>
-    <div class="field"><label>날짜</label><input id="calendarQuickDate" type="date" required></div>
-    <div class="field" id="calendarQuickTimeField"><label>시간</label><input id="calendarQuickTime" type="time" value="09:00" required></div>
-    <div class="dialog-actions"><button class="soft-btn" type="button" id="calendarQuickCancel">취소</button><button class="primary-btn" type="submit">추가</button></div>
-  </form>`;
-  document.body.appendChild(d);
-  let type="event";
-  const setType=t=>{
-    type=t;$$('[data-quick-type]',d).forEach(b=>b.classList.toggle("active",b.dataset.quickType===type));
-    $("#calendarQuickTimeField",d).classList.toggle("hidden",type==="task");
-    $("#calendarQuickTime",d).required=type==="event";
-  };
-  $$('[data-quick-type]',d).forEach(b=>b.addEventListener("click",()=>setType(b.dataset.quickType)));
-  $("#calendarQuickCancel",d).addEventListener("click",()=>d.close());
-  $("#calendarQuickAddForm",d).addEventListener("submit",async e=>{
-    e.preventDefault();
-    const title=$("#calendarQuickTitle",d).value.trim(),date=$("#calendarQuickDate",d).value,time=$("#calendarQuickTime",d).value||"09:00";
-    if(!title||!date)return;
-    try{
-      await writeState(s=>{
-        if(type==="task"){s.tasks.push({id:crypto.randomUUID(),title,done:false,date});return;}
-        const start=new Date(`${date}T${time}:00`),end=new Date(start.getTime()+SLOT*60000);
-        s.events.push({id:crypto.randomUUID(),title,type:"schedule",start:start.toISOString(),end:end.toISOString()});
-      });
-      d.close();
-    }catch(err){console.error(err);alert("항목을 저장하지 못했어요.");}
-  });
-  d.addEventListener("close",()=>setType("event"));
-}
 function openQuick(date){
-  ensureQuickDialog();const d=$("#calendarQuickAddDialog");
-  $("#calendarQuickTitle",d).value="";$("#calendarQuickDate",d).value=date;d.showModal();
-  setTimeout(()=>$("#calendarQuickTitle",d).focus(),0);
+  document.dispatchEvent(new CustomEvent("onekan:calendar-compose",{detail:{date}}));
 }
 function wireCalendarClick(){
   const body=$("#calendarBody");if(!body||body.dataset.quickAddWired)return;

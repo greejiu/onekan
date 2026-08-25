@@ -6,6 +6,14 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 const uid = () => crypto.randomUUID();
 const pad = (n) => String(n).padStart(2, "0");
 const esc = (value) => String(value ?? "").replace(/[&<>'\"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '\"': "&quot;" }[c]));
+const DEFAULT_EVENT_GROUPS = [
+  { id: "default", name: "기본", color: "#8fa9c4" },
+  { id: "notion-clover", name: "♣", color: "#8eb69b" },
+  { id: "notion-star", name: "⭐", color: "#d9aa69" },
+  { id: "notion-life", name: "할일", color: "#c594a8" },
+  { id: "notion-design", name: "디자인", color: "#a38cc1" },
+  { id: "notion-study", name: "공부", color: "#789bc2" },
+];
 
 function localDateKey(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -41,6 +49,10 @@ function defaultState() {
     habitDays: {},
     timeBlocks: [],
     events: [],
+    eventGroups: DEFAULT_EVENT_GROUPS.map((group) => ({ ...group })),
+    notes: [],
+    dailyNotes: [],
+    expenses: [],
     sessions: [],
     timer: { running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0 },
     projects: [],
@@ -67,6 +79,10 @@ function normalizeState(raw) {
     habitDays: state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {},
     timeBlocks: Array.isArray(state.timeBlocks) ? state.timeBlocks : [],
     events: Array.isArray(state.events) ? state.events : [],
+    eventGroups: Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : base.eventGroups,
+    notes: Array.isArray(state.notes) ? state.notes : [],
+    dailyNotes: Array.isArray(state.dailyNotes) ? state.dailyNotes : [],
+    expenses: Array.isArray(state.expenses) ? state.expenses : [],
     sessions: Array.isArray(state.sessions) ? state.sessions : [],
     timer: { ...base.timer, ...(state.timer || {}) },
     projects: Array.isArray(state.projects) ? state.projects : [],
@@ -474,6 +490,39 @@ function timeText(date) {
   return date ? new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date) : "";
 }
 
+function safeColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : "#8fa9c4";
+}
+
+function eventGroupFor(item) {
+  return state.eventGroups.find((group) => group.id === item.groupId)
+    || state.eventGroups.find((group) => group.name === item.category)
+    || state.eventGroups[0]
+    || DEFAULT_EVENT_GROUPS[0];
+}
+
+function eventGroupOptions(selectedId = "") {
+  return state.eventGroups.map((group) => `<option value="${esc(group.id)}"${group.id === selectedId ? " selected" : ""}>${esc(group.name)}</option>`).join("");
+}
+
+function refreshEventGroupInputs() {
+  for (const selector of ["#calendarInlineGroup", "#eventGroup", "#timelineEventGroup"]) {
+    const select = $(selector);
+    if (!select) continue;
+    const previous = select.value;
+    select.innerHTML = eventGroupOptions(previous);
+    if (state.eventGroups.some((group) => group.id === previous)) select.value = previous;
+  }
+}
+
+function openCalendarComposer(date = localDateKey(calCursor)) {
+  refreshEventGroupInputs();
+  $("#calendarInlineDate").value = date;
+  $("#calendarInlineDateLabel").textContent = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(new Date(`${date}T12:00:00`));
+  $("#calendarInlineAdd").classList.add("active");
+  requestAnimationFrame(() => $("#calendarInlineTitle").focus());
+}
+
 function calendarFiltersForView(view = calView) {
   const defaults = defaultState().ui.calendarFilters[view];
   return { ...defaults, ...(state.ui.calendarFilters?.[view] || {}) };
@@ -490,10 +539,12 @@ function updateCalendarFilterUI() {
 
 function calendarEntryMarkup(item) {
   const kind = item.kind === "event" ? "event" : "task";
+  const group = item.type === "schedule" ? eventGroupFor(item) : null;
   const control = item.type === "schedule"
-    ? '<span class="calendar-event-dot" aria-hidden="true"></span>'
+    ? `<span class="calendar-event-dot" aria-hidden="true" style="--event-color:${safeColor(group.color)}"></span>`
     : `<button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button>`;
-  return `<div class="cal-event ${item.type === "schedule" ? "schedule" : "task"}${item.type === "task" && item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
+  const style = group ? ` style="--event-color:${safeColor(group.color)}"` : "";
+  return `<div class="cal-event ${item.type === "schedule" ? "schedule" : "task"}${item.type === "task" && item.done ? " done" : ""}"${style} data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
     ${control}
     <span class="cal-event-title">${esc(item.title)}</span>
   </div>`;
@@ -501,12 +552,13 @@ function calendarEntryMarkup(item) {
 
 function calendarListEntryMarkup(item) {
   const kind = item.kind === "event" ? "event" : "task";
+  const group = item.type === "schedule" ? eventGroupFor(item) : null;
   const control = item.type === "schedule"
-    ? '<span class="calendar-event-dot" aria-hidden="true"></span>'
+    ? `<span class="calendar-event-dot" aria-hidden="true" style="--event-color:${safeColor(group.color)}"></span>`
     : `<button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button>`;
   return `<div class="row editable-row${item.type === "task" && item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
     ${control}
-    <span class="pill">${item.type === "schedule" ? "일정" : "할일"}</span>
+    <span class="pill">${item.type === "schedule" ? esc(group.name) : "할일"}</span>
     <span class="row-title" style="cursor:default">${esc(item.title)}</span>
     ${item.startDate ? `<span class="card-meta">${timeText(item.startDate)}</span>` : ""}
   </div>`;
@@ -578,10 +630,12 @@ function renderDayTimeline(date) {
     element.dataset.calendarId = item.id;
     element.dataset.contextKind = kind;
     element.dataset.contextId = item.id;
+    const group = item.type === "schedule" ? eventGroupFor(item) : null;
+    if (group) element.style.setProperty("--event-color", safeColor(group.color));
     const control = item.type === "schedule"
-      ? '<span class="calendar-event-dot" aria-hidden="true"></span>'
+      ? `<span class="calendar-event-dot" aria-hidden="true" style="--event-color:${safeColor(group.color)}"></span>`
       : `<button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button>`;
-    element.innerHTML = `<div class="day-timed-main">${control}<strong>${esc(item.title)}</strong></div><small>${item.type === "schedule" ? "일정" : "할일"} · ${timeText(item.startDate)}</small>`;
+    element.innerHTML = `<div class="day-timed-main">${control}<strong>${esc(item.title)}</strong></div><small>${item.type === "schedule" ? esc(group.name) : "할일"} · ${timeText(item.startDate)}</small>`;
     row.querySelector(".day-time-lane").appendChild(element);
   }
   bindCalendarChecks();
@@ -706,6 +760,35 @@ function renderSettings() {
     renderSettings();
     renderHome();
   }));
+
+  const groupList = $("#eventGroupList");
+  if (groupList) {
+    groupList.innerHTML = state.eventGroups.map((group, index) => `<div class="event-group-row" data-event-group-id="${esc(group.id)}">
+      <input type="color" value="${safeColor(group.color)}" aria-label="${esc(group.name)} 색" data-event-group-color />
+      <input value="${esc(group.name)}" aria-label="일정 그룹 이름" data-event-group-name />
+      <button class="ghost-btn danger-text" type="button" data-event-group-delete${index === 0 ? " disabled" : ""}>삭제</button>
+    </div>`).join("");
+    groupList.querySelectorAll("[data-event-group-name], [data-event-group-color]").forEach((input) => input.addEventListener("change", () => {
+      const row = input.closest("[data-event-group-id]");
+      const group = state.eventGroups.find((item) => item.id === row?.dataset.eventGroupId);
+      if (!group) return;
+      group.name = row.querySelector("[data-event-group-name]").value.trim() || group.name;
+      group.color = safeColor(row.querySelector("[data-event-group-color]").value);
+      save();
+      refreshEventGroupInputs();
+      renderCalendar();
+    }));
+    groupList.querySelectorAll("[data-event-group-delete]").forEach((button) => button.addEventListener("click", () => {
+      const id = button.closest("[data-event-group-id]")?.dataset.eventGroupId;
+      if (!id || id === state.eventGroups[0]?.id) return;
+      state.events.forEach((event) => { if (event.groupId === id) event.groupId = state.eventGroups[0].id; });
+      state.eventGroups = state.eventGroups.filter((group) => group.id !== id);
+      save();
+      renderSettings();
+      renderCalendar();
+    }));
+  }
+  refreshEventGroupInputs();
 }
 
 function addHabit() {
@@ -825,9 +908,27 @@ function bindUI() {
 
   const eventDialog = $("#eventDialog");
   $("#addEventBtn").addEventListener("click", () => {
-    $("#eventTitle").value = "";
-    $("#eventDate").value = localDateKey(calCursor);
-    eventDialog.showModal();
+    $("#calendarInlineTitle").value = "";
+    openCalendarComposer(localDateKey(calCursor));
+  });
+  document.addEventListener("onekan:calendar-compose", (event) => {
+    $("#calendarInlineTitle").value = "";
+    openCalendarComposer(event.detail?.date || localDateKey(calCursor));
+  });
+  $("#calendarInlineDate").addEventListener("change", () => openCalendarComposer($("#calendarInlineDate").value));
+  $("#calendarInlineAdd").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const title = $("#calendarInlineTitle").value.trim();
+    const date = $("#calendarInlineDate").value;
+    const time = $("#calendarInlineTime").value || "09:00";
+    if (!title || !date) return;
+    const startDate = new Date(`${date}T${time}:00`);
+    state.events.push({ id: uid(), title, type: "schedule", groupId: $("#calendarInlineGroup").value || state.eventGroups[0]?.id, start: startDate.toISOString(), end: new Date(startDate.getTime() + SLOT * 60000).toISOString() });
+    $("#calendarInlineTitle").value = "";
+    save();
+    renderHome();
+    renderCalendar();
+    requestAnimationFrame(() => $("#calendarInlineTitle").focus());
   });
   $("#cancelEventBtn").addEventListener("click", () => eventDialog.close());
   $("#eventForm").addEventListener("submit", (event) => {
@@ -837,7 +938,7 @@ function bindUI() {
     const time = $("#eventTime").value || "09:00";
     if (!title || !date) return;
     const start = new Date(`${date}T${time}:00`).toISOString();
-    state.events.push({ id: uid(), title, type: "schedule", start });
+    state.events.push({ id: uid(), title, type: "schedule", groupId: $("#eventGroup").value || state.eventGroups[0]?.id, start });
     save();
     eventDialog.close();
     renderHome();
@@ -885,6 +986,14 @@ function bindUI() {
 
   $("#addHabitBtn").addEventListener("click", addHabit);
   $("#newHabitInput").addEventListener("keydown", (event) => { if (event.key === "Enter") addHabit(); });
+  $("#addEventGroupBtn").addEventListener("click", () => {
+    const name = $("#newEventGroupName").value.trim();
+    if (!name) return;
+    state.eventGroups.push({ id: uid(), name, color: safeColor($("#newEventGroupColor").value) });
+    $("#newEventGroupName").value = "";
+    save();
+    renderSettings();
+  });
   $("#reloadCloudBtn").addEventListener("click", async () => {
     if (!currentUser) return;
     await loadStateFromCloud(currentUser);

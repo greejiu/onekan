@@ -30,7 +30,7 @@ body { color: var(--text); }
   min-height: 116px;
   padding: 24px 28px;
   overflow: hidden;
-  border: 1px solid rgba(221,217,210,.78);
+  border: 0;
   border-radius: 18px;
   background:
     radial-gradient(circle at 12% 20%, rgba(247,213,225,.82), transparent 29%),
@@ -39,6 +39,17 @@ body { color: var(--text); }
     radial-gradient(circle at 96% 74%, rgba(231,242,219,.85), transparent 27%),
     linear-gradient(135deg, #fffaf4, #faf9ff 46%, #f6fbfc);
 }
+#page-home .page-head.has-custom-background {
+  color: #fff;
+  background-image: linear-gradient(rgba(24,25,28,var(--home-overlay,.28)), rgba(24,25,28,var(--home-overlay,.28))), var(--home-background-image);
+  background-size: cover;
+  background-position: var(--home-background-position, center);
+  min-height: 190px;
+  align-items: flex-end;
+}
+#page-home .page-head.has-custom-background .page-sub,
+#page-home .page-head.has-custom-background .card-meta { color: rgba(255,255,255,.86); }
+#page-home .page-head.has-custom-background .page-title::before { color: rgba(255,255,255,.88); }
 #page-home .page-head::after {
   content: "";
   position: absolute;
@@ -66,7 +77,7 @@ body { color: var(--text); }
 .time-block { border: 1px solid #cbddeb; border-left: 3px solid #6c94bb; }
 .time-selection, .calendar-range-selection { background: rgba(93,111,168,.08); border-color: #8390b8; }
 .cal-event { background: var(--pastel-purple); border: 1px solid #ddd0ed; }
-.cal-event.schedule, .day-timed-event.schedule { background: var(--pastel-blue); border-left-color: #6c94bb; }
+.cal-event.schedule, .day-timed-event.schedule { background: color-mix(in srgb, var(--event-color, #8fa9c4) 18%, white); border-left-color: var(--event-color, #8fa9c4); }
 .day-cell, .dow, .week-col, .calendar-toolbar, .untimed-box { border-color: var(--line); }
 .untimed-box { background: var(--panel-soft); }
 
@@ -102,6 +113,18 @@ body { color: var(--text); }
   border-radius: 7px;
 }
 .timeline-drag-hint { padding: 8px 12px; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--line); background: var(--panel-soft); }
+
+#page-home .card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
+}
+#page-home .card-header { padding-left: 4px; padding-right: 4px; border-bottom: 1px solid var(--line); }
+#page-home .card-body { padding-top: 8px; }
+#page-home .card-footer { padding-left: 4px; padding-right: 4px; }
+#page-home .metric { border-radius: 12px; }
 
 @media (max-width: 720px) {
   #page-home .page-head { min-height: 104px; padding: 20px; }

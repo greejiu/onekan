@@ -230,7 +230,7 @@ function field(label, control) {
   return `<div class="field"><label>${label}</label>${control}</div>`;
 }
 
-function editorFields(target, item) {
+function editorFields(target, item, state) {
   if (target.kind === "task") {
     return field("할일", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
       field("날짜", `<input id="contextEditDate" type="date" value="${escapeAttr(item.date || "")}">`);
@@ -238,10 +238,13 @@ function editorFields(target, item) {
   if (target.kind === "event") {
     const start = new Date(item.start);
     const end = item.end ? new Date(item.end) : new Date(start.getTime() + 30 * 60000);
+    const groups = Array.isArray(state?.eventGroups) ? state.eventGroups : [];
+    const groupOptions = groups.map((group) => `<option value="${escapeAttr(group.id)}"${group.id === item.groupId ? " selected" : ""}>${escapeAttr(group.name)}</option>`).join("");
     return field("일정", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
       field("날짜", `<input id="contextEditDate" type="date" required value="${localDateKey(start)}">`) +
       field("시작", `<input id="contextEditStart" type="time" required value="${timeValue(start)}">`) +
-      field("종료", `<input id="contextEditEnd" type="time" required value="${timeValue(end)}">`);
+      field("종료", `<input id="contextEditEnd" type="time" required value="${timeValue(end)}">`) +
+      field("그룹", `<select id="contextEditGroup">${groupOptions}</select>`);
   }
   if (target.kind === "timeBlock") {
     return field("시간 계획", `<input id="contextEditTitle" required value="${escapeAttr(item.detail || item.sourceTitle || "시간 계획")}">`) +
@@ -276,7 +279,7 @@ async function openEditor() {
     const item = getItem(current?.state, target);
     if (!item) return;
     currentTarget = target;
-    $("#contextEditFields").innerHTML = editorFields(target, item);
+    $("#contextEditFields").innerHTML = editorFields(target, item, current.state);
     if (target.kind === "timeBlock") $("#contextEditDuration").value = String(item.duration || 30);
     if (target.kind === "project") $("#contextEditStatus").value = item.status || "작업";
     $("#contextEditDialog").showModal();
@@ -309,6 +312,7 @@ async function saveEditor() {
         if (!(end > start)) end = new Date(start.getTime() + 30 * 60000);
         item.start = start.toISOString();
         item.end = end.toISOString();
+        item.groupId = $("#contextEditGroup")?.value || state.eventGroups?.[0]?.id || "default";
       } else if (target.kind === "timeBlock") {
         item.date = $("#contextEditDate").value || relativeDayKey(0);
         item.startMinute = minuteFromText($("#contextEditStart").value);

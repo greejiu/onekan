@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#faf9f7" />
   <title>오늘한칸</title>
-  <link rel="stylesheet" href="./css/style.css?v=5" />
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
+  <link rel="stylesheet" href="./css/style.css?v=6" />
   <link rel="stylesheet" href="./css/features.css?v=5" />
-  <link rel="stylesheet" href="./css/white-theme.css?v=2" />
+  <link rel="stylesheet" href="./css/white-theme.css?v=3" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -34,6 +35,7 @@
       <nav class="nav" aria-label="주요 메뉴">
         <button class="nav-item active" data-page="home" type="button"><span class="nav-icon">⌂</span><span class="nav-label">집</span></button>
         <button class="nav-item" data-page="calendar" type="button"><span class="nav-icon">▦</span><span class="nav-label">달력</span></button>
+        <button class="nav-item" data-page="records" type="button"><span class="nav-icon">▤</span><span class="nav-label">기록</span></button>
         <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>
         <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">✎</span><span class="nav-label">작업현황</span></button>
       </nav>
@@ -108,8 +110,28 @@
         </div>
         <div class="calendar-shell">
           <div class="calendar-toolbar"><button class="ghost-btn" id="calPrev" type="button">‹ 이전</button><strong id="calTitle"></strong><button class="ghost-btn" id="calNext" type="button">다음 ›</button></div>
+          <form class="calendar-inline-add" id="calendarInlineAdd">
+            <div class="calendar-inline-heading"><strong>일정 바로 입력</strong><span id="calendarInlineDateLabel">날짜를 선택하세요</span></div>
+            <input id="calendarInlineTitle" placeholder="일정 제목" aria-label="일정 제목" required />
+            <input id="calendarInlineDate" type="date" aria-label="일정 날짜" required />
+            <input id="calendarInlineTime" type="time" value="09:00" aria-label="일정 시간" required />
+            <select id="calendarInlineGroup" aria-label="일정 그룹"></select>
+            <button class="primary-btn" type="submit">추가</button>
+          </form>
           <div class="calendar-scroll"><div id="calendarBody"></div></div>
         </div>
+      </section>
+
+      <section class="page" id="page-records">
+        <div class="page-head">
+          <div><h1 class="page-title">기록</h1><div class="page-sub">메모와 일일수첩을 한곳에서 모아봅니다.</div></div>
+          <button class="soft-btn" id="addRecordBtn" type="button">+ 기록</button>
+        </div>
+        <div class="records-tabs seg" id="recordsTabs">
+          <button class="active" data-record-tab="notes" type="button">메모</button>
+          <button data-record-tab="dailyNotes" type="button">일일수첩</button>
+        </div>
+        <div class="records-list" id="recordsList"></div>
       </section>
 
       <section class="page" id="page-tracking">
@@ -144,6 +166,21 @@
             <div class="add-row setting-add"><input id="newHabitInput" placeholder="새 습관"/><button class="soft-btn" id="addHabitBtn" type="button">추가</button></div>
           </section>
           <section class="setting-section">
+            <h3>일정 그룹</h3><div class="setting-desc">그룹마다 정한 색이 달력의 일정에 표시됩니다.</div>
+            <div id="eventGroupList"></div>
+            <div class="event-group-add"><input id="newEventGroupName" placeholder="새 그룹 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 그룹 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
+          </section>
+          <section class="setting-section">
+            <h3>집 배경</h3><div class="setting-desc">집 제목 영역에 사용할 사진을 올리고 위치와 밝기를 조절할 수 있어요.</div>
+            <div class="appearance-settings">
+              <input id="homeBackgroundFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+              <select id="homeBackgroundPosition" aria-label="배경 위치"><option value="center">가운데</option><option value="top">위쪽</option><option value="bottom">아래쪽</option></select>
+              <label class="appearance-range">사진 밝기 <input id="homeBackgroundOverlay" type="range" min="0" max="80" value="28" /></label>
+              <button class="ghost-btn danger-text" id="removeHomeBackground" type="button">사진 제거</button>
+            </div>
+            <div class="setting-desc" id="homeBackgroundStatus">사진을 선택하면 자동으로 저장됩니다.</div>
+          </section>
+          <section class="setting-section">
             <h3>동기화</h3><div class="setting-desc">로그인한 계정 기준으로 Supabase에 저장됩니다. PC와 모바일에서 같은 계정으로 로그인하면 같은 데이터를 봅니다.</div>
             <button class="soft-btn" id="reloadCloudBtn" type="button">서버 데이터 다시 불러오기</button>
           </section>
@@ -169,6 +206,7 @@
       <div class="field"><label>제목</label><input id="eventTitle" required /></div>
       <div class="field"><label>날짜</label><input id="eventDate" type="date" required /></div>
       <div class="field"><label>시간</label><input id="eventTime" type="time" value="09:00" required /></div>
+      <div class="field"><label>그룹</label><select id="eventGroup"></select></div>
       <div class="dialog-actions"><button class="soft-btn" value="cancel" type="button" id="cancelEventBtn">취소</button><button class="primary-btn" value="default" type="submit">추가</button></div>
     </form>
   </dialog>
@@ -189,7 +227,19 @@
       <div class="field"><label>날짜</label><input id="timelineEventDate" type="date" required /></div>
       <div class="field"><label>시작</label><input id="timelineEventStart" type="time" required /></div>
       <div class="field"><label>종료</label><input id="timelineEventEnd" type="time" required /></div>
+      <div class="field"><label>그룹</label><select id="timelineEventGroup"></select></div>
       <div class="dialog-actions"><button class="soft-btn" value="cancel" type="button" id="cancelTimelineEventBtn">취소</button><button class="primary-btn" value="default" type="submit">추가</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="recordDialog" class="app-dialog">
+    <form method="dialog" id="recordForm">
+      <h3 id="recordDialogTitle">기록 추가</h3>
+      <div class="field"><label>종류</label><select id="recordKind"><option value="notes">메모</option><option value="dailyNotes">일일수첩</option></select></div>
+      <div class="field"><label>제목</label><input id="recordTitle" required /></div>
+      <div class="field"><label>날짜</label><input id="recordDate" type="date" required /></div>
+      <div class="field"><label>내용</label><textarea id="recordContent" rows="7" placeholder="기록할 내용을 적어 주세요."></textarea></div>
+      <div class="dialog-actions"><button class="soft-btn" type="button" id="cancelRecordBtn">취소</button><button class="primary-btn" type="submit">저장</button></div>
     </form>
   </dialog>
 
@@ -205,15 +255,17 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/app.js?v=5"></script>
+  <script type="module" src="./js/app.js?v=6"></script>
   <script type="module" src="./js/features.js?v=7"></script>
-  <script type="module" src="./js/calendar-additions.js?v=2"></script>
-  <script type="module" src="./js/interaction-upgrades.js?v=1"></script>
-  <script type="module" src="./js/context-menu.js?v=4"></script>
+  <script type="module" src="./js/calendar-additions.js?v=3"></script>
+  <script type="module" src="./js/interaction-upgrades.js?v=2"></script>
+  <script type="module" src="./js/context-menu.js?v=5"></script>
   <script type="module" src="./js/manual-time-entry.js?v=3"></script>
   <script type="module" src="./js/time-block-planner.js?v=6"></script>
   <script type="module" src="./js/time-block-table-style.js?v=5"></script>
   <script type="module" src="./js/time-block-click-add.js?v=3"></script>
   <script type="module" src="./js/calendar-day-home.js?v=5"></script>
+  <script type="module" src="./js/records.js?v=1"></script>
+  <script type="module" src="./js/appearance.js?v=1"></script>
 </body>
 </html>
