@@ -106,7 +106,7 @@ function blockTable(state, dateKey) {
 
   rows.push(`
     <section class="calendar-day-block-row unassigned" data-calendar-day-template="">
-      <div class="calendar-day-time-cell"><div class="calendar-day-time">${today ? "오늘 할일" : "할일"}</div></div>
+      <div class="calendar-day-time-cell"><div class="calendar-day-time">하루종일</div></div>
       <div class="calendar-day-list-cell" data-calendar-day-drop="">${unassigned.length ? unassigned.map(taskMarkup).join("") : '<div class="calendar-day-empty"></div>'}</div>
     </section>`);
 
