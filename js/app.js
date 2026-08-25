@@ -61,6 +61,7 @@ function defaultState() {
       calendarFilters: {
         month: { schedule: true, task: false },
         week: { schedule: true, task: true },
+        three: { schedule: true, task: true },
         day: { schedule: false, task: true },
       },
     },
@@ -92,6 +93,7 @@ function normalizeState(raw) {
       calendarFilters: {
         month: { ...base.ui.calendarFilters.month, ...(savedCalendarFilters.month || {}) },
         week: { ...base.ui.calendarFilters.week, ...(savedCalendarFilters.week || {}) },
+        three: { ...base.ui.calendarFilters.three, ...(savedCalendarFilters.three || {}) },
         day: { ...base.ui.calendarFilters.day, ...(savedCalendarFilters.day || {}) },
       },
     },
@@ -203,6 +205,7 @@ function renderTasks() {
 
     row.querySelector(".check").addEventListener("click", () => {
       task.done = !task.done;
+      task.completedAt = task.done ? new Date().toISOString() : null;
       save();
       renderHome();
       renderTracking();
@@ -444,19 +447,23 @@ function renderHabits() {
 
 function renderUpcoming() {
   const now = new Date();
+  const dayKey = appDayKey();
   const events = state.events
     .filter((event) => new Date(event.start) >= now)
-    .sort((a, b) => new Date(a.start) - new Date(b.start))
-    .slice(0, 5);
+    .map((event) => ({ ...event, upcomingKind: "event", when: new Date(event.start) }));
+  const tasks = state.tasks
+    .filter((task) => !task.done && task.date && task.date > dayKey)
+    .map((task) => ({ ...task, upcomingKind: "task", when: new Date(`${task.date}T12:00:00`) }));
+  const items = [...events, ...tasks].sort((a, b) => a.when - b.when).slice(0, 8);
   const container = $("#upcomingList");
-  if (!events.length) {
-    container.innerHTML = '<div class="empty">다가오는 일정이 없어요.</div>';
+  if (!items.length) {
+    container.innerHTML = '<div class="empty">다가오는 일정과 할일이 없어요.</div>';
     return;
   }
-  container.innerHTML = events.map((event) => {
-    const date = new Date(event.start);
-    const when = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-    return `<div class="row editable-row" data-context-kind="event" data-context-id="${event.id}"><span class="pill">일정</span><span class="row-title" style="cursor:default">${esc(event.title)}</span><span class="card-meta">${when}</span></div>`;
+  container.innerHTML = items.map((item) => {
+    const isTask = item.upcomingKind === "task";
+    const when = new Intl.DateTimeFormat("ko-KR", isTask ? { month: "numeric", day: "numeric" } : { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(item.when);
+    return `<div class="row editable-row upcoming-row ${isTask ? "task" : "schedule"}" draggable="${isTask}" data-context-kind="${item.upcomingKind}" data-context-id="${item.id}" data-upcoming-task-id="${isTask ? item.id : ""}"><span class="pill">${isTask ? "할일" : "일정"}</span><span class="row-title" style="cursor:default">${esc(item.title)}</span><span class="card-meta">${when}</span></div>`;
   }).join("");
 }
 
@@ -472,9 +479,9 @@ function renderDashboard() {
   ensureHabitDay();
   const checks = state.habitDays[dayKey];
   const completedHabits = state.habitTemplates.filter((habit) => checks[habit.id]).length;
-  $("#dashTasks").textContent = `${completedTasks} / ${tasks.length}`;
-  $("#dashHabits").textContent = `${completedHabits} / ${state.habitTemplates.length}`;
-  $("#dashFocus").textContent = fmtDuration(todayFocusMs());
+  if ($("#dashTasks")) $("#dashTasks").textContent = `${completedTasks} / ${tasks.length}`;
+  if ($("#dashHabits")) $("#dashHabits").textContent = `${completedHabits} / ${state.habitTemplates.length}`;
+  if ($("#dashFocus")) $("#dashFocus").textContent = fmtDuration(todayFocusMs());
 }
 
 function renderHome() {
@@ -568,9 +575,10 @@ function bindCalendarChecks(root = $("#calendarBody")) {
   $$("[data-calendar-check]", root).forEach((button) => button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const item = state.tasks.find((entry) => entry.id === button.dataset.calendarId);
+  const item = state.tasks.find((entry) => entry.id === button.dataset.calendarId);
     if (!item) return;
     item.done = !item.done;
+    item.completedAt = item.done ? new Date().toISOString() : null;
     save();
     renderCalendar();
     renderHome();
@@ -601,7 +609,7 @@ function eventsForDate(date) {
 }
 
 function updateDayModeVisibility() {
-  $("#dayModeSeg").classList.toggle("show", calView === "day");
+  $("#dayModeSeg").classList.toggle("show", calView !== "month");
   updateCalendarFilterUI();
 }
 
@@ -625,7 +633,7 @@ function renderDayTimeline(date) {
     if (!row) continue;
     const element = document.createElement("div");
     const kind = item.kind === "event" ? "event" : "task";
-    element.className = `day-timed-event${item.type === "schedule" ? " schedule" : " task"}${item.type === "task" && item.done ? " done" : ""}`;
+    element.className = `day-timed-event planned-entry${item.type === "schedule" ? " schedule" : " task"}${item.type === "task" && item.done ? " done" : ""}`;
     element.dataset.calendarKind = kind;
     element.dataset.calendarId = item.id;
     element.dataset.contextKind = kind;
@@ -638,7 +646,101 @@ function renderDayTimeline(date) {
     element.innerHTML = `<div class="day-timed-main">${control}<strong>${esc(item.title)}</strong></div><small>${item.type === "schedule" ? esc(group.name) : "할일"} · ${timeText(item.startDate)}</small>`;
     row.querySelector(".day-time-lane").appendChild(element);
   }
+  for (const session of sessionsForDate(date)) {
+    const start = new Date(session.start);
+    const minute = start.getHours() * 60 + start.getMinutes();
+    if (minute < START_MIN || minute >= END_MIN) continue;
+    const slotMinute = Math.floor(minute / SLOT) * SLOT;
+    const row = timeline.children[(slotMinute - START_MIN) / SLOT];
+    if (!row) continue;
+    const element = document.createElement("div");
+    element.className = "day-timed-event actual-session";
+    element.style.height = `${Math.max(34, (Number(session.durationMs || 0) / 60000 / SLOT) * 42)}px`;
+    element.dataset.contextKind = "session";
+    element.dataset.contextId = session.id;
+    element.innerHTML = `<strong>${esc(session.title || "시간 기록")}</strong><small>실제 · ${timeText(start)}</small>`;
+    row.querySelector(".day-time-lane").appendChild(element);
+  }
   bindCalendarChecks();
+}
+
+function sessionsForDate(date) {
+  const key = localDateKey(date);
+  return state.sessions
+    .filter((session) => session.start && session.end && localDateKey(new Date(session.start)) === key)
+    .sort((a, b) => new Date(a.start) - new Date(b.start));
+}
+
+function renderMultiDayList(startDate, count) {
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + count - 1);
+  $("#calTitle").textContent = `${start.getMonth() + 1}.${start.getDate()} – ${end.getMonth() + 1}.${end.getDate()}`;
+  let html = '<div class="multi-day-list">';
+  for (let index = 0; index < count; index++) {
+    const date = new Date(start);
+    date.setDate(date.getDate() + index);
+    const items = eventsForDate(date);
+    html += `<section class="multi-day-list-section"><h3>${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</h3>${items.length ? items.map(calendarListEntryMarkup).join("") : '<div class="empty">항목이 없어요.</div>'}</section>`;
+  }
+  $("#calendarBody").innerHTML = `${html}</div>`;
+  bindCalendarChecks();
+}
+
+function renderMultiDayTimeline(startDate, count) {
+  const start = new Date(startDate);
+  if (count === 7) start.setDate(start.getDate() - start.getDay());
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + count - 1);
+  $("#calTitle").textContent = `${start.getMonth() + 1}.${start.getDate()} – ${end.getMonth() + 1}.${end.getDate()}`;
+  let html = `<div class="multi-timeline" style="--day-count:${count}"><div class="multi-time-head"></div>`;
+  for (let index = 0; index < count; index++) {
+    const date = new Date(start);
+    date.setDate(date.getDate() + index);
+    html += `<div class="multi-day-head"><strong>${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</strong><small>계획 · 실제</small></div>`;
+  }
+  html += '<div class="multi-time-axis">';
+  for (let minute = START_MIN; minute < END_MIN; minute += SLOT) html += `<div>${minute % 60 === 0 ? minuteLabel(minute) : ""}</div>`;
+  html += '</div>';
+  for (let index = 0; index < count; index++) {
+    const date = new Date(start);
+    date.setDate(date.getDate() + index);
+    html += `<div class="multi-day-lane" data-date="${localDateKey(date)}"><div class="multi-plan-lane"></div><div class="multi-actual-lane"></div></div>`;
+  }
+  $("#calendarBody").innerHTML = `${html}</div>`;
+  $$(".multi-day-lane", $("#calendarBody")).forEach((lane, index) => {
+    const date = new Date(start);
+    date.setDate(date.getDate() + index);
+    const planned = eventsForDate(date).filter((item) => item.startDate);
+    for (const item of planned) {
+      const minute = item.startDate.getHours() * 60 + item.startDate.getMinutes();
+      if (minute < START_MIN || minute >= END_MIN) continue;
+      const element = document.createElement("div");
+      element.className = `multi-entry planned ${item.type}`;
+      element.style.top = `${((minute - START_MIN) / SLOT) * 42 + 2}px`;
+      element.dataset.calendarKind = item.kind;
+      element.dataset.calendarId = item.id;
+      element.dataset.contextKind = item.kind;
+      element.dataset.contextId = item.id;
+      element.textContent = item.title;
+      lane.querySelector(".multi-plan-lane").appendChild(element);
+    }
+    for (const session of sessionsForDate(date)) {
+      const startTime = new Date(session.start);
+      const minute = startTime.getHours() * 60 + startTime.getMinutes();
+      if (minute < START_MIN || minute >= END_MIN) continue;
+      const element = document.createElement("div");
+      element.className = "multi-entry actual";
+      element.style.top = `${((minute - START_MIN) / SLOT) * 42 + 2}px`;
+      element.style.height = `${Math.max(30, (Number(session.durationMs || 0) / 60000 / SLOT) * 42)}px`;
+      element.dataset.contextKind = "session";
+      element.dataset.contextId = session.id;
+      element.textContent = session.title || "시간 기록";
+      lane.querySelector(".multi-actual-lane").appendChild(element);
+    }
+  });
 }
 
 function renderCalendar() {
@@ -667,7 +769,7 @@ function renderCalendar() {
     return;
   }
 
-  if (calView === "week") {
+  if (calView === "week" && calDayMode === "list") {
     const start = new Date(calCursor);
     start.setDate(start.getDate() - start.getDay());
     start.setHours(0, 0, 0, 0);
@@ -683,6 +785,17 @@ function renderCalendar() {
     html += "</div>";
     body.innerHTML = html;
     bindCalendarChecks(body);
+    return;
+  }
+
+  if (calView === "week" && calDayMode === "timeline") {
+    renderMultiDayTimeline(calCursor, 7);
+    return;
+  }
+
+  if (calView === "three") {
+    if (calDayMode === "timeline") renderMultiDayTimeline(calCursor, 3);
+    else renderMultiDayList(calCursor, 3);
     return;
   }
 
@@ -711,7 +824,7 @@ function updateTimerUI() {
   $("#timerPause").textContent = timer.paused ? "계속" : "일시정지";
   $("#timerStop").disabled = !timer.running;
   $("#trackingTodayTotal").textContent = `오늘 ${fmtDuration(todayFocusMs())}`;
-  $("#dashFocus").textContent = fmtDuration(todayFocusMs());
+  if ($("#dashFocus")) $("#dashFocus").textContent = fmtDuration(todayFocusMs());
 }
 
 function startTicker() {
@@ -896,12 +1009,14 @@ function bindUI() {
   $("#calPrev").addEventListener("click", () => {
     if (calView === "month") calCursor.setMonth(calCursor.getMonth() - 1);
     else if (calView === "week") calCursor.setDate(calCursor.getDate() - 7);
+    else if (calView === "three") calCursor.setDate(calCursor.getDate() - 3);
     else calCursor.setDate(calCursor.getDate() - 1);
     renderCalendar();
   });
   $("#calNext").addEventListener("click", () => {
     if (calView === "month") calCursor.setMonth(calCursor.getMonth() + 1);
     else if (calView === "week") calCursor.setDate(calCursor.getDate() + 7);
+    else if (calView === "three") calCursor.setDate(calCursor.getDate() + 3);
     else calCursor.setDate(calCursor.getDate() + 1);
     renderCalendar();
   });

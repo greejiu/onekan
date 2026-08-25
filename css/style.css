@@ -68,6 +68,9 @@ button { color: inherit; }
 .header-inline { display: flex; align-items: center; gap: 6px; }
 
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.home-columns { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; align-items: start; }
+.home-column { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+#somedayHomeSlot:empty { display: none; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: visible; min-width: 0; }
 .card-header { padding: 15px 16px 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .card-title { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 7px; }
@@ -178,9 +181,29 @@ button:disabled { opacity: .5; cursor: default; }
 .day-timed-event { position: absolute; left: 7px; right: 10px; top: 3px; z-index: 2; min-height: 34px; border-radius: 7px; padding: 6px 8px; font-size: 12px; overflow: hidden; background: #f1f1ef; border-left: 3px solid #aaa9a5; }
 .day-timed-event.schedule { background: color-mix(in srgb, var(--event-color, #8fa9c4) 18%, white); border-left-color: var(--event-color, #8fa9c4); }
 .day-timed-event.task { background: var(--pastel-purple, #f1ecf8); border-left-color: #8870a6; }
+.day-timed-event.planned-entry { right: 50%; margin-right: 3px; }
+.day-timed-event.actual-session { left: 50%; margin-left: 3px; background: repeating-linear-gradient(135deg,#e8f3ec,#e8f3ec 6px,#d9eadf 6px,#d9eadf 12px); border-left-color: #5f8a6d; }
 .day-timed-main { display: grid; grid-template-columns: 16px minmax(0,1fr); align-items: center; gap: 6px; }
 .day-timed-event strong { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .day-timed-event small { color:var(--muted); }
+
+.multi-day-list { display: grid; gap: 1px; background: var(--line); }
+.multi-day-list-section { min-height: 100px; padding: 12px; background: #fff; }
+.multi-day-list-section h3 { margin: 0 0 9px; font-size: 13px; }
+.multi-timeline { display: grid; grid-template-columns: 58px repeat(var(--day-count), minmax(150px,1fr)); min-width: calc(58px + var(--day-count) * 150px); }
+.multi-time-head, .multi-day-head { position: sticky; top: 0; z-index: 5; height: 50px; padding: 8px; border-bottom: 1px solid var(--line); background: #fff; }
+.multi-day-head { border-left: 1px solid var(--line); text-align: center; }
+.multi-day-head strong, .multi-day-head small { display: block; }
+.multi-day-head small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.multi-time-axis { grid-column: 1; }
+.multi-time-axis > div { height: 42px; padding: 4px 7px 0 0; border-bottom: 1px solid #efefed; color: var(--muted); font-size: 10px; text-align: right; }
+.multi-day-lane { position: relative; display: grid; grid-template-columns: 1fr 1fr; height: 1344px; border-left: 1px solid var(--line); background: repeating-linear-gradient(to bottom,#fff 0,#fff 41px,#efefed 41px,#efefed 42px); }
+.multi-plan-lane, .multi-actual-lane { position: relative; min-width: 0; }
+.multi-plan-lane { border-right: 1px dashed var(--line); }
+.multi-entry { position: absolute; left: 3px; right: 3px; z-index: 2; min-height: 29px; padding: 5px; overflow: hidden; border-radius: 5px; font-size: 10px; line-height: 1.25; }
+.multi-entry.planned { background: var(--pastel-blue,#e7f1fb); border-left: 3px solid #6c94bb; }
+.multi-entry.planned.task { background: var(--pastel-purple,#eee7f8); border-left-color: #8870a6; }
+.multi-entry.actual { background: repeating-linear-gradient(135deg,#e8f3ec,#e8f3ec 5px,#d9eadf 5px,#d9eadf 10px); border-left: 3px solid #5f8a6d; }
 
 .timer-panel { display: grid; grid-template-columns: 1.1fr .9fr; gap: 14px; }
 .timer-box { padding: 26px; text-align: center; }
@@ -206,6 +229,39 @@ button:disabled { opacity: .5; cursor: default; }
 .record-context-menu { position: fixed; z-index: 10020; display: none; min-width: 140px; padding: 5px; border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; box-shadow: 0 10px 28px rgba(15,23,42,.16); }
 .record-context-menu.open { display: block; }
 .record-context-menu button { width: 100%; min-height: 36px; border: 0; border-radius: 6px; background: transparent; color: var(--danger); text-align: left; cursor: pointer; }
+
+.page-tabs { margin-bottom: 14px; max-width: 100%; overflow-x: auto; }
+.workspace-list { display: grid; gap: 7px; }
+.workspace-task { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; align-items: start; gap: 10px; padding: 12px 14px; border-radius: 10px; background: #fff; box-shadow: var(--shadow); }
+.workspace-task.done { opacity: .62; }
+.workspace-task.done .workspace-task-title { text-decoration: line-through; }
+.workspace-task-main { min-width: 0; }
+.workspace-task-title { font-size: 14px; line-height: 1.45; }
+.task-details { margin-top: 7px; color: var(--muted); font-size: 12px; }
+.task-details summary { cursor: pointer; }
+.task-details div { margin-top: 6px; padding: 8px; border-radius: 7px; background: var(--panel-soft); white-space: pre-wrap; }
+.workspace-drop-active { outline: 2px dashed var(--accent) !important; outline-offset: -3px; background: var(--accent-soft) !important; }
+.upcoming-row.task { cursor: grab; }
+
+.habit-history { overflow-x: auto; }
+.habit-matrix { min-width: 650px; padding: 14px; border-radius: var(--radius); background: #fff; box-shadow: var(--shadow); }
+.habit-matrix-head, .habit-matrix-row { display: grid; grid-template-columns: minmax(150px,1fr) repeat(7,52px); align-items: center; gap: 7px; min-height: 48px; border-bottom: 1px solid var(--line); }
+.habit-matrix-head { color: var(--muted); font-size: 11px; text-align: center; }
+.habit-matrix-head > span:first-child { text-align: left; }
+.habit-matrix-head small { display: block; margin-top: 2px; font-size: 9px; }
+.habit-matrix-row:last-child { border-bottom: 0; }
+.habit-matrix-row strong { font-size: 13px; }
+.habit-day-check { width: 32px; height: 32px; justify-self: center; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; color: #fff; cursor: pointer; }
+.habit-day-check.checked { border-color: var(--accent); background: var(--accent); }
+
+.activity-summary { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
+.activity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.activity-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; padding: 9px 6px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.activity-row time { color: var(--muted); font-size: 11px; }
+.activity-project { display: grid; grid-template-columns: minmax(0,1fr) 90px 36px; gap: 9px; align-items: center; padding: 9px 6px; border-bottom: 1px solid var(--line); }
+.activity-project > div:first-child { display: flex; flex-direction: column; min-width: 0; }
+.activity-project strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.activity-project span, .activity-project small { color: var(--muted); font-size: 10px; }
 
 .section-card { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
 .section-head { padding: 13px 15px; font-weight: 700; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
@@ -247,7 +303,8 @@ button:disabled { opacity: .5; cursor: default; }
   .mobile-topbar strong { font-size: 14px; }
   .mobile-topbar span { color: var(--muted); font-size: 11px; }
   .main { padding: 18px 12px 70px; }
-  .grid, .timer-panel { grid-template-columns: 1fr; }
+  .grid, .home-columns, .timer-panel, .activity-grid { grid-template-columns: 1fr; }
+  .activity-summary { grid-template-columns: 1fr 1fr 1fr; }
   .span-2 { grid-column: auto; }
   .dash-row { grid-template-columns: 1fr; }
   .sidebar { position: fixed; left: 0; top: 0; transform: translateX(-100%); width: 240px !important; flex-basis: 240px !important; box-shadow: 8px 0 20px rgba(0,0,0,.08); }
@@ -279,6 +336,7 @@ button:disabled { opacity: .5; cursor: default; }
   .calendar-inline-add #calendarInlineTitle { grid-column: 1 / -1; }
   .calendar-inline-add button { grid-column: 1 / -1; }
   .appearance-settings { grid-template-columns: 1fr; }
+  .activity-summary { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 600px) {

@@ -9,7 +9,6 @@ function applyHomeLayout() {
 
   const plannerCard = $("#timeGrid")?.closest(".card");
   const somedayCard = $("#featureSomedayCard");
-  const dashboard = $("#dashTasks")?.closest(".card");
 
   if (plannerCard) {
     plannerCard.classList.remove("span-2", "home-timeblock-full");
@@ -18,12 +17,7 @@ function applyHomeLayout() {
 
   if (somedayCard) {
     somedayCard.classList.add("home-someday-right");
-    if (plannerCard?.parentElement && somedayCard.parentElement === plannerCard.parentElement && plannerCard.nextElementSibling !== somedayCard) {
-      plannerCard.insertAdjacentElement("afterend", somedayCard);
-    }
   }
-
-  if (dashboard) dashboard.classList.add("span-2");
 
   const unassignedLabel = $("#dailyBlockBoard .daily-block-row.unassigned .daily-block-time");
   if (unassignedLabel && unassignedLabel.textContent !== "하루종일") {

@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#faf9f7" />
   <title>오늘한칸</title>
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=6" />
-  <link rel="stylesheet" href="./css/features.css?v=5" />
-  <link rel="stylesheet" href="./css/white-theme.css?v=3" />
+  <link rel="stylesheet" href="./css/style.css?v=7" />
+  <link rel="stylesheet" href="./css/features.css?v=6" />
+  <link rel="stylesheet" href="./css/white-theme.css?v=4" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -34,10 +34,12 @@
       </div>
       <nav class="nav" aria-label="주요 메뉴">
         <button class="nav-item active" data-page="home" type="button"><span class="nav-icon">⌂</span><span class="nav-label">집</span></button>
-        <button class="nav-item" data-page="calendar" type="button"><span class="nav-icon">▦</span><span class="nav-label">달력</span></button>
-        <button class="nav-item" data-page="records" type="button"><span class="nav-icon">▤</span><span class="nav-label">기록</span></button>
+        <button class="nav-item" data-page="calendar" type="button"><span class="nav-icon">▦</span><span class="nav-label">일정</span></button>
+        <button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>
+        <button class="nav-item" data-page="habits" type="button"><span class="nav-icon">◉</span><span class="nav-label">습관</span></button>
         <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>
         <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">✎</span><span class="nav-label">작업현황</span></button>
+        <button class="nav-item" data-page="records" type="button"><span class="nav-icon">▤</span><span class="nav-label">활동기록</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="sync-status" id="syncStatus">저장됨</div>
@@ -60,7 +62,8 @@
           <div class="head-actions"><span class="card-meta">오늘 바로 할 것만 보여줘요.</span></div>
         </div>
 
-        <div class="grid">
+        <div class="home-columns">
+          <div class="home-column" id="homeLeftColumn">
           <article class="card">
             <div class="card-header"><div class="card-title">오늘 할일</div><div class="card-meta">끌어서 시간에 배치</div></div>
             <div class="card-body"><div class="list" id="taskList"></div></div>
@@ -74,29 +77,24 @@
           </article>
 
           <article class="card">
-            <div class="card-header"><div class="card-title">오늘 습관</div><div class="card-meta">미완료 → 완료</div></div>
+            <div class="card-header"><div class="card-title">오늘 습관</div><button class="ghost-btn" data-go="habits" type="button">습관 보기 →</button></div>
             <div class="card-body"><div class="list" id="habitList"></div></div>
           </article>
+          </div>
 
+          <div class="home-column" id="homeRightColumn">
           <article class="card">
-            <div class="card-header"><div class="card-title">다가오는 일정</div><button class="ghost-btn" data-go="calendar" type="button">달력 보기 →</button></div>
+            <div class="card-header"><div class="card-title">다가오는 일정</div><div class="card-meta">일정 · 할일</div></div>
             <div class="card-body" id="upcomingList"></div>
           </article>
-
-          <article class="card span-2">
-            <div class="card-header"><div class="card-title">오늘 대시보드</div><div class="card-meta">오늘 한 만큼만</div></div>
-            <div class="card-body"><div class="dash-row">
-              <div class="metric"><div class="metric-label">완료한 할일</div><div class="metric-value" id="dashTasks">0 / 0</div></div>
-              <div class="metric"><div class="metric-label">완료한 습관</div><div class="metric-value" id="dashHabits">0 / 0</div></div>
-              <div class="metric"><div class="metric-label">오늘 집중 시간</div><div class="metric-value" id="dashFocus">0분</div></div>
-            </div></div>
-          </article>
+          <div id="somedayHomeSlot"></div>
+          </div>
         </div>
       </section>
 
       <section class="page" id="page-calendar">
         <div class="page-head">
-          <div><h1 class="page-title">달력</h1><div class="page-sub">일정과 할일을 월 · 주 · 일로 봅니다.</div></div>
+          <div><h1 class="page-title">일정</h1><div class="page-sub">계획과 실제로 사용한 시간을 함께 봅니다.</div></div>
           <div class="head-actions wrap-actions">
             <button class="soft-btn" id="addEventBtn" type="button">+ 일정 추가</button>
             <button class="soft-btn" id="calendarAddTaskBtn" type="button">+ 할일 추가</button>
@@ -105,7 +103,7 @@
               <button class="task" data-calendar-type="task" type="button" aria-pressed="false">할일</button>
             </div>
             <div class="seg day-mode-toggle" id="dayModeSeg"><button class="active" data-day-mode="timeline" type="button">타임라인</button><button data-day-mode="list" type="button">목록</button></div>
-            <div class="seg" id="calendarViewSeg"><button class="active" data-view="month" type="button">월</button><button data-view="week" type="button">주</button><button data-view="day" type="button">일</button></div>
+            <div class="seg" id="calendarViewSeg"><button class="active" data-view="month" type="button">월</button><button data-view="week" type="button">주</button><button data-view="three" type="button">3일</button><button data-view="day" type="button">1일</button></div>
           </div>
         </div>
         <div class="calendar-shell">
@@ -122,16 +120,23 @@
         </div>
       </section>
 
+      <section class="page" id="page-tasks">
+        <div class="page-head"><div><h1 class="page-title">할일</h1><div class="page-sub">언젠가 떠올린 일부터 계획된 일까지 한곳에서 봅니다.</div></div><button class="soft-btn" id="tasksPageAdd" type="button">+ 할일</button></div>
+        <div class="seg page-tabs" id="taskPageTabs"><button class="active" data-task-tab="all" type="button">전체</button><button data-task-tab="today" type="button">오늘</button><button data-task-tab="upcoming" type="button">예정</button><button data-task-tab="someday" type="button">언젠가</button><button data-task-tab="done" type="button">완료</button></div>
+        <div class="workspace-list" id="tasksPageList"></div>
+      </section>
+
+      <section class="page" id="page-habits">
+        <div class="page-head"><div><h1 class="page-title">습관</h1><div class="page-sub">오늘 체크하고 최근 7일의 흐름을 가볍게 확인합니다.</div></div><button class="soft-btn" id="habitsPageAdd" type="button">+ 습관</button></div>
+        <div class="habit-history" id="habitHistory"></div>
+      </section>
+
       <section class="page" id="page-records">
         <div class="page-head">
-          <div><h1 class="page-title">기록</h1><div class="page-sub">메모와 일일수첩을 한곳에서 모아봅니다.</div></div>
-          <button class="soft-btn" id="addRecordBtn" type="button">+ 기록</button>
+          <div><h1 class="page-title">활동기록</h1><div class="page-sub">완료한 할일과 작업 진행률을 확인합니다.</div></div>
         </div>
-        <div class="records-tabs seg" id="recordsTabs">
-          <button class="active" data-record-tab="notes" type="button">메모</button>
-          <button data-record-tab="dailyNotes" type="button">일일수첩</button>
-        </div>
-        <div class="records-list" id="recordsList"></div>
+        <div class="activity-summary" id="activitySummary"></div>
+        <div class="activity-grid"><article class="card"><div class="card-header"><div class="card-title">완료한 할일</div></div><div class="card-body" id="completedTaskHistory"></div></article><article class="card"><div class="card-header"><div class="card-title">작업 진행률</div></div><div class="card-body" id="projectProgressHistory"></div></article></div>
       </section>
 
       <section class="page" id="page-tracking">
@@ -232,17 +237,6 @@
     </form>
   </dialog>
 
-  <dialog id="recordDialog" class="app-dialog">
-    <form method="dialog" id="recordForm">
-      <h3 id="recordDialogTitle">기록 추가</h3>
-      <div class="field"><label>종류</label><select id="recordKind"><option value="notes">메모</option><option value="dailyNotes">일일수첩</option></select></div>
-      <div class="field"><label>제목</label><input id="recordTitle" required /></div>
-      <div class="field"><label>날짜</label><input id="recordDate" type="date" required /></div>
-      <div class="field"><label>내용</label><textarea id="recordContent" rows="7" placeholder="기록할 내용을 적어 주세요."></textarea></div>
-      <div class="dialog-actions"><button class="soft-btn" type="button" id="cancelRecordBtn">취소</button><button class="primary-btn" type="submit">저장</button></div>
-    </form>
-  </dialog>
-
   <dialog id="projectDialog" class="app-dialog">
     <form method="dialog" id="projectForm">
       <h3>작업 추가</h3>
@@ -255,17 +249,16 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/app.js?v=6"></script>
-  <script type="module" src="./js/features.js?v=7"></script>
+  <script type="module" src="./js/app.js?v=7"></script>
+  <script type="module" src="./js/features.js?v=8"></script>
   <script type="module" src="./js/calendar-additions.js?v=3"></script>
   <script type="module" src="./js/interaction-upgrades.js?v=2"></script>
   <script type="module" src="./js/context-menu.js?v=5"></script>
   <script type="module" src="./js/manual-time-entry.js?v=3"></script>
   <script type="module" src="./js/time-block-planner.js?v=6"></script>
-  <script type="module" src="./js/time-block-table-style.js?v=5"></script>
+  <script type="module" src="./js/time-block-table-style.js?v=6"></script>
   <script type="module" src="./js/time-block-click-add.js?v=3"></script>
-  <script type="module" src="./js/calendar-day-home.js?v=5"></script>
-  <script type="module" src="./js/records.js?v=1"></script>
+  <script type="module" src="./js/workspace-pages.js?v=1"></script>
   <script type="module" src="./js/appearance.js?v=1"></script>
 </body>
 </html>

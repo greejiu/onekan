@@ -155,8 +155,8 @@ function injectHomeFeatures() {
   if (injected) return;
   const habitList = $("#habitList");
   const upcoming = $("#upcomingList");
-  const dashboard = $("#dashTasks")?.closest(".card");
-  if (!habitList || !upcoming || !dashboard) return;
+  const somedaySlot = $("#somedayHomeSlot");
+  if (!habitList || !upcoming || !somedaySlot) return;
 
   const habitCard = habitList.closest(".card");
   if (!habitCard.querySelector("[data-feature-home-habit]")) {
@@ -189,8 +189,7 @@ function injectHomeFeatures() {
         <button class="ghost-btn" id="featureSomedayClose" type="button" aria-label="닫기">×</button>
       </form>
       <div class="card-body"><div class="list feature-task-drop" id="featureSomedayList"></div></div>`;
-    habitCard.after(card);
-    dashboard.classList.remove("span-2");
+    somedaySlot.appendChild(card);
     $("#featureAddSomeday").addEventListener("click", () => {
       $("#featureSomedayForm").classList.add("open");
       $("#featureSomedayInput").value = "";
