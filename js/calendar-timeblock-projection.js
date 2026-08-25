@@ -215,12 +215,19 @@ function injectStyle() {
   document.head.appendChild(style);
 }
 
+function isProjectionOnlyMutation(mutation) {
+  if (mutation.type !== "childList") return !!mutation.target.closest?.(".calendar-timeblock-projection");
+  const nodes = [...mutation.addedNodes, ...mutation.removedNodes].filter((node) => node.nodeType === Node.ELEMENT_NODE);
+  if (!nodes.length) return false;
+  return nodes.every((node) => node.matches?.(".calendar-timeblock-projection") || node.closest?.(".calendar-timeblock-projection"));
+}
+
 function observeCalendar() {
   if (observer) return;
   const body = $("#calendarBody");
   if (!body) return;
   observer = new MutationObserver((mutations) => {
-    if (mutations.every((mutation) => mutation.target.closest?.(".calendar-timeblock-projection"))) return;
+    if (mutations.length && mutations.every(isProjectionOnlyMutation)) return;
     scheduleRender();
   });
   observer.observe(body, {
