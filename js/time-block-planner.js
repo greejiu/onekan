@@ -238,11 +238,13 @@ function rowMarkup(template, tasks, isCurrent) {
 }
 
 function unassignedMarkup(tasks) {
-  if (!tasks.length) return "";
+  const contents = tasks.length
+    ? tasks.map(taskMarkup).join("")
+    : '<div class="daily-block-empty">—</div>';
   return `
     <section class="daily-block-row unassigned" data-template-id="">
-      <div class="daily-block-time-cell"><div class="daily-block-time">미배치</div></div>
-      <div class="daily-block-list-cell" data-block-drop="">${tasks.map(taskMarkup).join("")}</div>
+      <div class="daily-block-time-cell"><div class="daily-block-time">하루종일</div></div>
+      <div class="daily-block-list-cell" data-block-drop="">${contents}</div>
     </section>`;
 }
 
