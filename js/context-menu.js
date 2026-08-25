@@ -152,6 +152,7 @@ function resolveByPosition(element, state) {
 
 function isSupportedSurface(element) {
   return !!element.closest([
+    "[data-context-kind][data-context-id]",
     "#taskList .row[data-id]",
     "#featureSomedayList .row[data-task-id]",
     ".time-block[data-block-id]",
@@ -335,7 +336,6 @@ async function deleteTarget() {
   const target = currentTarget;
   hideMenu();
   if (!target) return;
-  if (!window.confirm("이 항목을 삭제할까요?")) return;
   try {
     await writeState((state) => {
       if (target.kind === "task") {
