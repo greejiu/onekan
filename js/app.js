@@ -183,7 +183,7 @@ function renderTasks() {
     row.className = `row${task.done ? " done" : ""}`;
     row.draggable = !task.done;
     row.dataset.id = task.id;
-    row.innerHTML = `<button class="check ${task.done ? "checked" : ""}" type="button" aria-label="완료">${task.done ? "✓" : ""}</button><span class="row-title">${esc(task.title)}</span><button class="more" type="button">···</button><div class="menu"><button class="danger" type="button">삭제</button></div>`;
+    row.innerHTML = `<button class="check ${task.done ? "checked" : ""}" type="button" aria-label="완료">${task.done ? "✓" : ""}</button><span class="row-title">${esc(task.title)}</span>`;
 
     row.querySelector(".check").addEventListener("click", () => {
       task.done = !task.done;
@@ -218,20 +218,6 @@ function renderTasks() {
         if (event.key === "Enter") input.blur();
         if (event.key === "Escape") { input.value = task.title; input.blur(); }
       });
-    });
-
-    const more = row.querySelector(".more");
-    const menu = row.querySelector(".menu");
-    more.addEventListener("click", (event) => {
-      event.stopPropagation();
-      $$(".menu.open").forEach((openMenu) => openMenu !== menu && openMenu.classList.remove("open"));
-      menu.classList.toggle("open");
-    });
-    menu.querySelector(".danger").addEventListener("click", () => {
-      state.tasks = state.tasks.filter((item) => item.id !== task.id);
-      state.timeBlocks = state.timeBlocks.filter((block) => block.taskId !== task.id);
-      save();
-      renderAll();
     });
 
     row.addEventListener("dragstart", (event) => {
@@ -454,7 +440,7 @@ function renderUpcoming() {
   container.innerHTML = events.map((event) => {
     const date = new Date(event.start);
     const when = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-    return `<div class="row"><span class="pill">일정</span><span class="row-title" style="cursor:default">${esc(event.title)}</span><span class="card-meta">${when}</span></div>`;
+    return `<div class="row editable-row" data-context-kind="event" data-context-id="${event.id}"><span class="pill">일정</span><span class="row-title" style="cursor:default">${esc(event.title)}</span><span class="card-meta">${when}</span></div>`;
   }).join("");
 }
 
@@ -504,16 +490,22 @@ function updateCalendarFilterUI() {
 
 function calendarEntryMarkup(item) {
   const kind = item.kind === "event" ? "event" : "task";
-  return `<div class="cal-event ${item.type === "schedule" ? "schedule" : "task"}${item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
-    <button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="${kind}" data-calendar-id="${item.id}" aria-label="${item.type === "schedule" ? "일정" : "할일"} 완료">${item.done ? "✓" : ""}</button>
+  const control = item.type === "schedule"
+    ? '<span class="calendar-event-dot" aria-hidden="true"></span>'
+    : `<button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button>`;
+  return `<div class="cal-event ${item.type === "schedule" ? "schedule" : "task"}${item.type === "task" && item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
+    ${control}
     <span class="cal-event-title">${esc(item.title)}</span>
   </div>`;
 }
 
 function calendarListEntryMarkup(item) {
   const kind = item.kind === "event" ? "event" : "task";
-  return `<div class="row${item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
-    <button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="${kind}" data-calendar-id="${item.id}" aria-label="${item.type === "schedule" ? "일정" : "할일"} 완료">${item.done ? "✓" : ""}</button>
+  const control = item.type === "schedule"
+    ? '<span class="calendar-event-dot" aria-hidden="true"></span>'
+    : `<button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button>`;
+  return `<div class="row editable-row${item.type === "task" && item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
+    ${control}
     <span class="pill">${item.type === "schedule" ? "일정" : "할일"}</span>
     <span class="row-title" style="cursor:default">${esc(item.title)}</span>
     ${item.startDate ? `<span class="card-meta">${timeText(item.startDate)}</span>` : ""}
@@ -524,8 +516,7 @@ function bindCalendarChecks(root = $("#calendarBody")) {
   $$("[data-calendar-check]", root).forEach((button) => button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const collection = button.dataset.calendarCheck === "event" ? state.events : state.tasks;
-    const item = collection.find((entry) => entry.id === button.dataset.calendarId);
+    const item = state.tasks.find((entry) => entry.id === button.dataset.calendarId);
     if (!item) return;
     item.done = !item.done;
     save();
@@ -582,12 +573,15 @@ function renderDayTimeline(date) {
     if (!row) continue;
     const element = document.createElement("div");
     const kind = item.kind === "event" ? "event" : "task";
-    element.className = `day-timed-event${item.type === "schedule" ? " schedule" : " task"}${item.done ? " done" : ""}`;
+    element.className = `day-timed-event${item.type === "schedule" ? " schedule" : " task"}${item.type === "task" && item.done ? " done" : ""}`;
     element.dataset.calendarKind = kind;
     element.dataset.calendarId = item.id;
     element.dataset.contextKind = kind;
     element.dataset.contextId = item.id;
-    element.innerHTML = `<div class="day-timed-main"><button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="${kind}" data-calendar-id="${item.id}" aria-label="${item.type === "schedule" ? "일정" : "할일"} 완료">${item.done ? "✓" : ""}</button><strong>${esc(item.title)}</strong></div><small>${item.type === "schedule" ? "일정" : "할일"} · ${timeText(item.startDate)}</small>`;
+    const control = item.type === "schedule"
+      ? '<span class="calendar-event-dot" aria-hidden="true"></span>'
+      : `<button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button>`;
+    element.innerHTML = `<div class="day-timed-main">${control}<strong>${esc(item.title)}</strong></div><small>${item.type === "schedule" ? "일정" : "할일"} · ${timeText(item.startDate)}</small>`;
     row.querySelector(".day-time-lane").appendChild(element);
   }
   bindCalendarChecks();
@@ -675,7 +669,7 @@ function renderSessions() {
   const dayKey = appDayKey();
   const today = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) === dayKey).sort((a, b) => new Date(b.end) - new Date(a.end));
   const all = [...state.sessions].sort((a, b) => new Date(b.end) - new Date(a.end)).slice(0, 50);
-  const make = (items) => items.length ? items.map((session) => `<div class="history-row"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta">${new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(session.end))}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`).join("") : '<div class="empty">아직 기록이 없어요.</div>';
+  const make = (items) => items.length ? items.map((session) => `<div class="history-row editable-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta">${new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(session.end))}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`).join("") : '<div class="empty">아직 기록이 없어요.</div>';
   $("#todaySessions").innerHTML = make(today);
   $("#allSessions").innerHTML = make(all);
   $("#trackingTodayTotal").textContent = `오늘 ${fmtDuration(todayFocusMs())}`;
@@ -684,8 +678,9 @@ function renderSessions() {
 function renderTracking() {
   const select = $("#timerTaskSelect");
   const previous = select.value;
-  const activeTasks = state.tasks.filter((task) => !task.done);
-  select.innerHTML = '<option value="">할일 선택</option>' + activeTasks.map((task) => `<option value="${task.id}">${esc(task.title)}</option>`).join("");
+  const dayKey = appDayKey();
+  const activeTasks = state.tasks.filter((task) => !task.done && task.date === dayKey);
+  select.innerHTML = '<option value="">오늘 할일 선택</option>' + activeTasks.map((task) => `<option value="${task.id}">${esc(task.title)}</option>`).join("");
   if (activeTasks.some((task) => task.id === previous)) select.value = previous;
   if (state.timer.taskId) select.value = state.timer.taskId;
   const task = state.tasks.find((item) => item.id === state.timer.taskId);
@@ -698,7 +693,7 @@ function renderProjects() {
   const statuses = ["목표", "작업", "보류", "완료"];
   $("#projectSections").innerHTML = statuses.map((status) => {
     const projects = state.projects.filter((project) => project.status === status);
-    return `<section class="section-card"><div class="section-head"><span>${status}</span><span class="card-meta">${projects.length}</span></div><div class="project-list">${projects.length ? projects.map((project) => `<div class="project-row" data-project-id="${project.id}"><div><strong>${esc(project.title)}</strong><div class="project-meta">${esc(project.category || "")}</div></div><div><div class="progress"><i style="width:${Math.max(0, Math.min(100, Number(project.progress || 0)))}%"></i></div><div class="project-meta">${Math.max(0, Math.min(100, Number(project.progress || 0)))}%</div></div><span class="pill">${project.deadline ? new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(`${project.deadline}T12:00:00`)) : "기한 없음"}</span></div>`).join("") : '<div class="empty">항목이 없어요.</div>'}</div></section>`;
+    return `<section class="section-card"><div class="section-head"><span>${status}</span><span class="card-meta">${projects.length}</span></div><div class="project-list">${projects.length ? projects.map((project) => `<div class="project-row editable-row" data-project-id="${project.id}" data-context-kind="project" data-context-id="${project.id}"><div><strong>${esc(project.title)}</strong><div class="project-meta">${esc(project.category || "")}</div></div><div><div class="progress"><i style="width:${Math.max(0, Math.min(100, Number(project.progress || 0)))}%"></i></div><div class="project-meta">${Math.max(0, Math.min(100, Number(project.progress || 0)))}%</div></div><span class="pill">${project.deadline ? new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(`${project.deadline}T12:00:00`)) : "기한 없음"}</span></div>`).join("") : '<div class="empty">항목이 없어요.</div>'}</div></section>`;
   }).join("");
 }
 

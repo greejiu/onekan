@@ -35,6 +35,31 @@
 #featureSomedayCard .card-meta {
   white-space: nowrap;
 }
+.feature-someday-top-add {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 20px;
+}
+.feature-someday-quick-add {
+  display: none;
+  gap: 6px;
+  padding: 0 12px 9px;
+}
+.feature-someday-quick-add.open {
+  display: flex;
+}
+.feature-someday-quick-add input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: #fff;
+  color: var(--text);
+}
 @media (max-width: 680px) {
   .dash-row {
     grid-template-columns: 1fr;

@@ -5,6 +5,9 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const pad = (n) => String(n).padStart(2, "0");
 
 let currentTarget = null;
+let longPressTimer = null;
+let longPressStart = null;
+let suppressClickUntil = 0;
 
 function localDateKey(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -368,10 +371,6 @@ function ensureUI() {
   menu.className = "global-context-menu";
   menu.setAttribute("role", "menu");
   menu.innerHTML = `
-    <button type="button" role="menuitem" data-context-schedule data-context-action="today">오늘하기</button>
-    <button type="button" role="menuitem" data-context-schedule data-context-action="tomorrow">내일하기</button>
-    <div class="global-context-divider" data-context-schedule></div>
-    <button type="button" role="menuitem" data-context-action="edit">수정하기</button>
     <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제하기</button>`;
   document.body.appendChild(menu);
 
@@ -435,9 +434,79 @@ function installListeners() {
     }
   }, true);
 
+  document.addEventListener("click", async (event) => {
+    const element = event.target instanceof Element ? event.target : null;
+    if (!element) return;
+    if (Date.now() < suppressClickUntil && isSupportedSurface(element)) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (element.closest("button,input,textarea,select,a,[contenteditable='true']")) return;
+    const editable = element.closest([
+      "#habitList .row",
+      "#upcomingList .row",
+      "#calendarBody .cal-event",
+      "#calendarBody .day-timed-event",
+      "#calendarBody .day-list .row",
+      ".project-row[data-project-id]",
+      "#todaySessions .history-row",
+      "#allSessions .history-row",
+    ].join(","));
+    if (!editable) return;
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      const current = await readState();
+      const target = resolveDirect(editable) || resolveByPosition(editable, current?.state);
+      if (!target) return;
+      currentTarget = target;
+      await openEditor();
+    } catch (error) {
+      console.error("클릭 수정 연결 실패", error);
+    }
+  });
+
   document.addEventListener("pointerdown", (event) => {
     if (!event.target.closest?.("#globalContextMenu")) hideMenu();
-  });
+    if (event.pointerType === "mouse") return;
+    const element = event.target instanceof Element ? event.target : null;
+    if (!element || element.closest("button,input,textarea,select,a,[contenteditable='true']") || !isSupportedSurface(element)) return;
+    clearTimeout(longPressTimer);
+    const press = { x: event.clientX, y: event.clientY, element };
+    longPressStart = press;
+    longPressTimer = setTimeout(async () => {
+      try {
+        const current = await readState();
+        const target = resolveDirect(press.element) || resolveByPosition(press.element, current?.state);
+        if (!target) return;
+        suppressClickUntil = Date.now() + 800;
+        showMenu(press.x, press.y, target);
+        navigator.vibrate?.(12);
+      } catch (error) {
+        console.error("길게 누르기 메뉴 연결 실패", error);
+      } finally {
+        longPressTimer = null;
+        longPressStart = null;
+      }
+    }, 550);
+  }, true);
+  document.addEventListener("pointermove", (event) => {
+    if (!longPressStart) return;
+    if (Math.hypot(event.clientX - longPressStart.x, event.clientY - longPressStart.y) > 10) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+      longPressStart = null;
+    }
+  }, true);
+  const cancelLongPress = () => {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+    longPressStart = null;
+  };
+  document.addEventListener("pointerup", cancelLongPress, true);
+  document.addEventListener("pointercancel", cancelLongPress, true);
   document.addEventListener("scroll", hideMenu, true);
   window.addEventListener("resize", hideMenu);
   window.addEventListener("blur", hideMenu);

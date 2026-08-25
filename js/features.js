@@ -183,13 +183,24 @@ function injectHomeFeatures() {
     card.id = "featureSomedayCard";
     card.className = "card";
     card.innerHTML = `
-      <div class="card-header"><div class="card-title">언젠가 할일</div><div class="card-meta">오늘 목록으로 끌어오기</div></div>
-      <div class="card-body"><div class="list feature-task-drop" id="featureSomedayList"></div></div>
-      <div class="card-footer"><div class="add-row"><input id="featureSomedayInput" placeholder="언젠가 할일 추가" /><button class="soft-btn" id="featureAddSomeday" type="button">추가</button></div></div>`;
+      <div class="card-header"><div class="card-title">언젠가 할일</div><div class="header-inline"><span class="card-meta">오늘 목록으로 끌어오기</span><button class="ghost-btn feature-someday-top-add" id="featureAddSomeday" type="button" aria-label="언젠가 할일 추가" title="언젠가 할일 추가">＋</button></div></div>
+      <form class="feature-someday-quick-add" id="featureSomedayForm">
+        <input id="featureSomedayInput" placeholder="언젠가 할일 입력" aria-label="언젠가 할일 입력" />
+        <button class="ghost-btn" id="featureSomedayClose" type="button" aria-label="닫기">×</button>
+      </form>
+      <div class="card-body"><div class="list feature-task-drop" id="featureSomedayList"></div></div>`;
     habitCard.after(card);
     dashboard.classList.remove("span-2");
-    $("#featureAddSomeday").addEventListener("click", addSomedayTask);
-    $("#featureSomedayInput").addEventListener("keydown", (event) => { if (event.key === "Enter") addSomedayTask(); });
+    $("#featureAddSomeday").addEventListener("click", () => {
+      $("#featureSomedayForm").classList.add("open");
+      $("#featureSomedayInput").value = "";
+      requestAnimationFrame(() => $("#featureSomedayInput").focus());
+    });
+    $("#featureSomedayClose").addEventListener("click", () => $("#featureSomedayForm").classList.remove("open"));
+    $("#featureSomedayForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      addSomedayTask();
+    });
     wireHomeDropTargets();
   }
   injected = true;
@@ -203,6 +214,37 @@ async function addSomedayTask() {
   await mutateCloud((state) => {
     state.tasks.push({ id: uid(), title, done: false, date: null });
   });
+  $("#featureSomedayForm")?.classList.remove("open");
+}
+
+function openSomedayInlineEdit(titleElement, task, row) {
+  if (!titleElement || titleElement.matches("input")) return;
+  const input = document.createElement("input");
+  input.className = "row-title-input";
+  input.value = task.title;
+  titleElement.replaceWith(input);
+  row.draggable = false;
+  input.focus();
+  input.select();
+  let finished = false;
+  const finish = async (saveChange) => {
+    if (finished) return;
+    finished = true;
+    const value = input.value.trim();
+    if (saveChange && value && value !== task.title) {
+      await mutateCloud((state) => {
+        const target = state.tasks.find((item) => item.id === task.id);
+        if (target) target.title = value;
+      });
+      return;
+    }
+    renderSomedayTasks();
+  };
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); finish(true); }
+    if (event.key === "Escape") { event.preventDefault(); finish(false); }
+  });
+  input.addEventListener("blur", () => finish(true), { once: true });
 }
 
 function renderSomedayTasks() {
@@ -219,7 +261,9 @@ function renderSomedayTasks() {
     row.className = `row${task.done ? " done" : ""}`;
     row.draggable = true;
     row.dataset.taskId = task.id;
-    row.innerHTML = `<button class="check ${task.done ? "checked" : ""}" type="button">${task.done ? "✓" : ""}</button><span class="row-title" style="cursor:default">${esc(task.title)}</span><button class="more" type="button">···</button><div class="menu"><button data-action="today" type="button">오늘로 옮기기</button><button data-action="date" type="button">날짜 선택</button><button class="danger" data-action="delete" type="button">삭제</button></div>`;
+    row.dataset.contextKind = "task";
+    row.dataset.contextId = task.id;
+    row.innerHTML = `<button class="check ${task.done ? "checked" : ""}" type="button" aria-label="완료">${task.done ? "✓" : ""}</button><span class="row-title">${esc(task.title)}</span>`;
     row.addEventListener("dragstart", (event) => {
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/task-id", task.id);
@@ -232,19 +276,10 @@ function renderSomedayTasks() {
         if (target) target.done = !target.done;
       });
     });
-    const menu = row.querySelector(".menu");
-    row.querySelector(".more").addEventListener("click", (event) => {
+    const title = row.querySelector(".row-title");
+    title.addEventListener("click", (event) => {
       event.stopPropagation();
-      $$(".menu.open").forEach((other) => other !== menu && other.classList.remove("open"));
-      menu.classList.toggle("open");
-    });
-    menu.querySelector('[data-action="today"]').addEventListener("click", () => moveItemToDate("task", task.id, appDayKey()));
-    menu.querySelector('[data-action="date"]').addEventListener("click", () => openMoveDialog("task", task.id));
-    menu.querySelector('[data-action="delete"]').addEventListener("click", async () => {
-      await mutateCloud((state) => {
-        state.tasks = state.tasks.filter((item) => item.id !== task.id);
-        state.timeBlocks = state.timeBlocks.filter((block) => block.taskId !== task.id);
-      });
+      openSomedayInlineEdit(title, task, row);
     });
     list.appendChild(row);
   }
@@ -303,7 +338,7 @@ function attachCalendarEntry(element, item) {
   element.draggable = true;
   element.dataset.featureKind = item.kind;
   element.dataset.featureId = item.id;
-  element.title = "드래그해서 날짜 이동 · 클릭하면 날짜 선택";
+  element.title = "드래그해서 날짜 이동";
   if (element.dataset.featureEntryWired) return;
   element.dataset.featureEntryWired = "true";
   element.addEventListener("dragstart", (event) => {
@@ -312,10 +347,6 @@ function attachCalendarEntry(element, item) {
     element.classList.add("feature-dragging");
   });
   element.addEventListener("dragend", () => element.classList.remove("feature-dragging"));
-  element.addEventListener("click", (event) => {
-    event.stopPropagation();
-    openMoveDialog(item.kind, item.id);
-  });
 }
 
 function attachCalendarDropTarget(element, dateKey) {
@@ -446,10 +477,6 @@ function resetFeatures() {
   currentUser = null;
   cloudState = null;
 }
-
-document.addEventListener("click", (event) => {
-  if (!event.target.closest(".more")) $$("#featureSomedayCard .menu.open").forEach((menu) => menu.classList.remove("open"));
-});
 
 supabase.auth.onAuthStateChange((_event, session) => {
   if (session?.user) setTimeout(() => initializeFeatures(session.user), 0);
