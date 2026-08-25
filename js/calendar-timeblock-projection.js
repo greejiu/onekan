@@ -6,29 +6,51 @@ const START_MIN = 6 * 60;
 const END_MIN = 22 * 60;
 const SLOT = 30;
 const ROW_HEIGHT = 42;
+const DEFAULT_TEMPLATES = [
+  { id: "tb-0609", title: "오전일과", startMinute: 360, endMinute: 540 },
+  { id: "tb-0911", title: "작업 1", startMinute: 540, endMinute: 660 },
+  { id: "tb-1112", title: "", startMinute: 660, endMinute: 720 },
+  { id: "tb-1214", title: "", startMinute: 720, endMinute: 840 },
+  { id: "tb-1415", title: "", startMinute: 840, endMinute: 900 },
+  { id: "tb-1517", title: "", startMinute: 900, endMinute: 1020 },
+  { id: "tb-1719", title: "", startMinute: 1020, endMinute: 1140 },
+  { id: "tb-1921", title: "", startMinute: 1140, endMinute: 1260 },
+  { id: "tb-2122", title: "", startMinute: 1260, endMinute: 1320 },
+];
 
 let observer = null;
 let renderTimer = null;
 let rendering = false;
 
-function scheduleRender(delay = 120) {
+function scheduleRender(delay = 100) {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(renderProjection, delay);
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function resolveTimelineDate(timeline) {
+  const explicit = timeline?.dataset.featureCalendarDate;
+  if (explicit) return explicit;
+  const title = $("#calTitle")?.textContent || "";
+  const match = title.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+  if (!match) return null;
+  return `${match[1]}-${String(match[2]).padStart(2, "0")}-${String(match[3]).padStart(2, "0")}`;
 }
 
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return null;
-  const { data, error } = await supabase
-    .from("onekan_state")
-    .select("data")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
+  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
   if (error) throw error;
   const state = data?.data && typeof data.data === "object" ? data.data : {};
   state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
   state.events = Array.isArray(state.events) ? state.events : [];
-  state.timeBlockTemplates = Array.isArray(state.timeBlockTemplates) ? state.timeBlockTemplates : [];
+  if (!Array.isArray(state.timeBlockTemplates) || !state.timeBlockTemplates.length) {
+    state.timeBlockTemplates = DEFAULT_TEMPLATES.map((item) => ({ ...item }));
+  }
   return { user: session.user, state };
 }
 
@@ -36,12 +58,10 @@ async function writeState(mutator) {
   const current = await readState();
   if (!current) return;
   mutator(current.state);
-  const { error } = await supabase
-    .from("onekan_state")
-    .upsert({ user_id: current.user.id, data: current.state }, { onConflict: "user_id" });
+  const { error } = await supabase.from("onekan_state").upsert({ user_id: current.user.id, data: current.state }, { onConflict: "user_id" });
   if (error) throw error;
   $("#reloadCloudBtn")?.click();
-  scheduleRender(180);
+  scheduleRender(160);
 }
 
 function minuteText(minute) {
@@ -55,12 +75,11 @@ function esc(value) {
   }[char]));
 }
 
-function eventOverlapsMinute(event, dateKey, minute) {
+function eventOverlapsMinute(event, targetDate, minute) {
   if (!event?.start) return false;
   const start = new Date(event.start);
+  if (dateKey(start) !== targetDate) return false;
   const end = event.end ? new Date(event.end) : new Date(start.getTime() + SLOT * 60000);
-  const startKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-  if (startKey !== dateKey) return false;
   const startMinute = start.getHours() * 60 + start.getMinutes();
   const endMinute = end.getHours() * 60 + end.getMinutes();
   return minute >= startMinute && minute < endMinute;
@@ -69,19 +88,12 @@ function eventOverlapsMinute(event, dateKey, minute) {
 function hideAssignedUntimedTasks(assignedIds) {
   const box = $("#calendarBody .untimed-box");
   if (!box) return;
-
-  let hasFeatureIds = false;
   $$(".cal-event", box).forEach((element) => {
     const id = element.dataset.featureId || element.dataset.contextId;
-    if (id) hasFeatureIds = true;
-    if (id && assignedIds.has(id)) element.classList.add("calendar-timeblock-hidden-untimed");
-    else element.classList.remove("calendar-timeblock-hidden-untimed");
+    element.classList.toggle("calendar-timeblock-hidden-untimed", !!id && assignedIds.has(id));
   });
-
-  if (hasFeatureIds) {
-    const visible = $$(".cal-event", box).some((element) => !element.classList.contains("calendar-timeblock-hidden-untimed"));
-    box.classList.toggle("calendar-timeblock-empty-untimed", !visible);
-  }
+  const items = $$(".cal-event", box);
+  box.classList.toggle("calendar-timeblock-empty-untimed", !!items.length && items.every((element) => element.classList.contains("calendar-timeblock-hidden-untimed")));
 }
 
 function projectionMarkup(template, tasks) {
@@ -122,9 +134,9 @@ async function renderProjection() {
   if (rendering) return;
   const timeline = $("#calendarBody .day-timeline");
   if (!timeline) return;
-  const dateKey = timeline.dataset.featureCalendarDate;
-  if (!dateKey) {
-    scheduleRender(160);
+  const targetDate = resolveTimelineDate(timeline);
+  if (!targetDate) {
+    scheduleRender(180);
     return;
   }
 
@@ -134,21 +146,20 @@ async function renderProjection() {
     if (!current) return;
     const { state } = current;
     const templateMap = new Map(state.timeBlockTemplates.map((template) => [template.id, template]));
-    const assignedTasks = state.tasks.filter((task) => task.date === dateKey && task.timeBlockTemplateId && templateMap.has(task.timeBlockTemplateId));
+    const assignedTasks = state.tasks.filter((task) => task.date === targetDate && task.timeBlockTemplateId && templateMap.has(task.timeBlockTemplateId));
     const assignedIds = new Set(assignedTasks.map((task) => task.id));
 
-    hideAssignedUntimedTasks(assignedIds);
     $$(".calendar-timeblock-projection", timeline).forEach((element) => element.remove());
+    hideAssignedUntimedTasks(assignedIds);
 
     const groups = new Map();
-    assignedTasks.forEach((task) => {
+    for (const task of assignedTasks) {
       const template = templateMap.get(task.timeBlockTemplateId);
-      if (!template) return;
-      const startMinute = Number(template.startMinute);
-      if (!Number.isFinite(startMinute) || startMinute < START_MIN || startMinute >= END_MIN) return;
+      const startMinute = Number(template?.startMinute);
+      if (!template || !Number.isFinite(startMinute) || startMinute < START_MIN || startMinute >= END_MIN) continue;
       if (!groups.has(template.id)) groups.set(template.id, { template, tasks: [] });
       groups.get(template.id).tasks.push(task);
-    });
+    }
 
     const laneWidth = Math.max(0, timeline.getBoundingClientRect().width - 62);
     [...groups.values()]
@@ -157,15 +168,12 @@ async function renderProjection() {
         tasks.sort((a, b) => Number(a.done) - Number(b.done));
         const startMinute = Number(template.startMinute);
         const top = ((startMinute - START_MIN) / SLOT) * ROW_HEIGHT + 3;
-        const overlapsSchedule = state.events.some((event) => eventOverlapsMinute(event, dateKey, startMinute));
-
+        const overlapsSchedule = state.events.some((event) => eventOverlapsMinute(event, targetDate, startMinute));
         const element = document.createElement("section");
         element.className = `calendar-timeblock-projection${overlapsSchedule ? " with-schedule" : ""}`;
         element.dataset.timeBlockTemplateId = template.id;
         element.style.top = `${top}px`;
-        if (overlapsSchedule && laneWidth > 0) {
-          element.style.left = `${62 + Math.round(laneWidth * 0.56)}px`;
-        }
+        if (overlapsSchedule && laneWidth > 0) element.style.left = `${62 + Math.round(laneWidth * 0.56)}px`;
         element.innerHTML = projectionMarkup(template, tasks);
         timeline.appendChild(element);
         wireProjection(element);
@@ -184,21 +192,7 @@ function injectStyle() {
   style.textContent = `
     #calendarBody .calendar-timeblock-hidden-untimed{display:none!important}
     #calendarBody .untimed-box.calendar-timeblock-empty-untimed{display:none!important}
-    #calendarBody .calendar-timeblock-projection{
-      position:absolute;
-      left:69px;
-      right:10px;
-      z-index:4;
-      min-height:34px;
-      padding:5px 7px;
-      border:1px solid var(--line-strong,#b8c0cb);
-      border-left:3px solid var(--accent,#30343b);
-      border-radius:7px;
-      background:rgba(248,249,251,.96);
-      box-shadow:0 1px 2px rgba(15,23,42,.05);
-      pointer-events:auto;
-    }
-    #calendarBody .calendar-timeblock-projection.with-schedule{right:10px}
+    #calendarBody .calendar-timeblock-projection{position:absolute;left:69px;right:10px;z-index:4;min-height:34px;padding:5px 7px;border:1px solid var(--line-strong,#b8c0cb);border-left:3px solid var(--accent,#30343b);border-radius:7px;background:rgba(248,249,251,.97);box-shadow:0 1px 2px rgba(15,23,42,.05)}
     #calendarBody .calendar-timeblock-head{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:2px;font-size:10px;color:var(--muted,#6b7280)}
     #calendarBody .calendar-timeblock-head strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text,#1f2328);font-size:11px}
     #calendarBody .calendar-timeblock-time{font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -208,18 +202,16 @@ function injectStyle() {
     #calendarBody .calendar-timeblock-task.done span{text-decoration:line-through;color:var(--muted,#6b7280)}
     #calendarBody .calendar-timeblock-check{width:16px;height:16px;padding:0;border:1px solid var(--line-strong,#b8c0cb);border-radius:4px;background:#fff;color:var(--text,#1f2328);font-size:10px;cursor:pointer}
     #calendarBody .calendar-timeblock-check.checked{background:var(--accent-soft,#eef2f6)}
-    @media(max-width:700px){
-      #calendarBody .calendar-timeblock-projection.with-schedule{left:58%!important}
-    }
+    @media(max-width:700px){#calendarBody .calendar-timeblock-projection.with-schedule{left:58%!important}}
   `;
   document.head.appendChild(style);
 }
 
-function isProjectionOnlyMutation(mutation) {
-  if (mutation.type !== "childList") return !!mutation.target.closest?.(".calendar-timeblock-projection");
+function isOwnMutation(mutation) {
+  if (mutation.target.closest?.(".calendar-timeblock-projection")) return true;
+  if (mutation.type !== "childList") return false;
   const nodes = [...mutation.addedNodes, ...mutation.removedNodes].filter((node) => node.nodeType === Node.ELEMENT_NODE);
-  if (!nodes.length) return false;
-  return nodes.every((node) => node.matches?.(".calendar-timeblock-projection") || node.closest?.(".calendar-timeblock-projection"));
+  return !!nodes.length && nodes.every((node) => node.matches?.(".calendar-timeblock-projection") || node.closest?.(".calendar-timeblock-projection"));
 }
 
 function observeCalendar() {
@@ -227,22 +219,17 @@ function observeCalendar() {
   const body = $("#calendarBody");
   if (!body) return;
   observer = new MutationObserver((mutations) => {
-    if (mutations.length && mutations.every(isProjectionOnlyMutation)) return;
+    if (mutations.length && mutations.every(isOwnMutation)) return;
     scheduleRender();
   });
-  observer.observe(body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["data-feature-calendar-date", "data-feature-id", "data-feature-kind"],
-  });
+  observer.observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-feature-calendar-date", "data-feature-id", "data-feature-kind"] });
 }
 
 function init() {
   injectStyle();
   observeCalendar();
-  $("#reloadCloudBtn")?.addEventListener("click", () => scheduleRender(180));
-  scheduleRender(180);
+  $("#reloadCloudBtn")?.addEventListener("click", () => scheduleRender(160));
+  scheduleRender(160);
 }
 
 supabase.auth.onAuthStateChange((_event, session) => {
