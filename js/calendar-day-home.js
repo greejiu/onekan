@@ -42,6 +42,12 @@ function isDayView() {
   return $("#calendarViewSeg [data-view='day']")?.classList.contains("active") === true;
 }
 
+function shouldRenderTaskBoard() {
+  const scheduleOn = $("#calendarTypeFilter [data-calendar-type='schedule']")?.classList.contains("active") === true;
+  const taskOn = $("#calendarTypeFilter [data-calendar-type='task']")?.classList.contains("active") === true;
+  return taskOn && !scheduleOn;
+}
+
 function minuteText(minute) {
   const value = Math.max(0, Math.min(1439, Number(minute) || 0));
   return `${pad(Math.floor(value / 60))}:${pad(value % 60)}`;
@@ -152,7 +158,10 @@ function scheduleRender(delay = 40) {
 }
 
 async function renderDayBlock() {
-  if (!isDayView() || rendering) return;
+  const dayView = isDayView();
+  const taskBoard = dayView && shouldRenderTaskBoard();
+  $("#dayModeSeg")?.classList.toggle("calendar-day-task-only", taskBoard);
+  if (!taskBoard || rendering) return;
   const dateKey = selectedDateKey();
   const body = $("#calendarBody");
   if (!dateKey || !body) return;
@@ -387,7 +396,7 @@ function injectStyle() {
   const style = document.createElement("style");
   style.id = "calendarDayBlockStyles";
   style.textContent = `
-    #dayModeSeg{display:none!important}
+    #dayModeSeg.calendar-day-task-only{display:none!important}
     #calendarBody .calendar-day-timeblock-card{margin:14px;min-width:0}
     #calendarBody .calendar-day-board{padding:0 12px 12px}
     #calendarBody .calendar-day-block-table{width:100%;border-top:1px solid var(--line-strong,#b8c0cb);border-bottom:1px solid var(--line-strong,#b8c0cb)}
@@ -429,6 +438,9 @@ function wireGlobal() {
   injectStyle();
 
   $$("#calendarViewSeg button").forEach((button) => {
+    button.addEventListener("click", () => scheduleRender(80));
+  });
+  $$("#calendarTypeFilter [data-calendar-type]").forEach((button) => {
     button.addEventListener("click", () => scheduleRender(80));
   });
   $("#calPrev")?.addEventListener("click", () => scheduleRender(80));

@@ -289,18 +289,13 @@ function wireHomeDropTargets() {
   }
 }
 
-function itemsForDate(state, dateKey) {
-  const events = state.events
-    .filter((item) => localDateKey(new Date(item.start)) === dateKey)
-    .map((item) => ({ kind: "event", id: item.id, title: item.title, startDate: new Date(item.start) }));
-  const tasks = state.tasks
-    .filter((item) => item.date === dateKey)
-    .map((item) => ({ id: item.id, kind: "task", title: item.title, startDate: null }));
-  return [...events, ...tasks].sort((a, b) => {
-    const rankA = a.kind === "event" ? 0 : 1;
-    const rankB = b.kind === "event" ? 0 : 1;
-    return rankA - rankB || ((a.startDate?.getTime() || Infinity) - (b.startDate?.getTime() || Infinity)) || a.title.localeCompare(b.title, "ko");
-  });
+function calendarItemForElement(state, element) {
+  const kind = element?.dataset.calendarKind;
+  const id = element?.dataset.calendarId;
+  if (!kind || !id) return null;
+  const source = kind === "task" ? state.tasks : state.events;
+  const item = source.find((entry) => entry.id === id);
+  return item ? { kind, id, title: item.title, startDate: item.start ? new Date(item.start) : null } : null;
 }
 
 function attachCalendarEntry(element, item) {
@@ -359,9 +354,8 @@ async function enhanceCalendar() {
       const dayText = cell.querySelector(".day-num")?.textContent;
       if (!dayText) return;
       const dateKey = localDateKey(new Date(year, month, Number(dayText)));
-      const items = itemsForDate(state, dateKey).slice(0, 5);
       attachCalendarDropTarget(cell, dateKey);
-      [...cell.querySelectorAll(".cal-event")].forEach((element, index) => attachCalendarEntry(element, items[index]));
+      [...cell.querySelectorAll(".cal-event")].forEach((element) => attachCalendarEntry(element, calendarItemForElement(state, element)));
     });
     return;
   }
@@ -374,30 +368,26 @@ async function enhanceCalendar() {
       const date = new Date(start);
       date.setDate(date.getDate() + index);
       const dateKey = localDateKey(date);
-      const items = itemsForDate(state, dateKey);
       attachCalendarDropTarget(column, dateKey);
-      [...column.querySelectorAll(".cal-event")].forEach((element, itemIndex) => attachCalendarEntry(element, items[itemIndex]));
+      [...column.querySelectorAll(".cal-event")].forEach((element) => attachCalendarEntry(element, calendarItemForElement(state, element)));
     });
     return;
   }
 
   const dateKey = localDateKey(featureCursor);
-  const items = itemsForDate(state, dateKey);
   const dayList = $("#calendarBody .day-list");
   if (dayList) {
     attachCalendarDropTarget(dayList, dateKey);
-    [...dayList.querySelectorAll(".row")].forEach((element, index) => attachCalendarEntry(element, items[index]));
+    [...dayList.querySelectorAll(".row")].forEach((element) => attachCalendarEntry(element, calendarItemForElement(state, element)));
     return;
   }
 
-  const untimedTasks = items.filter((item) => item.kind === "task");
-  const timedEvents = items.filter((item) => item.kind === "event");
   const untimedBox = $("#calendarBody .untimed-box");
   const timeline = $("#calendarBody .day-timeline");
   attachCalendarDropTarget(untimedBox, dateKey);
   attachCalendarDropTarget(timeline, dateKey);
-  [...(untimedBox?.querySelectorAll(".cal-event") || [])].forEach((element, index) => attachCalendarEntry(element, untimedTasks[index]));
-  [...(timeline?.querySelectorAll(".day-timed-event") || [])].forEach((element, index) => attachCalendarEntry(element, timedEvents[index]));
+  [...(untimedBox?.querySelectorAll(".cal-event") || [])].forEach((element) => attachCalendarEntry(element, calendarItemForElement(state, element)));
+  [...(timeline?.querySelectorAll(".day-timed-event") || [])].forEach((element) => attachCalendarEntry(element, calendarItemForElement(state, element)));
 }
 
 function scheduleCalendarEnhance() {

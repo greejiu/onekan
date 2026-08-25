@@ -44,13 +44,21 @@ function defaultState() {
     sessions: [],
     timer: { running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0 },
     projects: [],
-    ui: { sidebarCollapsed: false },
+    ui: {
+      sidebarCollapsed: false,
+      calendarFilters: {
+        month: { schedule: true, task: false },
+        week: { schedule: true, task: true },
+        day: { schedule: false, task: true },
+      },
+    },
   };
 }
 
 function normalizeState(raw) {
   const base = defaultState();
   const state = raw && typeof raw === "object" ? raw : {};
+  const savedCalendarFilters = state.ui?.calendarFilters || {};
   return {
     ...base,
     ...state,
@@ -62,7 +70,15 @@ function normalizeState(raw) {
     sessions: Array.isArray(state.sessions) ? state.sessions : [],
     timer: { ...base.timer, ...(state.timer || {}) },
     projects: Array.isArray(state.projects) ? state.projects : [],
-    ui: { ...base.ui, ...(state.ui || {}) },
+    ui: {
+      ...base.ui,
+      ...(state.ui || {}),
+      calendarFilters: {
+        month: { ...base.ui.calendarFilters.month, ...(savedCalendarFilters.month || {}) },
+        week: { ...base.ui.calendarFilters.week, ...(savedCalendarFilters.week || {}) },
+        day: { ...base.ui.calendarFilters.day, ...(savedCalendarFilters.day || {}) },
+      },
+    },
   };
 }
 
@@ -472,20 +488,78 @@ function timeText(date) {
   return date ? new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(date) : "";
 }
 
+function calendarFiltersForView(view = calView) {
+  const defaults = defaultState().ui.calendarFilters[view];
+  return { ...defaults, ...(state.ui.calendarFilters?.[view] || {}) };
+}
+
+function updateCalendarFilterUI() {
+  const filters = calendarFiltersForView();
+  $$("#calendarTypeFilter [data-calendar-type]").forEach((button) => {
+    const active = !!filters[button.dataset.calendarType];
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function calendarEntryMarkup(item) {
+  const kind = item.kind === "event" ? "event" : "task";
+  return `<div class="cal-event ${item.type === "schedule" ? "schedule" : "task"}${item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
+    <button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="${kind}" data-calendar-id="${item.id}" aria-label="${item.type === "schedule" ? "일정" : "할일"} 완료">${item.done ? "✓" : ""}</button>
+    <span class="cal-event-title">${esc(item.title)}</span>
+  </div>`;
+}
+
+function calendarListEntryMarkup(item) {
+  const kind = item.kind === "event" ? "event" : "task";
+  return `<div class="row${item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
+    <button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="${kind}" data-calendar-id="${item.id}" aria-label="${item.type === "schedule" ? "일정" : "할일"} 완료">${item.done ? "✓" : ""}</button>
+    <span class="pill">${item.type === "schedule" ? "일정" : "할일"}</span>
+    <span class="row-title" style="cursor:default">${esc(item.title)}</span>
+    ${item.startDate ? `<span class="card-meta">${timeText(item.startDate)}</span>` : ""}
+  </div>`;
+}
+
+function bindCalendarChecks(root = $("#calendarBody")) {
+  $$("[data-calendar-check]", root).forEach((button) => button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const collection = button.dataset.calendarCheck === "event" ? state.events : state.tasks;
+    const item = collection.find((entry) => entry.id === button.dataset.calendarId);
+    if (!item) return;
+    item.done = !item.done;
+    save();
+    renderCalendar();
+    renderHome();
+    renderTracking();
+  }));
+}
+
 function eventsForDate(date) {
   const key = localDateKey(date);
+  const filters = calendarFiltersForView();
   const events = state.events
     .filter((event) => localDateKey(new Date(event.start)) === key)
     .map((event) => ({ ...event, kind: "event", type: "schedule", startDate: new Date(event.start) }));
   const tasks = state.tasks
     .filter((task) => task.date === key)
-    .map((task) => ({ id: task.id, title: task.title, type: "task", kind: "task", startDate: null, done: task.done }));
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      type: "task",
+      kind: "task",
+      startDate: task.notionStart && task.notionEnd ? new Date(task.notionStart) : null,
+      done: task.done,
+    }));
   const rank = (item) => item.type === "schedule" ? 0 : 1;
-  return [...events, ...tasks].sort((a, b) => rank(a) - rank(b) || ((a.startDate?.getTime() || Infinity) - (b.startDate?.getTime() || Infinity)) || a.title.localeCompare(b.title, "ko"));
+  return [...events, ...tasks]
+    .filter((item) => item.type === "schedule" ? filters.schedule : filters.task)
+    .sort((a, b) => rank(a) - rank(b) || ((a.startDate?.getTime() || Infinity) - (b.startDate?.getTime() || Infinity)) || a.title.localeCompare(b.title, "ko"));
 }
 
 function updateDayModeVisibility() {
   $("#dayModeSeg").classList.toggle("show", calView === "day");
+  updateCalendarFilterUI();
 }
 
 function renderDayTimeline(date) {
@@ -493,7 +567,7 @@ function renderDayTimeline(date) {
   const untimed = items.filter((item) => !item.startDate);
   const timed = items.filter((item) => item.startDate);
   let html = "";
-  if (untimed.length) html += `<div class="untimed-box"><div class="untimed-title">시간 미정 할일</div>${untimed.map((item) => `<div class="cal-event">${esc(item.title)}</div>`).join("")}</div>`;
+  if (untimed.length) html += `<div class="untimed-box"><div class="untimed-title">시간 미정</div>${untimed.map(calendarEntryMarkup).join("")}</div>`;
   html += '<div class="day-timeline" id="dayTimeline">';
   for (let minute = START_MIN; minute < END_MIN; minute += SLOT) html += `<div class="day-time-row" data-minute="${minute}"><div class="day-time-label">${minuteLabel(minute)}</div><div class="day-time-lane"></div></div>`;
   html += "</div>";
@@ -507,10 +581,16 @@ function renderDayTimeline(date) {
     const row = timeline.children[index];
     if (!row) continue;
     const element = document.createElement("div");
-    element.className = `day-timed-event${item.type === "schedule" ? " schedule" : ""}`;
-    element.innerHTML = `<strong>${esc(item.title)}</strong><small>${item.type === "schedule" ? "일정" : "할일"} · ${timeText(item.startDate)}</small>`;
+    const kind = item.kind === "event" ? "event" : "task";
+    element.className = `day-timed-event${item.type === "schedule" ? " schedule" : " task"}${item.done ? " done" : ""}`;
+    element.dataset.calendarKind = kind;
+    element.dataset.calendarId = item.id;
+    element.dataset.contextKind = kind;
+    element.dataset.contextId = item.id;
+    element.innerHTML = `<div class="day-timed-main"><button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="${kind}" data-calendar-id="${item.id}" aria-label="${item.type === "schedule" ? "일정" : "할일"} 완료">${item.done ? "✓" : ""}</button><strong>${esc(item.title)}</strong></div><small>${item.type === "schedule" ? "일정" : "할일"} · ${timeText(item.startDate)}</small>`;
     row.querySelector(".day-time-lane").appendChild(element);
   }
+  bindCalendarChecks();
 }
 
 function renderCalendar() {
@@ -531,10 +611,11 @@ function renderCalendar() {
       const date = new Date(year, month, day);
       const isToday = date.toDateString() === now.toDateString();
       const items = eventsForDate(date);
-      html += `<div class="day-cell ${isToday ? "today" : ""}"><div class="day-num">${day}</div>${items.slice(0, 5).map((item) => `<div class="cal-event ${item.type === "schedule" ? "schedule" : ""}">${item.type === "schedule" ? "• " : ""}${esc(item.title)}</div>`).join("")}</div>`;
+      html += `<div class="day-cell ${isToday ? "today" : ""}"><div class="day-num">${day}</div>${items.slice(0, 5).map(calendarEntryMarkup).join("")}</div>`;
     }
     html += "</div>";
     body.innerHTML = html;
+    bindCalendarChecks(body);
     return;
   }
 
@@ -549,17 +630,21 @@ function renderCalendar() {
     for (let index = 0; index < 7; index++) {
       const date = new Date(start);
       date.setDate(date.getDate() + index);
-      html += `<div class="week-col"><div class="week-date">${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</div>${eventsForDate(date).map((item) => `<div class="cal-event ${item.type === "schedule" ? "schedule" : ""}">${esc(item.title)}</div>`).join("")}</div>`;
+      html += `<div class="week-col"><div class="week-date">${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</div>${eventsForDate(date).map(calendarEntryMarkup).join("")}</div>`;
     }
     html += "</div>";
     body.innerHTML = html;
+    bindCalendarChecks(body);
     return;
   }
 
   $("#calTitle").textContent = fmtDate(calCursor);
   const items = eventsForDate(calCursor);
   if (calDayMode === "timeline") renderDayTimeline(calCursor);
-  else body.innerHTML = `<div class="day-list">${items.length ? items.map((item) => `<div class="row"><span class="pill">${item.type === "schedule" ? "일정" : "할일"}</span><span class="row-title" style="cursor:default">${esc(item.title)}</span>${item.startDate ? `<span class="card-meta">${timeText(item.startDate)}</span>` : ""}</div>`).join("") : '<div class="empty">이 날의 일정/할일이 없어요.</div>'}</div>`;
+  else {
+    body.innerHTML = `<div class="day-list">${items.length ? items.map(calendarListEntryMarkup).join("") : '<div class="empty">선택한 항목이 없어요.</div>'}</div>`;
+    bindCalendarChecks(body);
+  }
 }
 
 function currentTimerElapsed() {
@@ -710,6 +795,15 @@ function bindUI() {
     $("#blockEditor").classList.remove("open");
     renderTimeGrid();
   });
+
+  $$("#calendarTypeFilter [data-calendar-type]").forEach((button) => button.addEventListener("click", () => {
+    const type = button.dataset.calendarType;
+    state.ui.calendarFilters ||= defaultState().ui.calendarFilters;
+    state.ui.calendarFilters[calView] ||= { ...defaultState().ui.calendarFilters[calView] };
+    state.ui.calendarFilters[calView][type] = !state.ui.calendarFilters[calView][type];
+    save();
+    renderCalendar();
+  }));
 
   $$("#calendarViewSeg button").forEach((button) => button.addEventListener("click", () => {
     calView = button.dataset.view;
