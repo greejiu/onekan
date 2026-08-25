@@ -2,6 +2,17 @@ import { supabase } from "./supabase.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const pad = (n) => String(n).padStart(2, "0");
+const DEFAULT_TEMPLATES = [
+  { id: "tb-0609", title: "오전일과", startMinute: 360, endMinute: 540 },
+  { id: "tb-0911", title: "작업 1", startMinute: 540, endMinute: 660 },
+  { id: "tb-1112", title: "", startMinute: 660, endMinute: 720 },
+  { id: "tb-1214", title: "", startMinute: 720, endMinute: 840 },
+  { id: "tb-1415", title: "", startMinute: 840, endMinute: 900 },
+  { id: "tb-1517", title: "", startMinute: 900, endMinute: 1020 },
+  { id: "tb-1719", title: "", startMinute: 1020, endMinute: 1140 },
+  { id: "tb-1921", title: "", startMinute: 1140, endMinute: 1260 },
+  { id: "tb-2122", title: "", startMinute: 1260, endMinute: 1320 },
+];
 
 function localDateKey(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -26,6 +37,9 @@ async function saveTask(title, templateId) {
 
   const state = data?.data && typeof data.data === "object" ? data.data : {};
   state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
+  if (!Array.isArray(state.timeBlockTemplates) || !state.timeBlockTemplates.length) {
+    state.timeBlockTemplates = DEFAULT_TEMPLATES.map((item) => ({ ...item }));
+  }
 
   const task = {
     id: crypto.randomUUID(),
