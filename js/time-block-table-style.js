@@ -1,10 +1,41 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 
+let homeObserver = null;
+let applyTimer = null;
+
+function applyHomeLayout() {
+  const taskCard = $("#taskList")?.closest(".card");
+  if (taskCard) taskCard.classList.add("home-task-card-removed");
+
+  const plannerCard = $("#timeGrid")?.closest(".card");
+  if (plannerCard) plannerCard.classList.add("span-2", "home-timeblock-full");
+
+  const unassignedLabel = $("#dailyBlockBoard .daily-block-row.unassigned .daily-block-time");
+  if (unassignedLabel && unassignedLabel.textContent !== "오늘 할일") {
+    unassignedLabel.textContent = "오늘 할일";
+  }
+}
+
+function scheduleApply() {
+  clearTimeout(applyTimer);
+  applyTimer = setTimeout(applyHomeLayout, 30);
+}
+
+function observeHome() {
+  if (homeObserver) return;
+  const home = $("#page-home");
+  if (!home) return;
+  homeObserver = new MutationObserver(scheduleApply);
+  homeObserver.observe(home, { childList: true, subtree: true });
+}
+
 function injectTableStyle() {
   if ($("#timeBlockFlatTableStyles")) return;
   const style = document.createElement("style");
   style.id = "timeBlockFlatTableStyles";
   style.textContent = `
+    #page-home .home-task-card-removed{display:none!important}
+    #page-home .home-timeblock-full{grid-column:1/-1!important}
     #dailyBlockBoard{padding:0 12px 12px!important}
     #dailyBlockBoard .daily-block-table{
       width:100%!important;
@@ -58,8 +89,14 @@ function injectTableStyle() {
   document.head.appendChild(style);
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", injectTableStyle, { once: true });
-} else {
+function init() {
   injectTableStyle();
+  observeHome();
+  scheduleApply();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init, { once: true });
+} else {
+  init();
 }
