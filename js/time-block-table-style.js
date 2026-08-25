@@ -8,7 +8,22 @@ function applyHomeLayout() {
   if (taskCard) taskCard.classList.add("home-task-card-removed");
 
   const plannerCard = $("#timeGrid")?.closest(".card");
-  if (plannerCard) plannerCard.classList.add("span-2", "home-timeblock-full");
+  const somedayCard = $("#featureSomedayCard");
+  const dashboard = $("#dashTasks")?.closest(".card");
+
+  if (plannerCard) {
+    plannerCard.classList.remove("span-2", "home-timeblock-full");
+    plannerCard.classList.add("home-timeblock-left");
+  }
+
+  if (somedayCard) {
+    somedayCard.classList.add("home-someday-right");
+    if (plannerCard?.parentElement && somedayCard.parentElement === plannerCard.parentElement && plannerCard.nextElementSibling !== somedayCard) {
+      plannerCard.insertAdjacentElement("afterend", somedayCard);
+    }
+  }
+
+  if (dashboard) dashboard.classList.add("span-2");
 
   const unassignedLabel = $("#dailyBlockBoard .daily-block-row.unassigned .daily-block-time");
   if (unassignedLabel && unassignedLabel.textContent !== "오늘 할일") {
@@ -35,7 +50,8 @@ function injectTableStyle() {
   style.id = "timeBlockFlatTableStyles";
   style.textContent = `
     #page-home .home-task-card-removed{display:none!important}
-    #page-home .home-timeblock-full{grid-column:1/-1!important}
+    #page-home .home-timeblock-left{grid-column:auto!important}
+    #page-home .home-someday-right{grid-column:auto!important}
     #dailyBlockBoard{padding:0 12px 12px!important}
     #dailyBlockBoard .daily-block-table{
       width:100%!important;
@@ -82,6 +98,9 @@ function injectTableStyle() {
     }
     #dailyBlockBoard .daily-block-task:hover{background:var(--hover,#f3f5f7)!important}
     #dailyBlockBoard .daily-block-empty{font-size:0!important;min-height:24px;padding:0!important}
+    @media(max-width:720px){
+      #page-home .home-timeblock-left,#page-home .home-someday-right{grid-column:1/-1!important}
+    }
     @media(max-width:620px){
       #dailyBlockBoard .daily-block-row{grid-template-columns:96px minmax(0,1fr)!important}
     }
