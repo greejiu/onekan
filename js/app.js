@@ -487,12 +487,18 @@ function renderDashboard() {
   const dayKey = appDayKey();
   const tasks = state.tasks.filter((task) => task.date === dayKey);
   const completedTasks = tasks.filter((task) => task.done).length;
+  const taskProgress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
   ensureHabitDay();
   const checks = state.habitDays[dayKey];
   const completedHabits = state.habitTemplates.filter((habit) => checks[habit.id]).length;
   if ($("#dashTasks")) $("#dashTasks").textContent = `${completedTasks} / ${tasks.length}`;
   if ($("#dashHabits")) $("#dashHabits").textContent = `${completedHabits} / ${state.habitTemplates.length}`;
   if ($("#dashFocus")) $("#dashFocus").textContent = fmtDuration(todayFocusMs());
+  if ($("#homeProgressLabel")) $("#homeProgressLabel").textContent = `${taskProgress}%`;
+  if ($("#homeProgress")) {
+    $("#homeProgress").style.setProperty("--progress-offset", String(131.95 * (1 - taskProgress / 100)));
+    $("#homeProgress").setAttribute("aria-label", `오늘 할일 ${completedTasks}/${tasks.length} 완료`);
+  }
 }
 
 function renderHome() {
