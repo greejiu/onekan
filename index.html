@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=5" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=6" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -65,6 +65,11 @@
 
         <div class="home-columns home-columns-3 uw-home-layout">
           <div class="home-column" id="homeLeftColumn">
+          <div class="uw-home-view-controls" aria-label="집 보기 설정">
+            <div class="uw-seg"><button data-uw-home-mode="list" type="button">목록</button><button class="active" data-uw-home-mode="timeline" type="button">타임라인</button></div>
+            <label class="uw-days-select"><span>표시 일수</span><select data-uw-home-days-select><option value="1">1일</option><option value="2">2일</option><option value="3">3일</option><option value="4">4일</option><option value="5">5일</option><option value="6">6일</option><option value="7">7일</option></select></label>
+            <div class="uw-toolbar-group"><button class="uw-icon-btn" data-uw-home-prev type="button" aria-label="이전 기간">‹</button><button class="uw-icon-btn" data-uw-home-today type="button">오늘</button><button class="uw-icon-btn" data-uw-home-next type="button" aria-label="다음 기간">›</button></div>
+          </div>
           <article class="card home-timeline-card">
             <div class="card-header"><div class="card-title">오늘 타임라인</div><div class="header-inline"><span class="card-meta">30분 단위</span><button class="ghost-btn" id="addTimeBlockBtn" type="button">＋</button></div></div>
             <div class="time-wrap" id="timeWrap"><div class="time-grid" id="timeGrid"></div></div>
@@ -227,6 +232,6 @@
   <script type="module" src="./js/manual-time-entry.js?v=4"></script>
   <script type="module" src="./js/workspace-pages.js?v=8"></script>
   <script type="module" src="./js/appearance.js?v=1"></script>
-  <script type="module" src="./js/unified-workspace.js?v=5"></script>
+  <script type="module" src="./js/unified-workspace.js?v=6"></script>
 </body>
 </html>
