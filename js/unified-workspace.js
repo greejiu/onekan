@@ -26,7 +26,7 @@ function findAddHost(kind,date,time){const t=time!==null&&time!==undefined?`[dat
 function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,editId=null,withTime=false}={}){if(!host||$(".uw-inline-form",host))return;const list=kind==="event"?state.events:kind==="habit"?state.habitTemplates:state.tasks;const old=editId?list.find(x=>x.id===editId):null;const form=document.createElement("form");form.className="uw-inline-form";form.innerHTML=`${withTime?`<input type="time" value="${old&&kind==="event"&&!old.allDay?timeOf(old.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(old?.title||"")}" placeholder="${kind==="event"?"일정":"할일"} 입력" autocomplete="off">`;if(editId)host.closest(".uw-item")?.replaceWith(form);else if(host.matches(".uw-empty-hit"))host.replaceWith(form);else host.appendChild(form);const title=$("input[type=text]",form);let saving=false,cancelled=false;const commit=async next=>{if(saving)return;const value=title.value.trim();if(!value){form.remove();return}saving=true;const timeValue=$("input[type=time]",form)?.value||"";await write(s=>{const defaultGroup=s.eventGroups[0]?.id||"default";if(old){old.title=value;if(kind==="event"&&withTime){const d=date||key(new Date(old.start));if(timeValue){const start=new Date(`${d}T${timeValue}:00`);old.start=start.toISOString();old.end=new Date(start.getTime()+duration*60000).toISOString();old.allDay=false}else{old.start=new Date(`${d}T12:00:00`).toISOString();old.end=new Date(`${endDate||d}T12:00:00`).toISOString();old.allDay=true}}return}if(kind==="event"){const start=timeValue?new Date(`${date}T${timeValue}:00`):new Date(`${date}T12:00:00`);s.events.push({id:uid(),title:value,type:"schedule",groupId:defaultGroup,allDay:!timeValue,start:start.toISOString(),end:timeValue?new Date(start.getTime()+duration*60000).toISOString():new Date(`${endDate||date}T12:00:00`).toISOString()})}else{const task={id:uid(),title:value,date:date||null,done:false,groupId:defaultGroup,createdAt:new Date().toISOString()};if(time!==null){const start=new Date(`${date}T${pad(Math.floor(time/60))}:${pad(time%60)}:00`);task.notionStart=start.toISOString();task.notionEnd=new Date(start.getTime()+duration*60000).toISOString();s.timeBlocks.push({id:uid(),taskId:task.id,sourceTitle:value,detail:value,date,startMinute:time,duration})}s.tasks.push(task)}});if(next)setTimeout(()=>{const nextHost=findAddHost(kind,date,time);if(nextHost)openInline(nextHost,{kind,date,endDate,time,duration,withTime})},220)};form.addEventListener("submit",e=>{e.preventDefault();commit(true)});title.addEventListener("keydown",e=>{if(e.key==="Escape"){cancelled=true;form.remove()}});title.addEventListener("blur",()=>setTimeout(()=>{if(!cancelled&&form.isConnected&&!saving)commit(false)},90));requestAnimationFrame(()=>{title.focus();title.select()})}
 
 function allDayPanel(k,items){const shown=items.slice(0,2),extra=Math.max(0,items.length-shown.length);return`<div class="uw-all-day" data-date="${k}"><span class="uw-all-day-label">하루 종일</span><div class="uw-all-day-list" data-uw-add-kind="task" data-date="${k}">${shown.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div>${extra?`<button class="uw-all-day-more" data-uw-all-day-more type="button" aria-expanded="false">+${extra}개 더보기</button><div class="uw-all-day-popover"><div class="uw-list">${items.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")}</div></div>`:""}</div>`}
-function flatListMarkup(x,k){return itemMarkup(x.kind,x.item,k).replace(/<span class="uw-item-time">.*?<\\/span>/,"")}
+function flatListMarkup(x,k){return itemMarkup(x.kind,x.item,k).replace(/<span class="uw-item-time">.*?<\/span>/,"")}
 function plannerListDay(d){const k=key(d),items=itemsForDay(k);return`<section class="uw-day uw-list-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div><div class="uw-list uw-flat-day-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${items.map(x=>flatListMarkup(x,k)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div></section>`}
 function plannerDay(d){const k=key(d),items=itemsForDay(k),untimed=items.filter(x=>!x.timed),timed=items.filter(x=>x.timed&&x.time>=START&&x.time<END);let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>`<div class="uw-time-entry uw-item ${x.kind==="task"&&x.item.done?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${x.item.id}" data-date="${k}" data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>${allDayPanel(k,untimed)}<div class="uw-timeline"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${blocks}</div></div></section>`}
 function renderPlanner(){const card=$(".home-timeline-card");if(!card)return;$$("[data-uw-home-mode]").forEach(b=>b.classList.toggle("active",b.dataset.uwHomeMode===homeMode));const daySelect=$("[data-uw-home-days-select]");if(daySelect)daySelect.value=String(homeDays);const dayRenderer=homeMode==="timeline"?plannerDay:plannerListDay;card.innerHTML=`<div class="uw-planner-head"><div><div class="uw-planner-title">${homeMode==="timeline"?"타임라인":"목록"}</div><small class="card-meta">${homeMode==="timeline"?"30분 단위":"시간 구분 없이 날짜별 표시"}</small></div></div><div class="uw-home-planner"><div class="uw-planner-days ${homeMode==="list"?"uw-planner-list-days":""}" style="--uw-days:${homeDays}">${Array.from({length:homeDays},(_,i)=>dayRenderer(addDays(homeCursor,i))).join("")}</div></div>`}
@@ -73,6 +73,253 @@ document.addEventListener("pointercancel",()=>clearGesture(gesture));document.ad
 document.addEventListener("change",async e=>{const daySelect=e.target.closest("[data-uw-home-days-select]");if(daySelect){homeDays=Math.max(1,Math.min(7,+daySelect.value||1));renderPlanner();return}const field=e.target.closest("[data-habit-field]");if(!field)return;const row=field.closest("[data-habit-manager]");await write(s=>{const h=s.habitTemplates.find(x=>x.id===row.dataset.habitManager);if(!h)return;if(field.dataset.habitField==="title"&&field.value.trim())h.title=field.value.trim();if(field.dataset.habitField==="time"){if(field.value){const[a,b]=field.value.split(":").map(Number);h.startMinute=a*60+b}else delete h.startMinute}if(field.dataset.habitField==="duration")h.duration=+field.value;if(field.dataset.habitField==="groupId")h.groupId=field.value})});
 $("#calPrev")?.addEventListener("click",e=>{e.stopImmediatePropagation();calendarCursor=calendarView==="month"?new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1):addDays(calendarCursor,calendarView==="week"?-7:-1);renderCalendar()},true);$("#calNext")?.addEventListener("click",e=>{e.stopImmediatePropagation();calendarCursor=calendarView==="month"?new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1):addDays(calendarCursor,calendarView==="week"?7:1);renderCalendar()},true);$("#calToday")?.addEventListener("click",e=>{e.stopImmediatePropagation();calendarCursor=new Date();renderCalendar()},true);$("#tasksPageAdd")?.addEventListener("click",e=>{e.stopImmediatePropagation();openInline($("#tasksPageList [data-uw-add-kind=task]")||$("#tasksPageList"),{kind:"task",date:null})},true);$$('.nav-item[data-page]').forEach(b=>b.addEventListener("click",()=>scheduleRender(220)));$("#reloadCloudBtn")?.addEventListener("click",()=>scheduleRender(240))}
 
+function wireDragClickGuard(){
+  document.addEventListener("click",e=>{
+    if(Date.now()>=suppressItemClickUntil)return;
+    if(e.target.closest(".uw-item,.uw-inline-form")){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    suppressItemClickUntil=0;
+  },true);
+}
+
+async function saveUntimedChange(kind,id,date){
+  await write(s=>{
+    if(kind==="habit")return;
+    if(kind==="task"){
+      const task=s.tasks.find(x=>x.id===id);
+      if(!task)return;
+      task.date=date;
+      delete task.notionStart;
+      delete task.notionEnd;
+      s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);
+      return;
+    }
+    const event=s.events.find(x=>x.id===id);
+    if(!event)return;
+    const noon=new Date(`${date}T12:00:00`);
+    event.start=noon.toISOString();
+    event.end=noon.toISOString();
+    event.allDay=true;
+  });
+}
+
+async function saveDateOnlyChange(kind,id,date){
+  await write(s=>{
+    if(kind==="habit")return;
+    if(kind==="task"){
+      const task=s.tasks.find(x=>x.id===id);
+      if(!task)return;
+      task.date=date;
+      if(task.notionStart){
+        const oldStart=new Date(task.notionStart);
+        const oldEnd=new Date(task.notionEnd||task.notionStart);
+        const duration=Math.max(SLOT*60000,oldEnd-oldStart);
+        const start=new Date(`${date}T${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`);
+        task.notionStart=start.toISOString();
+        task.notionEnd=new Date(start.getTime()+duration).toISOString();
+      }
+      s.timeBlocks.filter(x=>x.taskId===id).forEach(x=>x.date=date);
+      return;
+    }
+    const event=s.events.find(x=>x.id===id);
+    if(!event)return;
+    const oldStart=new Date(event.start);
+    const oldEnd=new Date(event.end||event.start);
+    const duration=Math.max(0,oldEnd-oldStart);
+    const clock=event.allDay?"12:00:00":`${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`;
+    const start=new Date(`${date}T${clock}`);
+    event.start=start.toISOString();
+    event.end=new Date(start.getTime()+duration).toISOString();
+  });
+}
+
+function wireControlsV2(){
+  let gesture=null;
+  const clear=(g,restore=true)=>{
+    clearTimeout(g?.timer);
+    g?.preview?.remove();
+    g?.ghost?.remove();
+    g?.item?.classList.remove("uw-drag-ready","resizing","uw-dragging");
+    $$(".uw-range-selected,.uw-drop-target").forEach(x=>x.classList.remove("uw-range-selected","uw-drop-target"));
+    if(restore&&g?.item&&g.originalTop!==undefined){
+      g.item.style.top=g.originalTop;
+      g.item.style.height=g.originalHeight;
+    }
+    if(gesture===g)gesture=null;
+  };
+  const activate=g=>{
+    if(!g||g.cancelled||gesture!==g)return;
+    g.active=true;
+    g.item?.classList.add("uw-drag-ready");
+    g.source.setPointerCapture?.(g.pointerId);
+    if(navigator.vibrate)navigator.vibrate(18);
+    if(g.mode==="time-create"){
+      g.preview=document.createElement("div");
+      g.preview.className="uw-drag-selection";
+      g.lane.appendChild(g.preview);
+    }
+    if(g.mode==="move"){
+      g.item.classList.add("uw-dragging");
+      g.ghost=g.item.cloneNode(true);
+      g.ghost.className="uw-drag-ghost";
+      g.ghost.style.left=`${g.x}px`;
+      g.ghost.style.top=`${g.y}px`;
+      document.body.appendChild(g.ghost);
+    }
+  };
+  const updateDateRange=(g,date)=>{
+    const first=date<g.startDate?date:g.startDate;
+    const last=date<g.startDate?g.startDate:date;
+    g.nextDate=date;
+    $$(".uw-month-cell").forEach(cell=>cell.classList.toggle("uw-range-selected",cell.dataset.date>=first&&cell.dataset.date<=last));
+  };
+
+  document.addEventListener("pointerdown",e=>{
+    if(!e.isPrimary||e.button>0)return;
+    const resizeHandle=e.target.closest("[data-uw-resize]");
+    const moveHandle=e.target.closest(".uw-move-handle");
+    const item=(resizeHandle||moveHandle)?.closest(".uw-item")||e.target.closest(".uw-item");
+    let mode=null,source=null;
+    if(resizeHandle){mode="resize";source=resizeHandle}
+    else if(moveHandle&&(!coarse()||item?.classList.contains("selected"))){mode="move";source=moveHandle}
+    else if(!coarse()&&item&&!e.target.closest("button,input,select,textarea")){mode="move";source=item}
+    else if(!e.target.closest(".uw-item,.uw-inline-form")){
+      const hit=e.target.closest(".uw-time-hit");
+      const cell=e.target.closest(".uw-month-cell");
+      if(hit){mode="time-create";source=hit}
+      else if(cell){mode="date-create";source=cell}
+    }
+    if(!mode||!source)return;
+    const g=gesture={mode,source,item,pointerId:e.pointerId,x:e.clientX,y:e.clientY,active:false,cancelled:false,coarse:e.pointerType!=="mouse"||coarse()};
+    if(mode==="resize"){
+      g.edge=resizeHandle.dataset.uwResize;
+      g.start=+item.dataset.time;
+      g.duration=+item.dataset.duration;
+      g.nextStart=g.start;
+      g.nextDuration=g.duration;
+      g.originalTop=item.style.top;
+      g.originalHeight=item.style.height;
+    }else if(mode==="time-create"){
+      g.lane=source.closest(".uw-time-lane");
+      g.date=source.dataset.date;
+      g.start=+source.dataset.time;
+      g.nextStart=g.start;
+      g.nextEnd=g.start+SLOT;
+    }else if(mode==="date-create"){
+      g.startDate=source.dataset.date;
+      g.nextDate=g.startDate;
+    }else{
+      g.kind=item.dataset.uwKind;
+      g.id=item.dataset.id;
+      g.date=item.dataset.date;
+      g.start=Number.isFinite(+item.dataset.time)?+item.dataset.time:null;
+      g.duration=+item.dataset.duration||SLOT;
+      g.nextDate=g.date;
+      g.nextStart=g.start;
+      g.dropType=null;
+    }
+    if(g.coarse)g.timer=setTimeout(()=>activate(g),450);
+  },true);
+
+  document.addEventListener("pointermove",e=>{
+    const g=gesture;
+    if(!g||e.pointerId!==g.pointerId)return;
+    const distance=Math.hypot(e.clientX-g.x,e.clientY-g.y);
+    if(!g.active){
+      if(g.coarse&&distance>10){g.cancelled=true;clear(g);return}
+      if(!g.coarse&&distance>=6)activate(g);
+      if(!g.active)return;
+    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if(g.mode==="resize"){
+      const delta=Math.round((e.clientY-g.y)/SLOT_H)*SLOT;
+      if(g.edge==="top"){
+        g.nextStart=Math.max(START,Math.min(g.start+delta,g.start+g.duration-SLOT));
+        g.nextDuration=g.duration-(g.nextStart-g.start);
+      }else{
+        g.nextDuration=Math.max(SLOT,Math.min(g.duration+delta,END-g.start));
+        g.nextStart=g.start;
+      }
+      g.item.classList.add("resizing");
+      g.item.style.top=`${((g.nextStart-START)/SLOT)*SLOT_H+1}px`;
+      g.item.style.height=`${Math.max(18,(g.nextDuration/SLOT)*SLOT_H-2)}px`;
+      return;
+    }
+    if(g.mode==="time-create"){
+      const current=minuteAt(g.lane,e.clientY);
+      const first=Math.min(g.start,current),last=Math.max(g.start,current)+SLOT;
+      g.nextStart=first;
+      g.nextEnd=last;
+      g.preview.style.top=`${((first-START)/SLOT)*SLOT_H}px`;
+      g.preview.style.height=`${((last-first)/SLOT)*SLOT_H}px`;
+      return;
+    }
+    if(g.mode==="date-create"){
+      const cell=document.elementFromPoint(e.clientX,e.clientY)?.closest(".uw-month-cell");
+      if(cell)updateDateRange(g,cell.dataset.date);
+      return;
+    }
+    $$(".uw-drop-target").forEach(x=>x.classList.remove("uw-drop-target"));
+    const pointed=document.elementFromPoint(e.clientX,e.clientY);
+    const lane=pointed?.closest(".uw-time-lane");
+    const allDay=pointed?.closest(".uw-all-day-list");
+    const dateList=pointed?.closest("[data-task-drop-date],.uw-month-cell,.uw-list[data-date]");
+    let drop=null;
+    g.validTarget=false;
+    g.dropType=null;
+    if(lane){
+      g.nextDate=lane.closest(".uw-day")?.dataset.date||g.date;
+      g.nextStart=minuteAt(lane,e.clientY);
+      g.dropType="time";
+      drop=lane.querySelector(`.uw-time-hit[data-time="${g.nextStart}"]`);
+    }else if(allDay&&g.kind!=="habit"){
+      g.nextDate=allDay.dataset.date||g.date;
+      g.nextStart=null;
+      g.dropType="all-day";
+      drop=allDay;
+    }else if(dateList&&g.kind!=="habit"){
+      g.nextDate=dateList.dataset.date||dateList.dataset.taskDropDate||g.date;
+      g.nextStart=null;
+      g.dropType="date";
+      drop=dateList;
+    }
+    if(drop){drop.classList.add("uw-drop-target");g.validTarget=true}
+    if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}
+    if(e.clientY<70)window.scrollBy(0,-12);
+    else if(e.clientY>innerHeight-70)window.scrollBy(0,12);
+  },{passive:false,capture:true});
+
+  document.addEventListener("pointerup",async e=>{
+    const g=gesture;
+    if(!g||e.pointerId!==g.pointerId)return;
+    if(!g.active){clear(g);return}
+    suppressItemClickUntil=Date.now()+650;
+    clear(g,g.mode!=="resize");
+    if(g.mode==="resize"){await saveTimedChange(g.item.dataset.uwKind,g.item.dataset.id,g.item.dataset.date,g.nextStart,g.nextDuration);return}
+    if(g.mode==="time-create"){
+      const host=findAddHost("task",g.date,g.nextStart);
+      openInline(host,{kind:"task",date:g.date,time:g.nextStart,duration:g.nextEnd-g.nextStart});
+      return;
+    }
+    if(g.mode==="date-create"){
+      const first=g.nextDate<g.startDate?g.nextDate:g.startDate;
+      const last=g.nextDate<g.startDate?g.startDate:g.nextDate;
+      openInline($(`.uw-month-cell[data-date="${first}"]`),{kind:"event",date:first,endDate:last});
+      return;
+    }
+    if(!g.validTarget)return;
+    if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration);
+    else if(g.dropType==="all-day")await saveUntimedChange(g.kind,g.id,g.nextDate);
+    else await saveDateOnlyChange(g.kind,g.id,g.nextDate);
+  },{capture:true});
+  document.addEventListener("pointercancel",()=>clear(gesture));
+  document.addEventListener("contextmenu",e=>{if(gesture?.active){e.preventDefault();e.stopImmediatePropagation()}},true);
+}
+
 async function renderAll(){if(rendering)return;rendering=true;try{await read();if(!state)return;applyColors();renderHome();renderCalendar();renderTasks();renderHabits()}catch(e){console.error("통합 화면 렌더링 실패",e)}finally{rendering=false}}
-async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireClicks();wireSideTabs();wireControls();await renderAll()}
+async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireClicks();wireSideTabs();wireControlsV2();await renderAll()}
 supabase.auth.onAuthStateChange((_e,session)=>{user=session?.user||null;if(user)setTimeout(init,300)});const {data:{session}}=await supabase.auth.getSession();if(session?.user){user=session.user;setTimeout(init,300)}
