@@ -47,7 +47,6 @@ function injectStyle(){
     .quick-add-type button.active{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(15,23,42,.08);font-weight:650}
     .day-cell[data-feature-calendar-date],.week-col[data-feature-calendar-date]{cursor:pointer}
     .day-cell[data-feature-calendar-date]:hover,.week-col[data-feature-calendar-date]:hover{background:#fafbfc}
-    .calendar-click-hint{color:var(--muted);font-size:11px;margin-left:8px;white-space:nowrap}
   `;
   document.head.appendChild(style);
 }
@@ -268,19 +267,15 @@ function wireCalendarDragStay(){
   },true);
 }
 
-function addHint(){
-  const bar=$(".calendar-toolbar");if(!bar||bar.querySelector(".calendar-click-hint"))return;
-  const span=document.createElement("span");span.className="calendar-click-hint";span.textContent="날짜 칸을 클릭해 바로 추가";bar.querySelector("strong")?.after(span);
-}
 function observe(){
   if(observer)return;
   const time=$("#timeGrid"),cal=$("#calendarBody");
-  observer=new MutationObserver(()=>{wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarSources();wireCalendarDragStay();addHint();scheduleArrange();});
+  observer=new MutationObserver(()=>{wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarSources();wireCalendarDragStay();scheduleArrange();});
   if(time)observer.observe(time,{childList:true,subtree:true});
   if(cal)observer.observe(cal,{childList:true,subtree:true,attributes:true,attributeFilter:["data-feature-id","data-feature-calendar-date"]});
 }
 async function init(){
-  injectStyle();wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarSources();wireCalendarDragStay();addHint();observe();
+  injectStyle();wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarSources();wireCalendarDragStay();observe();
   try{await readState();}catch(e){console.error(e);}
   scheduleArrange();
 }

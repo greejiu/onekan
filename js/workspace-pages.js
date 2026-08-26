@@ -87,7 +87,7 @@ function renderHabitsPage() {
     const done = Boolean(state.habitDays[day.key]?.[habit.id]);
     return `<button class="habit-day-check${done ? " checked" : ""}" data-habit-id="${esc(habit.id)}" data-habit-day="${day.key}" type="button" aria-label="${esc(habit.title)} ${day.key}">${done ? "✓" : ""}</button>`;
   }).join("")}</div>`).join("");
-  const manage = state.habitTemplates.length ? `<section class="habit-manage"><h2>습관 목록</h2><div id="habitManageList">${state.habitTemplates.map((habit) => `<div class="habit-manage-row" data-context-kind="habit" data-context-id="${esc(habit.id)}"><span>${esc(habit.title)}</span><small>클릭하여 수정 · 오른쪽 클릭하여 삭제</small></div>`).join("")}</div></section>` : "";
+  const manage = state.habitTemplates.length ? `<section class="habit-manage"><h2>습관 목록</h2><div id="habitManageList">${state.habitTemplates.map((habit) => `<div class="habit-manage-row" data-context-kind="habit" data-context-id="${esc(habit.id)}"><span>${esc(habit.title)}</span></div>`).join("")}</div></section>` : "";
   $("#habitHistory").innerHTML = state.habitTemplates.length ? `<div class="habit-matrix">${head}${rows}</div>${manage}` : '<div class="empty">아직 습관이 없어요. 첫 습관을 추가해 보세요.</div>';
 }
 

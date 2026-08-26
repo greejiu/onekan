@@ -477,7 +477,7 @@ function renderUpcoming() {
       const time = isTask ? "" : new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(item.when);
       return `<div class="row editable-row upcoming-row ${isTask ? "task" : "schedule"}" draggable="${isTask}" data-context-kind="${item.upcomingKind}" data-context-id="${item.id}" data-upcoming-task-id="${isTask ? item.id : ""}"><span class="pill">${isTask ? "할일" : "일정"}</span><span class="row-title" style="cursor:default">${esc(item.title)}</span>${time ? `<span class="card-meta">${time}</span>` : ""}</div>`;
     }).join("");
-    return `<section class="upcoming-date-group${groupItems.length ? "" : " empty-date"}" data-upcoming-date="${key}"><div class="upcoming-date-heading"><strong>${label}</strong><span>여기로 끌어오기</span></div>${rows || '<div class="upcoming-date-empty">비어 있음</div>'}</section>`;
+    return `<section class="upcoming-date-group${groupItems.length ? "" : " empty-date"}" data-upcoming-date="${key}"><div class="upcoming-date-heading"><strong>${label}</strong></div>${rows || '<div class="upcoming-date-empty">비어 있음</div>'}</section>`;
   }).join("");
 }
 
@@ -949,7 +949,7 @@ function renderProjects() {
   const statuses = ["목표", "작업", "보류", "완료"];
   $("#projectSections").innerHTML = statuses.map((status) => {
     const projects = state.projects.filter((project) => project.status === status);
-    return `<section class="section-card project-status-drop" data-project-status="${status}"><div class="section-head"><span>${status}</span><span class="card-meta">${projects.length}</span></div><div class="project-list">${projects.length ? projects.map((project) => `<div class="project-row editable-row" draggable="true" data-project-id="${project.id}" data-context-kind="project" data-context-id="${project.id}"><div><strong>${esc(project.title)}</strong><div class="project-meta">${esc(project.category || "")}</div></div><div><div class="progress"><i style="width:${Math.max(0, Math.min(100, Number(project.progress || 0)))}%"></i></div><div class="project-meta">${Math.max(0, Math.min(100, Number(project.progress || 0)))}%</div></div><span class="pill">${project.deadline ? new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(`${project.deadline}T12:00:00`)) : "기한 없음"}</span></div>`).join("") : '<div class="empty">여기로 작업을 끌어오세요.</div>'}</div></section>`;
+    return `<section class="section-card project-status-drop" data-project-status="${status}"><div class="section-head"><span>${status}</span><span class="card-meta">${projects.length}</span></div><div class="project-list">${projects.length ? projects.map((project) => `<div class="project-row editable-row" draggable="true" data-project-id="${project.id}" data-context-kind="project" data-context-id="${project.id}"><div><strong>${esc(project.title)}</strong><div class="project-meta">${esc(project.category || "")}</div></div><div><div class="progress"><i style="width:${Math.max(0, Math.min(100, Number(project.progress || 0)))}%"></i></div><div class="project-meta">${Math.max(0, Math.min(100, Number(project.progress || 0)))}%</div></div><span class="pill">${project.deadline ? new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(new Date(`${project.deadline}T12:00:00`)) : "기한 없음"}</span></div>`).join("") : '<div class="empty">작업이 없어요.</div>'}</div></section>`;
   }).join("");
 }
 

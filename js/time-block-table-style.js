@@ -92,7 +92,6 @@ function injectTableStyle() {
     }
     #dailyBlockBoard .daily-block-task:hover{background:var(--hover,#f3f5f7)!important}
     #dailyBlockBoard .daily-block-empty{font-size:0!important;min-height:24px;padding:0!important}
-    #dailyBlockBoard .daily-block-empty::after{content:"할일 0개";font-size:11px;color:var(--muted,#787774)}
     @media(max-width:720px){
       #page-home .home-timeblock-left,#page-home .home-someday-right{grid-column:1/-1!important}
     }

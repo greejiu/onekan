@@ -231,7 +231,6 @@ function simplifyTrackingLayout() {
 function wireHistoryDrag(container) {
   container.querySelectorAll(".history-row[data-context-id]").forEach((row) => {
     row.draggable = true;
-    row.title = "다른 날짜 그룹으로 드래그해서 날짜 이동";
     row.addEventListener("dragstart", (event) => {
       draggedSessionId = row.dataset.contextId;
       event.dataTransfer.effectAllowed = "move";

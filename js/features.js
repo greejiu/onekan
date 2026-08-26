@@ -183,7 +183,7 @@ function injectHomeFeatures() {
     card.id = "featureSomedayCard";
     card.className = "card";
     card.innerHTML = `
-      <div class="card-header"><div class="card-title">언젠가 할일</div><div class="header-inline"><span class="card-meta">오늘 목록으로 끌어오기</span><button class="ghost-btn feature-someday-top-add" id="featureAddSomeday" type="button" aria-label="언젠가 할일 추가" title="언젠가 할일 추가">＋</button></div></div>
+      <div class="card-header"><div class="card-title">언젠가 할일</div><div class="header-inline"><button class="ghost-btn feature-someday-top-add" id="featureAddSomeday" type="button" aria-label="언젠가 할일 추가" title="언젠가 할일 추가">＋</button></div></div>
       <form class="feature-someday-quick-add" id="featureSomedayForm">
         <input id="featureSomedayInput" placeholder="언젠가 할일 입력" aria-label="언젠가 할일 입력" />
         <button class="ghost-btn" id="featureSomedayClose" type="button" aria-label="닫기">×</button>
@@ -341,7 +341,6 @@ function attachCalendarEntry(element, item) {
   element.draggable = true;
   element.dataset.featureKind = item.kind;
   element.dataset.featureId = item.id;
-  element.title = "드래그해서 날짜 이동";
   if (element.dataset.featureEntryWired) return;
   element.dataset.featureEntryWired = "true";
   element.addEventListener("dragstart", (event) => {

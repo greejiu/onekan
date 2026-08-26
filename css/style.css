@@ -264,8 +264,6 @@ button:disabled { opacity: .5; cursor: default; }
 .upcoming-date-group:last-child { margin-bottom: 0; }
 .upcoming-date-heading { display: flex; align-items: center; justify-content: space-between; min-height: 32px; padding: 3px 7px; border-bottom: 1px solid var(--line); }
 .upcoming-date-heading strong { font-size: 12px; }
-.upcoming-date-heading span { color: var(--muted); font-size: 9px; opacity: 0; transition: opacity .15s ease; }
-.upcoming-date-group.workspace-drop-active .upcoming-date-heading span { opacity: 1; }
 .upcoming-date-empty { min-height: 32px; padding: 8px 7px; color: var(--muted); font-size: 11px; }
 
 .habit-history { overflow-x: auto; }
