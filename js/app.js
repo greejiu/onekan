@@ -475,10 +475,14 @@ function renderUpcoming() {
     const rows = groupItems.map((item) => {
       const isTask = item.upcomingKind === "task";
       const time = isTask ? "" : new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(item.when);
-      return `<div class="row editable-row upcoming-row ${isTask ? "task" : "schedule"}" draggable="${isTask}" data-context-kind="${item.upcomingKind}" data-context-id="${item.id}" data-upcoming-task-id="${isTask ? item.id : ""}"><span class="pill">${isTask ? "할일" : "일정"}</span><span class="row-title" style="cursor:default">${esc(item.title)}</span>${time ? `<span class="card-meta">${time}</span>` : ""}</div>`;
+      const control = isTask
+        ? `<button class="calendar-check" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료"></button>`
+        : `<span class="calendar-event-dot" aria-hidden="true" style="--event-color:${safeColor(eventGroupFor(item).color)}"></span>`;
+      return `<div class="row editable-row upcoming-row ${isTask ? "task" : "schedule"}" draggable="${isTask}" data-context-kind="${item.upcomingKind}" data-context-id="${item.id}" data-upcoming-task-id="${isTask ? item.id : ""}">${control}<span class="row-title" style="cursor:default">${esc(item.title)}</span>${time ? `<span class="card-meta">${time}</span>` : ""}</div>`;
     }).join("");
     return `<section class="upcoming-date-group${groupItems.length ? "" : " empty-date"}" data-upcoming-date="${key}"><div class="upcoming-date-heading"><strong>${label}</strong></div>${rows || '<div class="upcoming-date-empty">비어 있음</div>'}</section>`;
   }).join("");
+  bindCalendarChecks(container);
 }
 
 function todayFocusMs() {
@@ -585,7 +589,7 @@ function calendarListEntryMarkup(item) {
     : `<button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button>`;
   return `<div class="row editable-row${item.type === "task" && item.done ? " done" : ""}" data-calendar-kind="${kind}" data-calendar-id="${item.id}" data-context-kind="${kind}" data-context-id="${item.id}">
     ${control}
-    <span class="pill">${item.type === "schedule" ? esc(group.name) : "할일"}</span>
+    ${item.type === "schedule" ? `<span class="pill">${esc(group.name)}</span>` : ""}
     <span class="row-title" style="cursor:default">${esc(item.title)}</span>
     ${item.startDate ? `<span class="card-meta">${timeText(item.startDate)}</span>` : ""}
   </div>`;
@@ -663,7 +667,7 @@ function renderDayTimeline(date) {
     const control = item.type === "schedule"
       ? `<span class="calendar-event-dot" aria-hidden="true" style="--event-color:${safeColor(group.color)}"></span>`
       : `<button class="calendar-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button>`;
-    element.innerHTML = `<div class="day-timed-main">${control}<strong>${esc(item.title)}</strong></div><small>${item.type === "schedule" ? esc(group.name) : "할일"} · ${timeText(item.startDate)}</small>`;
+    element.innerHTML = `<div class="day-timed-main">${control}<strong>${esc(item.title)}</strong></div><small>${item.type === "schedule" ? `${esc(group.name)} · ` : ""}${timeText(item.startDate)}</small>`;
     row.querySelector(".day-time-lane").appendChild(element);
   }
   for (const session of sessionsForDate(date)) {
