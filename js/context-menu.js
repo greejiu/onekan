@@ -506,6 +506,14 @@ function installListeners() {
   if (document.documentElement.dataset.contextMenuWired) return;
   document.documentElement.dataset.contextMenuWired = "1";
 
+  document.addEventListener("click", (event) => {
+    const element = event.target instanceof Element ? event.target : null;
+    if (!element || Date.now() >= suppressClickUntil || !isSupportedSurface(element)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  }, true);
+
   document.addEventListener("contextmenu", async (event) => {
     const element = event.target instanceof Element ? event.target : null;
     if (!element || element.closest("input,textarea,select,[contenteditable='true']") || !isSupportedSurface(element)) return;
@@ -533,6 +541,7 @@ function installListeners() {
     }
     if (element.closest("button,input,textarea,select,a,summary,[contenteditable='true']")) return;
     const editable = element.closest([
+      "[data-context-kind][data-context-id]",
       "#tasksPageList .workspace-task[data-context-kind='task']",
       "#habitHistory .habit-matrix-row[data-context-kind='habit']",
       "#habitTemplateList .template-row",

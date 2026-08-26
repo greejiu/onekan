@@ -134,7 +134,7 @@ function wireTimeGrid(){
     }catch(err){console.error(err);alert("시간 계획을 저장하지 못했어요.");}
   },true);
 
-  let selecting=false,a=0,b=0,preview=null;
+  let selecting=false,a=0,b=0,preview=null,selectionPointerId=null;
   const rows=()=>$$('.time-slot',grid);
   const rowH=()=>rows()[0]?.getBoundingClientRect().height||20;
   const indexAt=y=>Math.max(0,Math.min(rows().length-1,Math.floor((y-grid.getBoundingClientRect().top)/rowH())));
@@ -145,20 +145,25 @@ function wireTimeGrid(){
     preview.style.top=`${first*rowH()+2}px`;preview.style.height=`${(last-first+1)*rowH()-4}px`;
     grid.appendChild(preview);
   };
-  const clear=()=>{selecting=false;preview?.remove();preview=null;};
+  const clear=()=>{selecting=false;selectionPointerId=null;preview?.remove();preview=null;};
 
-  grid.addEventListener("mousedown",e=>{
-    if(e.button!==0||e.target.closest(".time-block")||!e.target.closest(".time-slot"))return;
-    e.preventDefault();e.stopImmediatePropagation();selecting=true;a=b=indexAt(e.clientY);paint();
+  grid.addEventListener("pointerdown",e=>{
+    if((e.pointerType==="mouse"&&e.button!==0)||e.target.closest(".time-block")||!e.target.closest(".time-slot"))return;
+    e.preventDefault();e.stopImmediatePropagation();selecting=true;selectionPointerId=e.pointerId;a=b=indexAt(e.clientY);grid.setPointerCapture?.(e.pointerId);paint();
   },true);
-  document.addEventListener("mousemove",e=>{if(selecting){b=indexAt(e.clientY);paint();}});
-  document.addEventListener("mouseup",async()=>{
-    if(!selecting)return;
+  document.addEventListener("pointermove",e=>{if(selecting&&e.pointerId===selectionPointerId){e.preventDefault();b=indexAt(e.clientY);paint();}});
+  document.addEventListener("pointerup",async e=>{
+    if(!selecting||e.pointerId!==selectionPointerId)return;
     const first=Math.min(a,b),last=Math.max(a,b),startMinute=START+first*SLOT,duration=Math.min(240,(last-first+1)*SLOT);
     clear();
-    try{await writeState(s=>s.timeBlocks.push({id:crypto.randomUUID(),taskId:null,sourceTitle:"직접 추가",detail:"새 시간 계획",startMinute,duration,date:todayKey()}));}
+    const blockId=crypto.randomUUID();
+    try{
+      await writeState(s=>s.timeBlocks.push({id:blockId,taskId:null,sourceTitle:"직접 추가",detail:"새 시간 계획",startMinute,duration,date:todayKey()}));
+      setTimeout(()=>document.querySelector(`.time-block[data-block-id="${CSS.escape(blockId)}"]`)?.click(),180);
+    }
     catch(err){console.error(err);alert("시간 계획을 저장하지 못했어요.");}
   });
+  document.addEventListener("pointercancel",e=>{if(selecting&&e.pointerId===selectionPointerId)clear();});
 }
 
 function wireBlockEditor(){

@@ -130,7 +130,7 @@ button:disabled { opacity: .5; cursor: default; }
 .time-grid { position: relative; }
 .time-slot { height: 20px; display: grid; grid-template-columns: 55px 1fr; border-bottom: 1px solid #efefed; }
 .time-label { color: #9a9995; font-size: 10px; padding: 2px 8px 0 0; text-align: right; user-select: none; }
-.drop-zone { position: relative; min-width: 0; }
+.drop-zone { position: relative; min-width: 0; touch-action: none; }
 .drop-zone.over { background: var(--accent-soft); }
 .time-block { position: absolute; left: 6px; right: 8px; top: 1px; z-index: 3; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 2px 7px; font-size: 11px; line-height: 1.25; cursor: grab; overflow: hidden; touch-action: none; }
 .time-block.task-time-block, .time-block.habit-time-block { background: #fff; border-color: var(--line); }
@@ -139,7 +139,9 @@ button:disabled { opacity: .5; cursor: default; }
 .time-block.resizing { cursor: ns-resize; opacity: .88; }
 .time-block.done strong { color: var(--muted); text-decoration: line-through; }
 .time-resize-handle { position: absolute; right: 4px; bottom: 0; left: 4px; height: 6px; padding: 0; border: 0; border-radius: 999px; background: transparent; cursor: ns-resize; }
+.time-resize-handle.top { top: 0; bottom: auto; }
 .time-resize-handle::after { content: ""; position: absolute; right: 35%; bottom: 2px; left: 35%; height: 2px; border-radius: 999px; background: color-mix(in srgb, currentColor 35%, transparent); }
+.time-resize-handle.top::after { top: 2px; bottom: auto; }
 .habit-time-main, .time-block-main { display: grid; grid-template-columns: 18px minmax(0,1fr); align-items: center; gap: 5px; }
 .timeline-type-check { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; padding: 0; border: 2px solid currentColor; border-radius: 4px; background: #fff; font-size: 10px; line-height: 1; cursor: pointer; }
 .timeline-type-check.task-type-check, .calendar-check.task-type-check { border-color: color-mix(in srgb, var(--timeline-task-color, #d8d8d5) 72%, #555); color: color-mix(in srgb, var(--timeline-task-color, #d8d8d5) 55%, #333); }
@@ -231,6 +233,7 @@ button:disabled { opacity: .5; cursor: default; }
 .day-time-row { height: 42px; display: grid; grid-template-columns: 62px 1fr; border-bottom: 1px solid #efefed; }
 .day-time-label { color: #9a9995; font-size: 11px; padding: 5px 9px 0 0; text-align: right; }
 .day-time-lane { position: relative; min-width: 0; }
+.day-time-lane, .multi-plan-lane { touch-action: none; }
 .day-timed-event { position: absolute; left: 7px; right: 10px; top: 3px; z-index: 2; min-height: 34px; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; font-size: 12px; overflow: hidden; background: #fff; }
 .day-timed-event.schedule { background: #fff; border-left: 3px solid var(--event-color, #8fa9c4); }
 .day-timed-event.task { background: #fff; }
@@ -241,6 +244,12 @@ button:disabled { opacity: .5; cursor: default; }
 .day-timed-main { display: grid; grid-template-columns: 16px minmax(0,1fr); align-items: center; gap: 6px; }
 .day-timed-event strong { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .day-timed-event small { color:var(--muted); }
+.calendar-resize-handle { position: absolute; right: 3px; left: 3px; z-index: 4; height: 7px; padding: 0; border: 0; background: transparent; cursor: ns-resize; }
+.calendar-resize-handle.top { top: 0; }
+.calendar-resize-handle.bottom { bottom: 0; }
+.calendar-resize-handle::after { content: ""; position: absolute; right: 38%; left: 38%; height: 2px; border-radius: 999px; background: color-mix(in srgb, currentColor 34%, transparent); }
+.calendar-resize-handle.top::after { top: 1px; }
+.calendar-resize-handle.bottom::after { bottom: 1px; }
 
 .multi-day-list { display: grid; gap: 1px; background: var(--line); }
 .multi-day-list-section { min-height: 100px; padding: 12px; background: #fff; }
@@ -266,6 +275,12 @@ button:disabled { opacity: .5; cursor: default; }
 .multi-entry.planned.task .calendar-check.checked { border-color: var(--timeline-task-color, #d8d8d5); background: var(--timeline-task-color, #d8d8d5); }
 .multi-entry.actual { display: block; background: #fff; border-left: 3px solid #5f8a6d; }
 .multi-entry.done strong { color: #999791; text-decoration: line-through; }
+.multi-entry .calendar-resize-handle { grid-column: 1 / -1; }
+.calendar-timeline-selection { position: absolute; z-index: 6; pointer-events: none; border: 1.5px dashed var(--accent); border-radius: 7px; background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.calendar-timeline-selection.day { right: 8px; left: 62px; }
+.multi-plan-lane > .calendar-timeline-selection { right: 3px; left: 3px; }
+.day-timed-event.resizing, .multi-entry.resizing { z-index: 12; opacity: .88; }
+.timeline-entry-type { display: flex; margin-bottom: 12px; }
 
 .timer-panel { display: grid; grid-template-columns: 1.1fr .9fr; gap: 14px; }
 .timer-box { padding: 26px; text-align: center; }
