@@ -4,7 +4,7 @@ const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const SLOT=30, START=360, END=1320;
 const pad=n=>String(n).padStart(2,"0");
-let user=null,state=null,selectedBlockId=null,observer=null,arrangeTimer=null;
+let user=null,state=null,selectedBlockId=null,observer=null,arrangeTimer=null,openHomeTimelineInlineEntry=null;
 
 function dateKey(d=new Date()){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
 function todayKey(){const d=new Date();d.setHours(d.getHours()-3);return dateKey(d);}
@@ -22,6 +22,7 @@ async function readState(){
   state=data?.data&&typeof data.data==="object"?data.data:{};
   state.tasks=Array.isArray(state.tasks)?state.tasks:[];
   state.events=Array.isArray(state.events)?state.events:[];
+  state.eventGroups=Array.isArray(state.eventGroups)&&state.eventGroups.length?state.eventGroups:[{id:"default",name:"기본",color:"#8fa9c4"}];
   state.timeBlocks=Array.isArray(state.timeBlocks)?state.timeBlocks:[];
   state.habitTemplates=Array.isArray(state.habitTemplates)?state.habitTemplates:[];
   return state;
@@ -43,6 +44,8 @@ function injectStyle(){
   style.id="interactionUpgradeStyles";
   style.textContent=`
     .overlap-time-selection{position:absolute;left:61px;right:8px;z-index:8;pointer-events:none;border:1.5px dashed #77818c;border-radius:7px;background:rgba(71,85,105,.10)}
+    .home-timeline-inline-entry{position:absolute;left:61px;right:8px;z-index:14;padding:1px;border-radius:6px;background:#fff;box-shadow:0 2px 8px rgba(43,38,51,.12)}
+    .home-timeline-inline-entry input{width:100%;height:100%;min-height:16px;padding:1px 6px;border:1.5px solid var(--accent);border-radius:5px;background:#fff;color:var(--text);font:inherit;font-size:10px;outline:none}
     .quick-add-type{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;padding:3px;border:1px solid var(--line);border-radius:9px;background:#f5f7f9}
     .quick-add-type button{min-height:36px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer}
     .quick-add-type button.active{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(15,23,42,.08);font-weight:650}
@@ -146,22 +149,46 @@ function wireTimeGrid(){
     grid.appendChild(preview);
   };
   const clear=()=>{selecting=false;selectionPointerId=null;preview?.remove();preview=null;};
+  const openInline=(startMinute,duration)=>{
+    $(".home-timeline-inline-entry")?.remove();
+    const form=document.createElement("form");
+    form.className="home-timeline-inline-entry";
+    form.style.top=`${((startMinute-START)/SLOT)*rowH()+2}px`;
+    form.style.height=`${Math.max(18,(duration/SLOT)*rowH()-4)}px`;
+    form.innerHTML='<input aria-label="할일 제목" placeholder="할일 입력" autocomplete="off" required />';
+    grid.appendChild(form);
+    const input=$("input",form);
+    form.addEventListener("pointerdown",e=>e.stopPropagation());
+    form.addEventListener("submit",async e=>{
+      e.preventDefault();
+      const title=input.value.trim();if(!title)return;
+      const taskId=crypto.randomUUID(),blockId=crypto.randomUUID(),day=todayKey();
+      const start=new Date(`${day}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);
+      const end=new Date(start.getTime()+duration*60000);
+      try{
+        await writeState(s=>{
+          s.tasks.push({id:taskId,title,done:false,date:day,groupId:s.eventGroups?.[0]?.id||"default",notionStart:start.toISOString(),notionEnd:end.toISOString()});
+          s.timeBlocks.push({id:blockId,taskId,sourceTitle:title,detail:title,startMinute,duration,date:day});
+        });
+        form.remove();
+      }catch(err){console.error(err);alert("할일을 저장하지 못했어요.");}
+    });
+    input.addEventListener("keydown",e=>{if(e.key==="Escape")form.remove();});
+    input.addEventListener("blur",()=>setTimeout(()=>{if(form.isConnected&&!input.value.trim())form.remove();},0));
+    requestAnimationFrame(()=>input.focus());
+  };
+  openHomeTimelineInlineEntry=openInline;
 
   grid.addEventListener("pointerdown",e=>{
-    if((e.pointerType==="mouse"&&e.button!==0)||e.target.closest(".time-block")||!e.target.closest(".time-slot"))return;
+    if((e.pointerType==="mouse"&&e.button!==0)||e.target.closest(".time-block,.home-timeline-inline-entry")||!e.target.closest(".time-slot"))return;
     e.preventDefault();e.stopImmediatePropagation();selecting=true;selectionPointerId=e.pointerId;a=b=indexAt(e.clientY);grid.setPointerCapture?.(e.pointerId);paint();
   },true);
   document.addEventListener("pointermove",e=>{if(selecting&&e.pointerId===selectionPointerId){e.preventDefault();b=indexAt(e.clientY);paint();}});
-  document.addEventListener("pointerup",async e=>{
+  document.addEventListener("pointerup",e=>{
     if(!selecting||e.pointerId!==selectionPointerId)return;
     const first=Math.min(a,b),last=Math.max(a,b),startMinute=START+first*SLOT,duration=Math.min(240,(last-first+1)*SLOT);
     clear();
-    const blockId=crypto.randomUUID();
-    try{
-      await writeState(s=>s.timeBlocks.push({id:blockId,taskId:null,sourceTitle:"직접 추가",detail:"새 시간 계획",startMinute,duration,date:todayKey()}));
-      setTimeout(()=>document.querySelector(`.time-block[data-block-id="${CSS.escape(blockId)}"]`)?.click(),180);
-    }
-    catch(err){console.error(err);alert("시간 계획을 저장하지 못했어요.");}
+    openInline(startMinute,duration);
   });
   document.addEventListener("pointercancel",e=>{if(selecting&&e.pointerId===selectionPointerId)clear();});
 }
@@ -187,12 +214,10 @@ function wireBlockEditor(){
     }catch(err){console.error(err);alert("시간 계획을 저장하지 못했어요.");}
   },true);
 
-  $("#addTimeBlockBtn")?.addEventListener("click",async e=>{
-    e.preventDefault();e.stopImmediatePropagation();
-    const now=new Date(),minute=clampMinute(Math.ceil((now.getHours()*60+now.getMinutes())/SLOT)*SLOT);
-    try{await writeState(s=>s.timeBlocks.push({id:crypto.randomUUID(),taskId:null,sourceTitle:"직접 추가",detail:"새 시간 계획",startMinute:minute,duration:SLOT,date:todayKey()}));}
-    catch(err){console.error(err);alert("시간 계획을 저장하지 못했어요.");}
-  },true);
+  document.addEventListener("onekan:open-home-timeline-input",e=>{
+    const minute=clampMinute(e.detail?.startMinute??START,e.detail?.duration||SLOT);
+    openHomeTimelineInlineEntry?.(minute,e.detail?.duration||SLOT);
+  });
 }
 
 function calendarDropDate(target){

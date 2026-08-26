@@ -27,49 +27,37 @@ async function writeCloudState(mutator) {
   return true;
 }
 
-function openTimelineEntry(date, startMinute, endMinute) {
-  const dialog = $("#timelineEventDialog");
-  if (!dialog) return;
-  $("#timelineEventTitle").value = "";
-  $("#timelineEventDate").value = date;
-  $("#timelineEventStart").value = minuteText(startMinute);
-  $("#timelineEventEnd").value = minuteText(endMinute);
-  dialog.showModal();
-  requestAnimationFrame(() => $("#timelineEventTitle")?.focus());
-}
-
-function wireTimelineEventDialog() {
-  const dialog = $("#timelineEventDialog");
-  const form = $("#timelineEventForm");
-  if (!dialog || !form || form.dataset.timelineEventWired === "1") return;
-  form.dataset.timelineEventWired = "1";
-
-  $("#cancelTimelineEventBtn")?.addEventListener("click", () => dialog.close());
+function openTimelineEntry(surface, date, startMinute, endMinute) {
+  document.querySelector(".calendar-timeline-inline-entry")?.remove();
+  const form = document.createElement("form");
+  form.className = `calendar-timeline-inline-entry${surface.day ? " day" : ""}`;
+  form.style.top = `${((startMinute - START_MINUTE) / SLOT) * CALENDAR_ROW_HEIGHT + 2}px`;
+  form.style.height = `${Math.max(34, ((endMinute - startMinute) / SLOT) * CALENDAR_ROW_HEIGHT - 4)}px`;
+  form.innerHTML = `<input aria-label="일정 제목" placeholder="일정 입력" autocomplete="off" required />`;
+  surface.container.appendChild(form);
+  const input = form.querySelector("input");
+  form.addEventListener("pointerdown", (event) => event.stopPropagation());
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const title = $("#timelineEventTitle").value.trim();
-    const date = $("#timelineEventDate").value;
-    const startText = $("#timelineEventStart").value;
-    const endText = $("#timelineEventEnd").value;
-    if (!title || !date || !startText || !endText) return;
-
-    const start = new Date(`${date}T${startText}:00`);
-    const end = new Date(`${date}T${endText}:00`);
-    if (!(end > start)) {
-      window.alert("종료 시간은 시작 시간보다 뒤여야 해요.");
-      return;
-    }
-
+    const title = input.value.trim();
+    if (!title) return;
+    const start = new Date(`${date}T${minuteText(startMinute)}:00`);
+    const end = new Date(`${date}T${minuteText(endMinute)}:00`);
     try {
-      await writeCloudState((state) => {
-        state.tasks.push({ id: crypto.randomUUID(), title, done: false, date, groupId: state.eventGroups?.[0]?.id || "default", notionStart: start.toISOString(), notionEnd: end.toISOString() });
-      });
-      dialog.close();
+      await writeCloudState((state) => state.events.push({ id: crypto.randomUUID(), title, type: "schedule", groupId: state.eventGroups?.[0]?.id || "default", start: start.toISOString(), end: end.toISOString() }));
+      form.remove();
     } catch (error) {
-      console.error("달력 할일 저장 실패", error);
-      window.alert("할일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      console.error("달력 일정 저장 실패", error);
+      window.alert("일정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") form.remove();
+  });
+  input.addEventListener("blur", () => setTimeout(() => {
+    if (form.isConnected && !input.value.trim()) form.remove();
+  }, 0));
+  requestAnimationFrame(() => input.focus());
 }
 
 function selectionSurface(target) {
@@ -112,7 +100,7 @@ function finishTimelineSelection(event) {
   selection.preview?.remove();
   const first = Math.min(selection.startIndex, selection.endIndex);
   const last = Math.max(selection.startIndex, selection.endIndex);
-  openTimelineEntry(selection.surface.date, START_MINUTE + first * SLOT, START_MINUTE + (last + 1) * SLOT);
+  openTimelineEntry(selection.surface, selection.surface.date, START_MINUTE + first * SLOT, START_MINUTE + (last + 1) * SLOT);
 }
 
 function bindTimelineSelection() {
@@ -120,7 +108,7 @@ function bindTimelineSelection() {
   if (!body || body.dataset.timelineSelectionWired) return;
   body.dataset.timelineSelectionWired = "1";
   body.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || event.target.closest(".day-timed-event,.multi-entry,button,input,select,textarea")) return;
+    if (event.button !== 0 || event.target.closest(".day-timed-event,.multi-entry,.calendar-timeline-inline-entry,button,input,select,textarea")) return;
     const surface = selectionSurface(event.target);
     if (!surface?.date) return;
     event.preventDefault();
@@ -231,7 +219,6 @@ function observeCalendar() {
 }
 
 function init() {
-  wireTimelineEventDialog();
   bindTimelineSelection();
   bindCalendarResize();
   observeCalendar();

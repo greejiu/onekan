@@ -63,7 +63,7 @@ function defaultState() {
         month: { schedule: true, task: false },
         week: { schedule: true, task: true },
         three: { schedule: true, task: true },
-        day: { schedule: false, task: true },
+        day: { schedule: true, task: true },
       },
     },
   };
@@ -700,10 +700,6 @@ function refreshEventGroupInputs() {
   }
 }
 
-function calendarDateLabel(dateKey) {
-  return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(new Date(`${dateKey}T12:00:00`));
-}
-
 function orderedDateRange(a, b = a) {
   return a <= b ? [a, b] : [b, a];
 }
@@ -725,35 +721,30 @@ function openCalendarCellComposer(host, firstDate, lastDate = firstDate) {
   host.classList.add("has-calendar-composer");
   const form = document.createElement("form");
   form.className = "calendar-cell-composer";
-  const rect = host.getBoundingClientRect();
-  if (rect.left + 290 > innerWidth) form.classList.add("align-right");
-  form.innerHTML = `
-    <div class="calendar-cell-composer-head">
-      <span class="${isRange ? "calendar-cell-range-note" : ""}">${isRange ? `${calendarDateLabel(startDate)} – ${calendarDateLabel(endDate)}` : calendarDateLabel(startDate)}</span>
-      <button class="calendar-cell-composer-close" type="button" aria-label="닫기">×</button>
-    </div>
-    <input data-cell-entry-title aria-label="제목" placeholder="${isRange ? "여행이나 여러 날 일정" : "할일 제목"}" required />
-    <button class="primary-btn" type="submit">추가</button>`;
+  form.innerHTML = `<input data-cell-entry-title aria-label="일정 제목" placeholder="${isRange ? "기간 일정 입력" : "일정 입력"}" autocomplete="off" required />`;
   host.appendChild(form);
-  form.querySelector(".calendar-cell-composer-close").addEventListener("click", closeCalendarCellComposer);
   form.addEventListener("mousedown", (event) => event.stopPropagation());
+  form.addEventListener("pointerdown", (event) => event.stopPropagation());
   form.addEventListener("click", (event) => event.stopPropagation());
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const title = form.querySelector("[data-cell-entry-title]").value.trim();
     if (!title) return;
     const defaultGroupId = state.eventGroups[0]?.id || "default";
-    if (!isRange) {
-      state.tasks.push({ id: uid(), title, done: false, date: startDate, groupId: defaultGroupId });
-    } else {
-      state.events.push({ id: uid(), title, type: "schedule", allDay: true, groupId: defaultGroupId, start: new Date(`${startDate}T12:00:00`).toISOString(), end: new Date(`${endDate}T12:00:00`).toISOString() });
-    }
+    state.events.push({ id: uid(), title, type: "schedule", allDay: true, groupId: defaultGroupId, start: new Date(`${startDate}T12:00:00`).toISOString(), end: new Date(`${endDate}T12:00:00`).toISOString() });
     save();
     closeCalendarCellComposer();
     renderHome();
     renderCalendar();
   });
-  requestAnimationFrame(() => form.querySelector("[data-cell-entry-title]").focus());
+  const input = form.querySelector("[data-cell-entry-title]");
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeCalendarCellComposer();
+  });
+  input.addEventListener("blur", () => setTimeout(() => {
+    if (form.isConnected && !input.value.trim()) closeCalendarCellComposer();
+  }, 0));
+  requestAnimationFrame(() => input.focus());
 }
 
 function calendarFiltersForView(view = calView) {
@@ -1348,7 +1339,7 @@ function bindUI() {
     const now = new Date();
     let minute = now.getHours() * 60 + now.getMinutes();
     minute = Math.ceil(minute / SLOT) * SLOT;
-    addDirectTimeBlock(clampStart(minute, 30), 30);
+    document.dispatchEvent(new CustomEvent("onekan:open-home-timeline-input", { detail: { startMinute: clampStart(minute, 30), duration: 30 } }));
   });
   $("#saveBlockBtn").addEventListener("click", () => {
     const block = state.timeBlocks.find((item) => item.id === editingBlockId);
