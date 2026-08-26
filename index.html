@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=8" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=9" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -102,8 +102,8 @@
       </section>
 
       <section class="page" id="page-tasks">
-        <div class="page-head"><div><h1 class="page-title">할일</h1></div><button class="soft-btn" id="tasksPageAdd" type="button">+ 할일</button></div>
-        <div class="seg page-tabs" id="taskPageTabs"><button class="active" data-task-tab="all" type="button">전체</button><button data-task-tab="today" type="button">오늘</button><button data-task-tab="upcoming" type="button">예정</button><button data-task-tab="someday" type="button">언젠가</button><button data-task-tab="done" type="button">완료</button></div>
+        <div class="page-head"><div><h1 class="page-title">할일</h1></div><div class="seg uw-task-mode-controls" aria-label="할일 보기"><button class="active" data-uw-task-mode="list" type="button">목록</button><button data-uw-task-mode="calendar" type="button">캘린더</button></div></div>
+        <div class="uw-task-subnav" id="taskPageTabs"><div class="seg page-tabs"><button class="active" data-task-tab="all" type="button">전체</button><button data-task-tab="today" type="button">오늘</button><button data-task-tab="upcoming" type="button">예정</button><button data-task-tab="someday" type="button">언젠가</button><button data-task-tab="done" type="button">완료</button></div></div>
         <div class="workspace-list" id="tasksPageList"></div>
       </section>
 
@@ -225,6 +225,6 @@
   <script type="module" src="./js/manual-time-entry.js?v=4"></script>
   <script type="module" src="./js/workspace-pages.js?v=8"></script>
   <script type="module" src="./js/appearance.js?v=1"></script>
-  <script type="module" src="./js/unified-workspace.js?v=9"></script>
+  <script type="module" src="./js/unified-workspace.js?v=10"></script>
 </body>
 </html>
