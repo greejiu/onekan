@@ -5,7 +5,6 @@ const SLOT = 30;
 const START_MINUTE = 6 * 60;
 const END_MINUTE = 22 * 60;
 const CALENDAR_ROW_HEIGHT = 42;
-let timelineEntryType = "schedule";
 let timelineSelection = null;
 let calendarObserver = null;
 
@@ -28,17 +27,9 @@ async function writeCloudState(mutator) {
   return true;
 }
 
-function setTimelineEntryType(type) {
-  timelineEntryType = type === "task" ? "task" : "schedule";
-  document.querySelectorAll("[data-timeline-entry-type]").forEach((button) => button.classList.toggle("active", button.dataset.timelineEntryType === timelineEntryType));
-  $("#timelineEntryHeading").textContent = timelineEntryType === "task" ? "할일 추가" : "일정 추가";
-  $("#timelineEventGroupField")?.classList.toggle("hidden", timelineEntryType === "task");
-}
-
 function openTimelineEntry(date, startMinute, endMinute) {
   const dialog = $("#timelineEventDialog");
   if (!dialog) return;
-  setTimelineEntryType("schedule");
   $("#timelineEventTitle").value = "";
   $("#timelineEventDate").value = date;
   $("#timelineEventStart").value = minuteText(startMinute);
@@ -54,7 +45,6 @@ function wireTimelineEventDialog() {
   form.dataset.timelineEventWired = "1";
 
   $("#cancelTimelineEventBtn")?.addEventListener("click", () => dialog.close());
-  document.querySelectorAll("[data-timeline-entry-type]").forEach((button) => button.addEventListener("click", () => setTimelineEntryType(button.dataset.timelineEntryType)));
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const title = $("#timelineEventTitle").value.trim();
@@ -72,23 +62,12 @@ function wireTimelineEventDialog() {
 
     try {
       await writeCloudState((state) => {
-        if (timelineEntryType === "task") {
-          state.tasks.push({ id: crypto.randomUUID(), title, done: false, date, notionStart: start.toISOString(), notionEnd: end.toISOString() });
-        } else {
-          state.events.push({
-            id: crypto.randomUUID(),
-            title,
-            type: "schedule",
-            groupId: $("#timelineEventGroup")?.value || state.eventGroups?.[0]?.id || "default",
-            start: start.toISOString(),
-            end: end.toISOString(),
-          });
-        }
+        state.tasks.push({ id: crypto.randomUUID(), title, done: false, date, groupId: state.eventGroups?.[0]?.id || "default", notionStart: start.toISOString(), notionEnd: end.toISOString() });
       });
       dialog.close();
     } catch (error) {
-      console.error("달력 일정 저장 실패", error);
-      window.alert("일정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      console.error("달력 할일 저장 실패", error);
+      window.alert("할일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   });
 }

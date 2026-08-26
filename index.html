@@ -171,7 +171,7 @@
             </div>
           </section>
           <section class="setting-section">
-            <h3>일정 그룹</h3><div class="setting-desc">그룹마다 정한 색이 달력의 일정에 표시됩니다.</div>
+            <h3>그룹</h3><div class="setting-desc">할일과 일정에 공통으로 사용하는 그룹입니다.</div>
             <div id="eventGroupList"></div>
             <div class="event-group-add"><input id="newEventGroupName" placeholder="새 그룹 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 그룹 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
           </section>
@@ -207,13 +207,11 @@
 
   <dialog id="timelineEventDialog" class="app-dialog">
     <form method="dialog" id="timelineEventForm">
-      <h3 id="timelineEntryHeading">일정 추가</h3>
-      <div class="seg timeline-entry-type" id="timelineEntryType"><button class="active" data-timeline-entry-type="schedule" type="button">일정</button><button data-timeline-entry-type="task" type="button">할일</button></div>
+      <h3 id="timelineEntryHeading">할일 추가</h3>
       <div class="field"><label>제목</label><input id="timelineEventTitle" required /></div>
       <div class="field"><label>날짜</label><input id="timelineEventDate" type="date" required /></div>
       <div class="field"><label>시작</label><input id="timelineEventStart" type="time" step="1800" required /></div>
       <div class="field"><label>종료</label><input id="timelineEventEnd" type="time" step="1800" required /></div>
-      <div class="field" id="timelineEventGroupField"><label>그룹</label><select id="timelineEventGroup"></select></div>
       <div class="dialog-actions"><button class="soft-btn" value="cancel" type="button" id="cancelTimelineEventBtn">취소</button><button class="primary-btn" value="default" type="submit">추가</button></div>
     </form>
   </dialog>
@@ -230,13 +228,13 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/app.js?v=21"></script>
-  <script type="module" src="./js/features.js?v=12"></script>
-  <script type="module" src="./js/calendar-additions.js?v=5"></script>
+  <script type="module" src="./js/app.js?v=22"></script>
+  <script type="module" src="./js/features.js?v=13"></script>
+  <script type="module" src="./js/calendar-additions.js?v=6"></script>
   <script type="module" src="./js/interaction-upgrades.js?v=8"></script>
-  <script type="module" src="./js/context-menu.js?v=13"></script>
+  <script type="module" src="./js/context-menu.js?v=14"></script>
   <script type="module" src="./js/manual-time-entry.js?v=4"></script>
-  <script type="module" src="./js/workspace-pages.js?v=7"></script>
+  <script type="module" src="./js/workspace-pages.js?v=8"></script>
   <script type="module" src="./js/appearance.js?v=1"></script>
 </body>
 </html>

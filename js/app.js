@@ -67,6 +67,9 @@ function defaultState() {
       },
     },
   };
+  const defaultGroupId = normalized.eventGroups[0]?.id || "default";
+  normalized.tasks = normalized.tasks.map((task) => ({ ...task, groupId: task.groupId || defaultGroupId }));
+  normalized.events = normalized.events.map((event) => ({ ...event, groupId: event.groupId || defaultGroupId }));
   return normalized;
 }
 
@@ -285,7 +288,7 @@ function addTask() {
   if (!input) return;
   const title = input.value.trim();
   if (!title) return;
-  state.tasks.push({ id: uid(), title, done: false, date: appDayKey() });
+  state.tasks.push({ id: uid(), title, done: false, date: appDayKey(), groupId: state.eventGroups[0]?.id || "default" });
   input.value = "";
   save();
   renderHome();
@@ -729,28 +732,9 @@ function openCalendarCellComposer(host, firstDate, lastDate = firstDate) {
       <span class="${isRange ? "calendar-cell-range-note" : ""}">${isRange ? `${calendarDateLabel(startDate)} – ${calendarDateLabel(endDate)}` : calendarDateLabel(startDate)}</span>
       <button class="calendar-cell-composer-close" type="button" aria-label="닫기">×</button>
     </div>
-    ${isRange ? "" : `<div class="quick-add-type"><button class="active" type="button" data-cell-entry-type="schedule">일정</button><button type="button" data-cell-entry-type="task">할일</button></div>`}
-    <input data-cell-entry-title aria-label="제목" placeholder="${isRange ? "여행이나 여러 날 일정" : "일정 제목"}" required />
-    <div class="calendar-cell-event-options">
-      <select data-cell-entry-group aria-label="일정 그룹">${eventGroupOptions(state.eventGroups[0]?.id)}</select>
-      ${isRange ? "" : '<input data-cell-entry-time type="time" value="09:00" aria-label="일정 시간" />'}
-    </div>
-    ${isRange ? "" : '<label class="calendar-cell-all-day"><input data-cell-entry-all-day type="checkbox" /> 종일</label>'}
+    <input data-cell-entry-title aria-label="제목" placeholder="${isRange ? "여행이나 여러 날 일정" : "할일 제목"}" required />
     <button class="primary-btn" type="submit">추가</button>`;
   host.appendChild(form);
-  let entryType = "schedule";
-  const updateType = () => {
-    const isTask = entryType === "task";
-    form.querySelector("[data-cell-entry-title]").placeholder = isTask ? "할일 제목" : "일정 제목";
-    form.querySelector(".calendar-cell-event-options")?.classList.toggle("hidden", isTask);
-    form.querySelector(".calendar-cell-all-day")?.classList.toggle("hidden", isTask);
-    form.querySelectorAll("[data-cell-entry-type]").forEach((button) => button.classList.toggle("active", button.dataset.cellEntryType === entryType));
-  };
-  form.querySelectorAll("[data-cell-entry-type]").forEach((button) => button.addEventListener("click", () => {
-    entryType = button.dataset.cellEntryType;
-    updateType();
-    form.querySelector("[data-cell-entry-title]").focus();
-  }));
   form.querySelector(".calendar-cell-composer-close").addEventListener("click", closeCalendarCellComposer);
   form.addEventListener("mousedown", (event) => event.stopPropagation());
   form.addEventListener("click", (event) => event.stopPropagation());
@@ -758,17 +742,11 @@ function openCalendarCellComposer(host, firstDate, lastDate = firstDate) {
     event.preventDefault();
     const title = form.querySelector("[data-cell-entry-title]").value.trim();
     if (!title) return;
-    if (entryType === "task" && !isRange) {
-      state.tasks.push({ id: uid(), title, done: false, date: startDate });
+    const defaultGroupId = state.eventGroups[0]?.id || "default";
+    if (!isRange) {
+      state.tasks.push({ id: uid(), title, done: false, date: startDate, groupId: defaultGroupId });
     } else {
-      const allDay = isRange || form.querySelector("[data-cell-entry-all-day]")?.checked;
-      if (allDay) {
-        state.events.push({ id: uid(), title, type: "schedule", allDay: true, groupId: form.querySelector("[data-cell-entry-group]").value || state.eventGroups[0]?.id, start: new Date(`${startDate}T12:00:00`).toISOString(), end: new Date(`${endDate}T12:00:00`).toISOString() });
-      } else {
-        const time = form.querySelector("[data-cell-entry-time]")?.value || "09:00";
-        const start = new Date(`${startDate}T${time}:00`);
-        state.events.push({ id: uid(), title, type: "schedule", groupId: form.querySelector("[data-cell-entry-group]").value || state.eventGroups[0]?.id, start: start.toISOString(), end: new Date(start.getTime() + SLOT * 60000).toISOString() });
-      }
+      state.events.push({ id: uid(), title, type: "schedule", allDay: true, groupId: defaultGroupId, start: new Date(`${startDate}T12:00:00`).toISOString(), end: new Date(`${endDate}T12:00:00`).toISOString() });
     }
     save();
     closeCalendarCellComposer();
@@ -1231,7 +1209,7 @@ function renderSettings() {
   if (groupList) {
     groupList.innerHTML = state.eventGroups.map((group, index) => `<div class="event-group-row" data-event-group-id="${esc(group.id)}">
       <input type="color" value="${safeColor(group.color)}" aria-label="${esc(group.name)} 색" data-event-group-color />
-      <input value="${esc(group.name)}" aria-label="일정 그룹 이름" data-event-group-name />
+      <input value="${esc(group.name)}" aria-label="그룹 이름" data-event-group-name />
       <button class="ghost-btn danger-text" type="button" data-event-group-delete${index === 0 ? " disabled" : ""}>삭제</button>
     </div>`).join("");
     groupList.querySelectorAll("[data-event-group-name], [data-event-group-color]").forEach((input) => input.addEventListener("change", () => {
@@ -1248,6 +1226,7 @@ function renderSettings() {
       const id = button.closest("[data-event-group-id]")?.dataset.eventGroupId;
       if (!id || id === state.eventGroups[0]?.id) return;
       state.events.forEach((event) => { if (event.groupId === id) event.groupId = state.eventGroups[0].id; });
+      state.tasks.forEach((task) => { if (task.groupId === id) task.groupId = state.eventGroups[0].id; });
       state.eventGroups = state.eventGroups.filter((group) => group.id !== id);
       save();
       renderSettings();

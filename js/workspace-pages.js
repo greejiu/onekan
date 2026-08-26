@@ -25,6 +25,7 @@ async function readState() {
   user = session.user;
   state = data?.data && typeof data.data === "object" ? data.data : {};
   state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
+  state.eventGroups = Array.isArray(state.eventGroups) ? state.eventGroups : [];
   state.habitTemplates = Array.isArray(state.habitTemplates) ? state.habitTemplates : [];
   state.habitDays = state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
@@ -237,7 +238,7 @@ function wireUI() {
   $("#tasksPageAdd")?.addEventListener("click", async () => {
     const title = window.prompt("언젠가 할일을 입력해 주세요.");
     if (!title?.trim()) return;
-    await writeState((current) => current.tasks.push({ id: crypto.randomUUID(), title: title.trim(), date: null, done: false, createdAt: new Date().toISOString() }));
+    await writeState((current) => current.tasks.push({ id: crypto.randomUUID(), title: title.trim(), date: null, done: false, groupId: current.eventGroups?.[0]?.id || "default", createdAt: new Date().toISOString() }));
   });
   $("#habitsPageAdd")?.addEventListener("click", () => $("#habitPageTitle")?.focus());
   $("#habitPageForm")?.addEventListener("submit", async (event) => {

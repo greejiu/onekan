@@ -57,6 +57,7 @@ async function readState() {
   const state = data?.data && typeof data.data === "object" ? data.data : {};
   state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
   state.events = Array.isArray(state.events) ? state.events : [];
+  state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : [{ id: "default", name: "기본", color: "#8fa9c4" }];
   state.timeBlocks = Array.isArray(state.timeBlocks) ? state.timeBlocks : [];
   state.habitTemplates = Array.isArray(state.habitTemplates) ? state.habitTemplates : [];
   state.habitDays = state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {};
@@ -188,11 +189,32 @@ function hideMenu() {
   currentTarget = null;
 }
 
-function showMenu(x, y, target) {
+function groupable(kind) {
+  return kind === "task" || kind === "event";
+}
+
+function renderGroupChoices(state, target) {
+  const menu = $("#globalContextMenu");
+  const groupButton = menu?.querySelector('[data-context-action="groups"]');
+  const groupList = $("#contextGroupList");
+  const groups = Array.isArray(state?.eventGroups) ? state.eventGroups : [];
+  const available = groupable(target.kind) && groups.length > 0;
+  groupButton?.classList.toggle("hidden", !available);
+  groupList?.classList.add("hidden");
+  if (!available || !groupList) {
+    if (groupList) groupList.innerHTML = "";
+    return;
+  }
+  const selectedId = getItem(state, target)?.groupId || groups[0]?.id;
+  groupList.innerHTML = groups.map((group) => `<button type="button" role="menuitemradio" aria-checked="${group.id === selectedId}" data-context-group-id="${escapeAttr(group.id)}"><span class="context-group-dot" style="--group-color:${escapeAttr(group.color || "#8fa9c4")}"></span><span>${escapeAttr(group.name)}</span>${group.id === selectedId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
+}
+
+function showMenu(x, y, target, state) {
   currentTarget = target;
   const menu = $("#globalContextMenu");
   $$('[data-context-schedule]', menu).forEach((element) => element.classList.toggle("hidden", !schedulable(target.kind)));
   menu.querySelector('[data-context-action="duplicate"]')?.classList.toggle("hidden", !duplicable(target.kind));
+  renderGroupChoices(state, target);
   menu.classList.add("open");
   menu.style.left = "0px";
   menu.style.top = "0px";
@@ -448,6 +470,22 @@ async function duplicateTarget() {
   }
 }
 
+async function changeTargetGroup(groupId) {
+  const target = currentTarget;
+  hideMenu();
+  if (!target || !groupable(target.kind) || !groupId) return;
+  try {
+    await writeState((state) => {
+      if (!state.eventGroups?.some((group) => group.id === groupId)) return;
+      const item = getItem(state, target);
+      if (item) item.groupId = groupId;
+    });
+  } catch (error) {
+    console.error(error);
+    window.alert("그룹을 변경하지 못했어요.");
+  }
+}
+
 function ensureUI() {
   if ($("#globalContextMenu")) return;
 
@@ -457,6 +495,8 @@ function ensureUI() {
   menu.setAttribute("role", "menu");
   menu.innerHTML = `
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
+    <button type="button" role="menuitem" data-context-action="groups">그룹 <span class="context-menu-arrow">›</span></button>
+    <div class="context-group-list hidden" id="contextGroupList" role="group"></div>
     <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;
   document.body.appendChild(menu);
 
@@ -474,6 +514,12 @@ function ensureUI() {
     .global-context-menu button{display:block;width:100%;min-height:36px;padding:7px 10px;border:0;border-radius:6px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px;text-align:left;cursor:pointer}
     .global-context-menu button:hover,.global-context-menu button:focus-visible{background:var(--hover,#f3f5f7);outline:none}
     .global-context-menu button.danger{color:var(--danger,#c84a4a)}
+    .global-context-menu [data-context-action="groups"]{display:flex;align-items:center;justify-content:space-between}
+    .context-menu-arrow{font-size:18px;line-height:1}
+    .context-group-list{margin:3px 0;padding:3px;border-top:1px solid var(--line,#d2d7df);border-bottom:1px solid var(--line,#d2d7df);max-height:210px;overflow:auto}
+    .context-group-list button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
+    .context-group-dot{width:9px;height:9px;border-radius:3px;background:var(--group-color,#8fa9c4)}
+    .context-group-check{text-align:right;color:var(--accent,#7666a8)}
     .global-context-divider{height:1px;background:var(--line,#d2d7df);margin:4px 2px}
     .global-context-menu .hidden{display:none}
     @media (pointer:coarse){[data-context-kind][data-context-id]{-webkit-touch-callout:none}}
@@ -489,7 +535,17 @@ function ensureUI() {
     else if (action === "tomorrow") moveTarget(1);
     else if (action === "edit") openEditor();
     else if (action === "duplicate") duplicateTarget();
+    else if (action === "groups") {
+      $("#contextGroupList")?.classList.toggle("hidden");
+      const rect = menu.getBoundingClientRect();
+      const currentTop = Number.parseFloat(menu.style.top) || 8;
+      menu.style.top = `${Math.max(8, Math.min(currentTop, innerHeight - rect.height - 8))}px`;
+    }
     else if (action === "delete") deleteTarget();
+  });
+  menu.addEventListener("click", (event) => {
+    const groupButton = event.target.closest("[data-context-group-id]");
+    if (groupButton) changeTargetGroup(groupButton.dataset.contextGroupId);
   });
 
   $("#contextEditCancel").addEventListener("click", () => {
@@ -524,7 +580,7 @@ function installListeners() {
       if (!current) return;
       const target = resolveDirect(element) || resolveByPosition(element, current.state);
       if (!target) return;
-      showMenu(event.clientX, event.clientY, target);
+      showMenu(event.clientX, event.clientY, target, current.state);
     } catch (error) {
       console.error("오른쪽 클릭 메뉴 연결 실패", error);
     }
@@ -583,7 +639,7 @@ function installListeners() {
         const target = resolveDirect(press.element) || resolveByPosition(press.element, current?.state);
         if (!target) return;
         suppressClickUntil = Date.now() + 800;
-        showMenu(press.x, press.y, target);
+        showMenu(press.x, press.y, target, current.state);
         navigator.vibrate?.(12);
       } catch (error) {
         console.error("길게 누르기 메뉴 연결 실패", error);

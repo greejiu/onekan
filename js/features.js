@@ -48,6 +48,7 @@ async function refreshCloudState() {
   cloudState = data?.data && typeof data.data === "object" ? data.data : {};
   cloudState.tasks = Array.isArray(cloudState.tasks) ? cloudState.tasks : [];
   cloudState.events = Array.isArray(cloudState.events) ? cloudState.events : [];
+  cloudState.eventGroups = Array.isArray(cloudState.eventGroups) ? cloudState.eventGroups : [];
   cloudState.timeBlocks = Array.isArray(cloudState.timeBlocks) ? cloudState.timeBlocks : [];
   return cloudState;
 }
@@ -214,7 +215,7 @@ async function addSomedayTask() {
   if (!title) return;
   input.value = "";
   await mutateCloud((state) => {
-    state.tasks.push({ id: uid(), title, done: false, date: null });
+    state.tasks.push({ id: uid(), title, done: false, date: null, groupId: state.eventGroups?.[0]?.id || "default" });
   });
   $("#featureSomedayForm")?.classList.remove("open");
 }
