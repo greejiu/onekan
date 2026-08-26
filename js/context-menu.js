@@ -175,6 +175,14 @@ function schedulable(kind) {
   return ["task", "event", "timeBlock"].includes(kind);
 }
 
+function duplicable(kind) {
+  return ["task", "event", "timeBlock", "habit", "project"].includes(kind);
+}
+
+function newId() {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function hideMenu() {
   $("#globalContextMenu")?.classList.remove("open");
   currentTarget = null;
@@ -184,6 +192,7 @@ function showMenu(x, y, target) {
   currentTarget = target;
   const menu = $("#globalContextMenu");
   $$('[data-context-schedule]', menu).forEach((element) => element.classList.toggle("hidden", !schedulable(target.kind)));
+  menu.querySelector('[data-context-action="duplicate"]')?.classList.toggle("hidden", !duplicable(target.kind));
   menu.classList.add("open");
   menu.style.left = "0px";
   menu.style.top = "0px";
@@ -401,6 +410,44 @@ async function deleteTarget() {
   }
 }
 
+async function duplicateTarget() {
+  const target = currentTarget;
+  hideMenu();
+  if (!target || !duplicable(target.kind)) return;
+  try {
+    await writeState((state) => {
+      const item = getItem(state, target);
+      if (!item) return;
+      const copy = { ...item, id: newId() };
+      if (target.kind === "task") {
+        copy.title = `${item.title} 복사`;
+        copy.done = false;
+        copy.completedAt = null;
+      } else if (target.kind === "event") {
+        copy.title = `${item.title} 복사`;
+      } else if (target.kind === "timeBlock") {
+        copy.detail = `${item.detail || item.sourceTitle || "시간 계획"} 복사`;
+        copy.taskId = null;
+        copy.sourceTitle = copy.detail;
+      } else if (target.kind === "habit") {
+        copy.title = `${item.title} 복사`;
+      } else if (target.kind === "project") {
+        copy.title = `${item.title} 복사`;
+      }
+      const collection = target.kind === "task" ? state.tasks
+        : target.kind === "event" ? state.events
+        : target.kind === "timeBlock" ? state.timeBlocks
+        : target.kind === "habit" ? state.habitTemplates
+        : state.projects;
+      const index = collection.findIndex((entry) => entry.id === target.id);
+      collection.splice(index >= 0 ? index + 1 : collection.length, 0, copy);
+    });
+  } catch (error) {
+    console.error(error);
+    window.alert("복제하지 못했어요.");
+  }
+}
+
 function ensureUI() {
   if ($("#globalContextMenu")) return;
 
@@ -409,7 +456,8 @@ function ensureUI() {
   menu.className = "global-context-menu";
   menu.setAttribute("role", "menu");
   menu.innerHTML = `
-    <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제하기</button>`;
+    <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
+    <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;
   document.body.appendChild(menu);
 
   const dialog = document.createElement("dialog");
@@ -428,6 +476,7 @@ function ensureUI() {
     .global-context-menu button.danger{color:var(--danger,#c84a4a)}
     .global-context-divider{height:1px;background:var(--line,#d2d7df);margin:4px 2px}
     .global-context-menu .hidden{display:none}
+    @media (pointer:coarse){[data-context-kind][data-context-id]{-webkit-touch-callout:none}}
     #contextEditFields{display:grid;gap:2px}
   `;
   document.head.appendChild(style);
@@ -439,6 +488,7 @@ function ensureUI() {
     if (action === "today") moveTarget(0);
     else if (action === "tomorrow") moveTarget(1);
     else if (action === "edit") openEditor();
+    else if (action === "duplicate") duplicateTarget();
     else if (action === "delete") deleteTarget();
   });
 
@@ -484,7 +534,7 @@ function installListeners() {
     if (element.closest("button,input,textarea,select,a,summary,[contenteditable='true']")) return;
     const editable = element.closest([
       "#tasksPageList .workspace-task[data-context-kind='task']",
-      "#habitHistory .habit-matrix-title[data-context-kind='habit']",
+      "#habitHistory .habit-matrix-row[data-context-kind='habit']",
       "#habitTemplateList .template-row",
       "#habitList .row",
       "#upcomingList .row",

@@ -89,7 +89,7 @@ function renderHabitsPage() {
   if (!state || !$("#habitHistory")) return;
   const days = lastSevenDays();
   const head = `<div class="habit-matrix-head"><span>습관</span>${days.map((day) => `<span>${day.weekday}<small>${day.label}</small></span>`).join("")}</div>`;
-  const rows = state.habitTemplates.map((habit) => `<div class="habit-matrix-row"><strong class="habit-matrix-title" data-context-kind="habit" data-context-id="${esc(habit.id)}" title="클릭하여 수정">${esc(habit.title)}</strong>${days.map((day) => {
+  const rows = state.habitTemplates.map((habit) => `<div class="habit-matrix-row" data-context-kind="habit" data-context-id="${esc(habit.id)}"><strong class="habit-matrix-title" title="클릭하여 수정">${esc(habit.title)}</strong>${days.map((day) => {
     const done = Boolean(state.habitDays[day.key]?.[habit.id]);
     return `<button class="habit-day-check${done ? " checked" : ""}" data-habit-id="${esc(habit.id)}" data-habit-day="${day.key}" type="button" aria-label="${esc(habit.title)} ${day.key}">${done ? "✓" : ""}</button>`;
   }).join("")}</div>`).join("");
