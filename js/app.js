@@ -457,17 +457,19 @@ function renderUpcoming() {
     .map((task) => ({ ...task, upcomingKind: "task", when: new Date(`${task.date}T12:00:00`) }));
   const items = [...events, ...tasks].sort((a, b) => a.when - b.when).slice(0, 8);
   const container = $("#upcomingList");
-  if (!items.length) {
-    container.innerHTML = '<div class="empty">다가오는 일정과 할일이 없어요.</div>';
-    return;
-  }
   const groups = new Map();
+  const firstUpcomingDate = new Date(`${dayKey}T12:00:00`);
+  for (let offset = 1; offset <= 7; offset += 1) {
+    const date = new Date(firstUpcomingDate);
+    date.setDate(date.getDate() + offset);
+    groups.set(localDateKey(date), []);
+  }
   for (const item of items) {
     const key = localDateKey(item.when);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
-  container.innerHTML = [...groups].map(([key, groupItems]) => {
+  container.innerHTML = [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([key, groupItems]) => {
     const date = new Date(`${key}T12:00:00`);
     const label = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(date);
     const rows = groupItems.map((item) => {
@@ -475,7 +477,7 @@ function renderUpcoming() {
       const time = isTask ? "" : new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(item.when);
       return `<div class="row editable-row upcoming-row ${isTask ? "task" : "schedule"}" draggable="${isTask}" data-context-kind="${item.upcomingKind}" data-context-id="${item.id}" data-upcoming-task-id="${isTask ? item.id : ""}"><span class="pill">${isTask ? "할일" : "일정"}</span><span class="row-title" style="cursor:default">${esc(item.title)}</span>${time ? `<span class="card-meta">${time}</span>` : ""}</div>`;
     }).join("");
-    return `<section class="upcoming-date-group" data-upcoming-date="${key}"><div class="upcoming-date-heading"><strong>${label}</strong><span>여기로 끌어오기</span></div>${rows}</section>`;
+    return `<section class="upcoming-date-group${groupItems.length ? "" : " empty-date"}" data-upcoming-date="${key}"><div class="upcoming-date-heading"><strong>${label}</strong><span>여기로 끌어오기</span></div>${rows || '<div class="upcoming-date-empty">비어 있음</div>'}</section>`;
   }).join("");
 }
 

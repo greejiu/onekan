@@ -140,7 +140,7 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 .day-cell.today { background: var(--accent-soft); }
 .day-cell.today .day-num { background: var(--accent); }
 .cal-event { border-radius: 7px; }
-.cal-event.task, .day-timed-event.task, .multi-entry.planned.task { color: #5b4b8a; background: var(--pastel-purple); border-left-color: #8c72b5; }
+.cal-event.task, .day-timed-event.task, .multi-entry.planned.task { color: var(--text); background: #fff; border-left-color: var(--line-strong); box-shadow: inset 0 0 0 1px var(--line); }
 .cal-event.schedule, .day-timed-event.schedule { border-left-width: 3px; }
 .calendar-type-filter { border-color: var(--line); border-radius: 999px; background: var(--panel-soft); }
 .calendar-type-filter button { border-radius: 999px; }
@@ -201,6 +201,9 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 .inline-pop, .app-dialog, .global-context-menu, .record-context-menu { border-color: var(--line) !important; border-radius: 16px !important; background: #fff !important; box-shadow: 0 12px 34px rgba(43,38,33,.14) !important; }
 .app-dialog::backdrop { background: rgba(43,38,33,.2); backdrop-filter: blur(2px); }
 .feature-drop-active, .feature-calendar-drop-active, .workspace-drop-active { outline-color: var(--accent) !important; background: var(--accent-soft) !important; }
+.upcoming-date-group.empty-date { background: rgba(255,255,255,.58); }
+.upcoming-date-group.empty-date .upcoming-date-heading { border-bottom-style: dashed; }
+.upcoming-date-group.workspace-drop-active { background: var(--accent-soft) !important; }
 
 /* Mobile navigation */
 .mobile-topbar { background: rgba(255,253,248,.94) !important; border-bottom-color: var(--line) !important; backdrop-filter: blur(14px); }
