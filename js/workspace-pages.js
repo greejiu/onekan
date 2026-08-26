@@ -6,6 +6,12 @@ const pad = (value) => String(value).padStart(2, "0");
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[character]));
 const dateKey = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const appDayKey = () => { const date = new Date(); date.setHours(date.getHours() - 3); return dateKey(date); };
+const minuteText = (minute) => `${pad(Math.floor(Number(minute) / 60))}:${pad(Number(minute) % 60)}`;
+const minuteFromTime = (value) => {
+  if (!value) return null;
+  const [hour, minute] = value.split(":").map(Number);
+  return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null;
+};
 
 let state = null;
 let user = null;
@@ -87,7 +93,7 @@ function renderHabitsPage() {
     const done = Boolean(state.habitDays[day.key]?.[habit.id]);
     return `<button class="habit-day-check${done ? " checked" : ""}" data-habit-id="${esc(habit.id)}" data-habit-day="${day.key}" type="button" aria-label="${esc(habit.title)} ${day.key}">${done ? "✓" : ""}</button>`;
   }).join("")}</div>`).join("");
-  const manage = state.habitTemplates.length ? `<section class="habit-manage"><h2>습관 목록</h2><div id="habitManageList">${state.habitTemplates.map((habit) => `<div class="habit-manage-row" data-context-kind="habit" data-context-id="${esc(habit.id)}"><span>${esc(habit.title)}</span></div>`).join("")}</div></section>` : "";
+  const manage = state.habitTemplates.length ? `<section class="habit-manage"><h2>습관 목록</h2><div id="habitManageList">${state.habitTemplates.map((habit) => `<div class="habit-manage-row" data-context-kind="habit" data-context-id="${esc(habit.id)}"><span>${esc(habit.title)}</span><small>${Number.isFinite(Number(habit.startMinute)) ? `${minuteText(habit.startMinute)} · ${Number(habit.duration || 30)}분` : "시간 없음"}</small></div>`).join("")}</div></section>` : "";
   $("#habitHistory").innerHTML = state.habitTemplates.length ? `<div class="habit-matrix">${head}${rows}</div>${manage}` : '<div class="empty">아직 습관이 없어요. 첫 습관을 추가해 보세요.</div>';
 }
 
@@ -234,10 +240,24 @@ function wireUI() {
     if (!title?.trim()) return;
     await writeState((current) => current.tasks.push({ id: crypto.randomUUID(), title: title.trim(), date: null, done: false, createdAt: new Date().toISOString() }));
   });
-  $("#habitsPageAdd")?.addEventListener("click", async () => {
-    const title = window.prompt("새 습관을 입력해 주세요.");
-    if (!title?.trim()) return;
-    await writeState((current) => current.habitTemplates.push({ id: crypto.randomUUID(), title: title.trim() }));
+  $("#habitsPageAdd")?.addEventListener("click", () => $("#habitPageTitle")?.focus());
+  $("#habitPageForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const title = $("#habitPageTitle")?.value.trim();
+    if (!title) return;
+    const startMinute = minuteFromTime($("#habitPageTime")?.value);
+    const duration = Number($("#habitPageDuration")?.value || 30);
+    await writeState((current) => {
+      const habit = { id: crypto.randomUUID(), title };
+      if (startMinute !== null) {
+        habit.startMinute = Math.max(360, Math.min(1320 - duration, Math.round(startMinute / 30) * 30));
+        habit.duration = duration;
+      }
+      current.habitTemplates.push(habit);
+    });
+    $("#habitPageTitle").value = "";
+    $("#habitPageTime").value = "";
+    $("#habitPageDuration").value = "30";
   });
   document.addEventListener("click", async (event) => {
     const taskCheck = event.target.closest("[data-workspace-task-check]");

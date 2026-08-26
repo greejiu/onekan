@@ -56,6 +56,8 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 .page-title { color: var(--text); font-size: 28px; font-weight: 700; }
 .page-sub { color: var(--muted); }
 .home-columns { grid-template-columns: minmax(0,1.15fr) minmax(0,.85fr); gap: 22px; }
+.home-columns.home-columns-3 { grid-template-columns: minmax(420px,1.35fr) minmax(250px,.8fr) minmax(290px,1fr); gap: 18px; }
+#page-home { max-width: 1480px; }
 .home-column { gap: 20px; }
 
 /* Home header and progress */
@@ -169,6 +171,8 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 .pomodoro-box .timer-start-wide { flex: 1 1 100%; min-height: 46px; font-size: 15px; }
 .timer-clock { color: var(--accent-dark); }
 .time-block, .day-timed-event { border-color: #a9cce7; border-radius: 10px; background: var(--pastel-blue); }
+#page-home .time-block.task-time-block { background: color-mix(in srgb, var(--timeline-task-color, #d8d8d5) 78%, white); border-left-color: color-mix(in srgb, var(--timeline-task-color, #d8d8d5) 70%, #555); }
+#page-home .time-block.habit-time-block { background: color-mix(in srgb, var(--timeline-habit-color, #b9d9c3) 78%, white); border-left-color: color-mix(in srgb, var(--timeline-habit-color, #b9d9c3) 70%, #45634f); }
 .time-selection, .calendar-range-selection { border-color: var(--accent); background: rgba(137,99,175,.13); }
 #dailyBlockBoard .daily-block-table { border-color: var(--line) !important; border-radius: 16px !important; }
 #dailyBlockBoard .daily-block-row { border-bottom-color: var(--line) !important; }
@@ -220,7 +224,7 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
   .nav-item, .app.sidebar-collapsed .nav-item { display: flex; flex-direction: column; justify-content: center; gap: 2px; width: 58px; min-width: 58px; min-height: 54px; padding: 4px 2px; text-align: center; border-radius: 11px; }
   .nav-icon { width: auto; flex: none; font-size: 17px; line-height: 20px; }
   .nav-label, .app.sidebar-collapsed .nav-label { display: block; max-width: 100%; font-size: 9.5px; line-height: 13px; text-overflow: ellipsis; }
-  .home-columns, .timer-panel, .activity-grid { grid-template-columns: 1fr; gap: 16px; }
+  .home-columns, .home-columns.home-columns-3, .timer-panel, .activity-grid { grid-template-columns: 1fr; gap: 16px; }
   .home-column { gap: 16px; }
   .page-head { align-items: flex-start; }
   #page-home .page-head { min-height: 112px; padding: 20px; }

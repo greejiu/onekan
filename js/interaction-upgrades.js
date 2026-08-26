@@ -23,6 +23,7 @@ async function readState(){
   state.tasks=Array.isArray(state.tasks)?state.tasks:[];
   state.events=Array.isArray(state.events)?state.events:[];
   state.timeBlocks=Array.isArray(state.timeBlocks)?state.timeBlocks:[];
+  state.habitTemplates=Array.isArray(state.habitTemplates)?state.habitTemplates:[];
   return state;
 }
 async function writeState(mutator){
@@ -84,10 +85,11 @@ function placeInLanes(entries,getElement){
 function arrangeHome(){
   const grid=$("#timeGrid"); if(!grid||!state)return;
   $$(".time-block",grid).forEach(el=>{el.style.left="";el.style.right="";el.style.width="";el.style.zIndex="";});
-  const blocks=state.timeBlocks.filter(b=>b.date===todayKey());
-  for(const group of overlapGroups(blocks,b=>+b.startMinute||0,b=>(+b.startMinute||0)+(+b.duration||SLOT))){
-    placeInLanes(lanes(group,b=>+b.startMinute||0,b=>(+b.startMinute||0)+(+b.duration||SLOT)),
-      b=>grid.querySelector(`.time-block[data-block-id="${CSS.escape(b.id)}"]`));
+  const blocks=state.timeBlocks.filter(b=>b.date===todayKey()).map(item=>({item,element:grid.querySelector(`.time-block[data-block-id="${CSS.escape(item.id)}"]`)}));
+  const habits=state.habitTemplates.filter(h=>Number.isFinite(Number(h.startMinute))).map(item=>({item,element:grid.querySelector(`.time-block[data-habit-id="${CSS.escape(item.id)}"]`)}));
+  const entries=[...blocks,...habits].filter(entry=>entry.element);
+  for(const group of overlapGroups(entries,x=>+x.item.startMinute||0,x=>(+x.item.startMinute||0)+(+x.item.duration||SLOT))){
+    placeInLanes(lanes(group,x=>+x.item.startMinute||0,x=>(+x.item.startMinute||0)+(+x.item.duration||SLOT)),x=>x.element);
   }
 }
 function arrangeCalendar(){

@@ -58,6 +58,7 @@ function defaultState() {
     projects: [],
     ui: {
       sidebarCollapsed: false,
+      timelineColors: { task: "#d8d8d5", habit: "#b9d9c3" },
       calendarFilters: {
         month: { schedule: true, task: false },
         week: { schedule: true, task: true },
@@ -90,6 +91,7 @@ function normalizeState(raw) {
     ui: {
       ...base.ui,
       ...(state.ui || {}),
+      timelineColors: { ...base.ui.timelineColors, ...(state.ui?.timelineColors || {}) },
       calendarFilters: {
         month: { ...base.ui.calendarFilters.month, ...(savedCalendarFilters.month || {}) },
         week: { ...base.ui.calendarFilters.week, ...(savedCalendarFilters.week || {}) },
@@ -195,6 +197,7 @@ function sortIncompleteFirst(items, doneFn) {
 function renderTasks() {
   const dayKey = appDayKey();
   const list = $("#taskList");
+  if (!list) return;
   list.innerHTML = "";
   const todayTasks = sortIncompleteFirst(state.tasks.filter((task) => task.date === dayKey), (task) => task.done);
   if (!todayTasks.length) list.innerHTML = '<div class="empty">오늘 할일이 없어요.</div>';
@@ -253,6 +256,7 @@ function renderTasks() {
 
 function addTask() {
   const input = $("#newTaskInput");
+  if (!input) return;
   const title = input.value.trim();
   if (!title) return;
   state.tasks.push({ id: uid(), title, done: false, date: appDayKey() });
@@ -293,6 +297,10 @@ function addDirectTimeBlock(startMinute, duration = 30) {
 
 function renderTimeGrid() {
   const grid = $("#timeGrid");
+  if (!grid) return;
+  const timelineColors = state.ui?.timelineColors || defaultState().ui.timelineColors;
+  grid.style.setProperty("--timeline-task-color", safeColor(timelineColors.task));
+  grid.style.setProperty("--timeline-habit-color", safeColor(timelineColors.habit));
   grid.innerHTML = "";
   let selecting = false;
   let selectStart = null;
@@ -345,6 +353,16 @@ function renderTimeGrid() {
         return;
       }
 
+      const habitId = event.dataTransfer.getData("text/habit-id");
+      if (habitId) {
+        const habit = state.habitTemplates.find((item) => item.id === habitId);
+        if (!habit) return;
+        habit.startMinute = clampStart(minute, Number(habit.duration || SLOT));
+        save();
+        renderTimeGrid();
+        return;
+      }
+
       const taskId = event.dataTransfer.getData("text/task-id");
       const task = state.tasks.find((item) => item.id === taskId);
       if (!task) return;
@@ -387,16 +405,76 @@ function renderTimeGrid() {
     if (!slot) continue;
     const dropZone = slot.querySelector(".drop-zone");
     const element = document.createElement("div");
-    element.className = "time-block";
+    element.className = "time-block task-time-block";
     element.dataset.blockId = block.id;
     element.draggable = true;
     element.style.height = `${Math.max(36, (block.duration / SLOT) * 42 - 6)}px`;
-    element.innerHTML = `<strong>${esc(block.detail)}</strong><small>${minuteLabel(block.startMinute)} · ${block.duration}분</small>`;
+    element.innerHTML = `<strong>${esc(block.detail)}</strong><small>${minuteLabel(block.startMinute)} · ${block.duration}분</small><button class="time-resize-handle" type="button" aria-label="시간 길이 조절"></button>`;
     element.addEventListener("dragstart", (event) => { event.dataTransfer.setData("text/time-block-id", block.id); element.classList.add("dragging"); });
     element.addEventListener("dragend", () => element.classList.remove("dragging"));
-    element.addEventListener("click", (event) => { event.stopPropagation(); openBlockEditor(block, element); });
+    element.addEventListener("click", (event) => { if (event.target.closest(".time-resize-handle")) return; event.stopPropagation(); openBlockEditor(block, element); });
+    wireTimelineResize(element, block, "timeBlock");
     dropZone.appendChild(element);
   }
+
+  const checks = state.habitDays[dayKey] || {};
+  for (const habit of state.habitTemplates.filter((item) => Number.isFinite(Number(item.startMinute)))) {
+    const startMinute = clampStart(Number(habit.startMinute), Number(habit.duration || SLOT));
+    const duration = Math.max(SLOT, Number(habit.duration || SLOT));
+    const index = (startMinute - START_MIN) / SLOT;
+    const slot = grid.children[index];
+    if (!slot) continue;
+    const element = document.createElement("div");
+    element.className = `time-block habit-time-block${checks[habit.id] ? " done" : ""}`;
+    element.dataset.habitId = habit.id;
+    element.draggable = true;
+    element.style.height = `${Math.max(36, (duration / SLOT) * 42 - 6)}px`;
+    element.innerHTML = `<div class="habit-time-main"><button class="habit-time-check" type="button" aria-label="습관 완료">${checks[habit.id] ? "✓" : ""}</button><strong>${esc(habit.title)}</strong></div><small>${minuteLabel(startMinute)} · ${duration}분</small><button class="time-resize-handle" type="button" aria-label="습관 길이 조절"></button>`;
+    element.addEventListener("dragstart", (event) => { event.dataTransfer.setData("text/habit-id", habit.id); element.classList.add("dragging"); });
+    element.addEventListener("dragend", () => element.classList.remove("dragging"));
+    element.querySelector(".habit-time-check").addEventListener("click", (event) => {
+      event.stopPropagation();
+      checks[habit.id] = !checks[habit.id];
+      save();
+      renderTimeGrid();
+      renderDashboard();
+    });
+    wireTimelineResize(element, habit, "habit");
+    slot.querySelector(".drop-zone").appendChild(element);
+  }
+}
+
+function wireTimelineResize(element, item, kind) {
+  const handle = element.querySelector(".time-resize-handle");
+  if (!handle) return;
+  handle.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    element.draggable = false;
+    element.classList.add("resizing");
+    const startY = event.clientY;
+    const originalDuration = Math.max(SLOT, Number(item.duration || SLOT));
+    let nextDuration = originalDuration;
+    const move = (moveEvent) => {
+      const slots = Math.round((moveEvent.clientY - startY) / 42);
+      nextDuration = Math.max(SLOT, Math.min(240, originalDuration + slots * SLOT, END_MIN - Number(item.startMinute)));
+      element.style.height = `${Math.max(36, (nextDuration / SLOT) * 42 - 6)}px`;
+      const meta = element.querySelector("small");
+      if (meta) meta.textContent = `${minuteLabel(Number(item.startMinute))} · ${nextDuration}분`;
+    };
+    const finish = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", finish);
+      item.duration = nextDuration;
+      element.draggable = true;
+      element.classList.remove("resizing");
+      save();
+      renderTimeGrid();
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", finish, { once: true });
+  });
 }
 
 function fillBlockStartOptions() {
@@ -430,6 +508,7 @@ function renderHabits() {
   const dayKey = appDayKey();
   const checks = state.habitDays[dayKey];
   const list = $("#habitList");
+  if (!list) return;
   list.innerHTML = "";
   const sorted = sortIncompleteFirst(state.habitTemplates, (habit) => !!checks[habit.id]);
   if (!sorted.length) list.innerHTML = '<div class="empty">설정에서 습관을 추가해 주세요.</div>';
@@ -1041,13 +1120,19 @@ function renderProjects() {
 
 function renderSettings() {
   const container = $("#habitTemplateList");
-  container.innerHTML = state.habitTemplates.map((habit) => `<div class="template-row"><span>${esc(habit.title)}</span><button class="ghost-btn danger-text" data-del-habit="${habit.id}" type="button">삭제</button></div>`).join("");
-  container.querySelectorAll("[data-del-habit]").forEach((button) => button.addEventListener("click", () => {
-    state.habitTemplates = state.habitTemplates.filter((habit) => habit.id !== button.dataset.delHabit);
-    save();
-    renderSettings();
-    renderHome();
-  }));
+  if (container) {
+    container.innerHTML = state.habitTemplates.map((habit) => `<div class="template-row"><span>${esc(habit.title)}</span><button class="ghost-btn danger-text" data-del-habit="${habit.id}" type="button">삭제</button></div>`).join("");
+    container.querySelectorAll("[data-del-habit]").forEach((button) => button.addEventListener("click", () => {
+      state.habitTemplates = state.habitTemplates.filter((habit) => habit.id !== button.dataset.delHabit);
+      save();
+      renderSettings();
+      renderHome();
+    }));
+  }
+
+  const timelineColors = state.ui?.timelineColors || defaultState().ui.timelineColors;
+  if ($("#timelineTaskColor")) $("#timelineTaskColor").value = safeColor(timelineColors.task);
+  if ($("#timelineHabitColor")) $("#timelineHabitColor").value = safeColor(timelineColors.habit);
 
   const groupList = $("#eventGroupList");
   if (groupList) {
@@ -1185,8 +1270,8 @@ function bindUI() {
     if (!event.target.closest("#blockEditor") && !event.target.closest(".time-block")) $("#blockEditor").classList.remove("open");
   });
 
-  $("#addTaskBtn").addEventListener("click", addTask);
-  $("#newTaskInput").addEventListener("keydown", (event) => { if (event.key === "Enter") addTask(); });
+  $("#addTaskBtn")?.addEventListener("click", addTask);
+  $("#newTaskInput")?.addEventListener("keydown", (event) => { if (event.key === "Enter") addTask(); });
   $("#addTimeBlockBtn").addEventListener("click", () => {
     const now = new Date();
     let minute = now.getHours() * 60 + now.getMinutes();
@@ -1284,8 +1369,14 @@ function bindUI() {
     $("#timerTaskLabel").textContent = task ? task.title : "할일을 고르고 시작하세요.";
   });
 
-  $("#addHabitBtn").addEventListener("click", addHabit);
-  $("#newHabitInput").addEventListener("keydown", (event) => { if (event.key === "Enter") addHabit(); });
+  for (const [selector, key] of [["#timelineTaskColor", "task"], ["#timelineHabitColor", "habit"]]) {
+    $(selector)?.addEventListener("change", (event) => {
+      state.ui.timelineColors ||= { ...defaultState().ui.timelineColors };
+      state.ui.timelineColors[key] = safeColor(event.target.value);
+      save();
+      renderTimeGrid();
+    });
+  }
   $("#addEventGroupBtn").addEventListener("click", () => {
     const name = $("#newEventGroupName").value.trim();
     if (!name) return;

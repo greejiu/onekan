@@ -159,10 +159,10 @@ function injectHomeFeatures() {
   const habitList = $("#habitList");
   const upcoming = $("#upcomingList");
   const somedaySlot = $("#somedayHomeSlot");
-  if (!habitList || !upcoming || !somedaySlot) return;
+  if (!upcoming || !somedaySlot) return;
 
-  const habitCard = habitList.closest(".card");
-  if (!habitCard.querySelector("[data-feature-home-habit]")) {
+  const habitCard = habitList?.closest(".card");
+  if (habitCard && !habitCard.querySelector("[data-feature-home-habit]")) {
     const footer = document.createElement("div");
     footer.className = "card-footer";
     footer.dataset.featureHomeHabit = "true";

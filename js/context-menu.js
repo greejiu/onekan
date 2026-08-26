@@ -259,7 +259,10 @@ function editorFields(target, item, state) {
       field("길이", `<select id="contextEditDuration"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option><option value="180">3시간</option><option value="240">4시간</option></select>`);
   }
   if (target.kind === "habit") {
-    return field("습관", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`);
+    const startValue = Number.isFinite(Number(item.startMinute)) ? minuteText(item.startMinute) : "";
+    return field("습관", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
+      field("시간 (선택)", `<input id="contextEditStart" type="time" min="06:00" max="21:30" step="1800" value="${startValue}">`) +
+      field("길이", `<select id="contextEditDuration"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option><option value="180">3시간</option><option value="240">4시간</option></select>`);
   }
   if (target.kind === "project") {
     return field("제목", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
@@ -286,7 +289,7 @@ async function openEditor() {
     if (!item) return;
     currentTarget = target;
     $("#contextEditFields").innerHTML = editorFields(target, item, current.state);
-    if (target.kind === "timeBlock") $("#contextEditDuration").value = String(item.duration || 30);
+    if (target.kind === "timeBlock" || target.kind === "habit") $("#contextEditDuration").value = String(item.duration || 30);
     if (target.kind === "project") $("#contextEditStatus").value = item.status || "작업";
     $("#contextEditDialog").showModal();
     setTimeout(() => $("#contextEditFields input")?.focus(), 0);
@@ -339,6 +342,15 @@ async function saveEditor() {
         item.date = $("#contextEditDate").value || relativeDayKey(0);
         item.startMinute = minuteFromText($("#contextEditStart").value);
         item.duration = Number($("#contextEditDuration").value || 30);
+      } else if (target.kind === "habit") {
+        const time = $("#contextEditStart").value;
+        if (time) {
+          item.duration = Number($("#contextEditDuration").value || 30);
+          item.startMinute = Math.max(360, Math.min(1320 - item.duration, minuteFromText(time)));
+        } else {
+          delete item.startMinute;
+          delete item.duration;
+        }
       } else if (target.kind === "project") {
         item.status = $("#contextEditStatus").value;
         item.category = $("#contextEditCategory").value.trim();
