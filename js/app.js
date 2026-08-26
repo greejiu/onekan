@@ -136,7 +136,7 @@ let tickHandle = null;
 let timerFinishing = false;
 let editingBlockId = null;
 let calView = "month";
-let calDayMode = "timeline";
+let calDayMode = "list";
 let calCursor = new Date();
 let calendarRangeSelection = null;
 let suppressCalendarCellClickUntil = 0;
@@ -748,8 +748,7 @@ function openCalendarCellComposer(host, firstDate, lastDate = firstDate) {
 }
 
 function calendarFiltersForView(view = calView) {
-  const defaults = defaultState().ui.calendarFilters[view];
-  return { ...defaults, ...(state.ui.calendarFilters?.[view] || {}) };
+  return { schedule: true, task: false };
 }
 
 function updateCalendarFilterUI() {
@@ -837,7 +836,8 @@ function calendarTimelineDuration(item) {
 }
 
 function updateDayModeVisibility() {
-  $("#dayModeSeg").classList.toggle("show", calView !== "month");
+  calDayMode = "list";
+  $("#dayModeSeg")?.classList.remove("show");
   updateCalendarFilterUI();
 }
 

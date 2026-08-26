@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=6" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=7" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -60,7 +60,6 @@
       <section class="page active" id="page-home">
         <div class="page-head">
           <div class="home-heading"><div class="home-progress" id="homeProgress" aria-label="오늘 할일 진행률"><svg viewBox="0 0 52 52" aria-hidden="true"><circle class="home-progress-track" cx="26" cy="26" r="21"></circle><circle class="home-progress-value" cx="26" cy="26" r="21"></circle></svg><span id="homeProgressLabel">0%</span></div><div><h1 class="page-title">집</h1><div class="page-sub" id="todayLabel"></div></div></div>
-          <button class="soft-btn uw-someday-trigger" data-uw-someday-toggle type="button" aria-controls="uwSomedaySidebar" aria-expanded="false">언젠가</button>
         </div>
 
         <div class="home-columns home-columns-3 uw-home-layout">
@@ -78,13 +77,15 @@
 
           <div class="home-column" id="homeRightColumn">
           <article class="card uw-upcoming-card">
-            <div class="card-header"><div class="card-title">다가오는 일정·할일</div></div>
-            <div class="card-body" id="upcomingList"></div>
+            <div class="card-header uw-side-card-header">
+              <div class="uw-seg uw-side-tabs" role="tablist" aria-label="오른쪽 목록 보기">
+                <button class="active" data-uw-side-tab="upcoming" type="button" role="tab" aria-selected="true">다가오는 일정</button>
+                <button data-uw-side-tab="someday" data-uw-someday-drop type="button" role="tab" aria-selected="false">언젠가</button>
+              </div>
+            </div>
+            <div class="card-body uw-side-panel" id="upcomingList" data-uw-side-panel="upcoming" role="tabpanel"></div>
+            <div class="card-body uw-side-panel" id="somedayHomeSlot" data-uw-side-panel="someday" role="tabpanel" hidden></div>
           </article>
-          <aside class="card uw-someday-sidebar" id="uwSomedaySidebar" aria-hidden="true">
-            <div class="uw-someday-sidebar-head"><strong>언젠가 할일</strong><button class="uw-icon-btn" data-uw-someday-close type="button" aria-label="닫기">×</button></div>
-            <div id="somedayHomeSlot"></div>
-          </aside>
           </div>
         </div>
       </section>
@@ -94,11 +95,6 @@
           <div><h1 class="page-title">일정</h1></div>
           <div class="head-actions wrap-actions">
             <button class="soft-btn" id="calToday" type="button">오늘</button>
-            <div class="calendar-type-filter" id="calendarTypeFilter" aria-label="달력 표시 항목">
-              <button class="schedule active" data-calendar-type="schedule" type="button" aria-pressed="true">일정</button>
-              <button class="task" data-calendar-type="task" type="button" aria-pressed="false">할일</button>
-            </div>
-            <div class="seg day-mode-toggle" id="dayModeSeg"><button class="active" data-day-mode="timeline" type="button">타임라인</button><button data-day-mode="list" type="button">목록</button></div>
             <div class="seg" id="calendarViewSeg"><button class="active" data-view="month" type="button">월</button><button data-view="week" type="button">주</button><button data-view="three" type="button">3일</button><button data-view="day" type="button">1일</button></div>
           </div>
         </div>
@@ -224,7 +220,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/app.js?v=23"></script>
+  <script type="module" src="./js/app.js?v=24"></script>
   <script type="module" src="./js/features.js?v=13"></script>
   <script type="module" src="./js/calendar-additions.js?v=7"></script>
   <script type="module" src="./js/interaction-upgrades.js?v=9"></script>
@@ -232,6 +228,6 @@
   <script type="module" src="./js/manual-time-entry.js?v=4"></script>
   <script type="module" src="./js/workspace-pages.js?v=8"></script>
   <script type="module" src="./js/appearance.js?v=1"></script>
-  <script type="module" src="./js/unified-workspace.js?v=6"></script>
+  <script type="module" src="./js/unified-workspace.js?v=7"></script>
 </body>
 </html>
