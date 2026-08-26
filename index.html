@@ -66,7 +66,6 @@
           <div class="home-column" id="homeLeftColumn">
           <div class="uw-home-view-controls" aria-label="집 보기 설정">
             <div class="uw-seg"><button data-uw-home-mode="list" type="button">목록</button><button class="active" data-uw-home-mode="timeline" type="button">타임라인</button></div>
-            <label class="uw-days-select"><span>표시 일수</span><select data-uw-home-days-select><option value="1">1일</option><option value="2">2일</option><option value="3">3일</option><option value="4">4일</option><option value="5">5일</option><option value="6">6일</option><option value="7">7일</option></select></label>
             <div class="uw-toolbar-group"><button class="uw-icon-btn" data-uw-home-prev type="button" aria-label="이전 기간">‹</button><button class="uw-icon-btn" data-uw-home-today type="button">오늘</button><button class="uw-icon-btn" data-uw-home-next type="button" aria-label="다음 기간">›</button></div>
           </div>
           <article class="card home-timeline-card">
@@ -77,14 +76,8 @@
 
           <div class="home-column" id="homeRightColumn">
           <article class="card uw-upcoming-card">
-            <div class="card-header uw-side-card-header">
-              <div class="uw-seg uw-side-tabs" role="tablist" aria-label="오른쪽 목록 보기">
-                <button class="active" data-uw-side-tab="upcoming" type="button" role="tab" aria-selected="true">다가오는 일정</button>
-                <button data-uw-side-tab="someday" data-uw-someday-drop type="button" role="tab" aria-selected="false">언젠가</button>
-              </div>
-            </div>
-            <div class="card-body uw-side-panel" id="upcomingList" data-uw-side-panel="upcoming" role="tabpanel"></div>
-            <div class="card-body uw-side-panel" id="somedayHomeSlot" data-uw-side-panel="someday" role="tabpanel" hidden></div>
+            <div class="card-header"><div class="card-title">다가오는 일정</div></div>
+            <div class="card-body" id="upcomingList"></div>
           </article>
           </div>
         </div>
