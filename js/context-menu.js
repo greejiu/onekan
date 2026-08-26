@@ -25,26 +25,6 @@ function relativeDayKey(offset = 0) {
   return localDateKey(date);
 }
 
-function timeValue(date) {
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function minuteText(minute) {
-  const value = Math.max(0, Number(minute) || 0);
-  return `${pad(Math.floor(value / 60))}:${pad(value % 60)}`;
-}
-
-function minuteFromText(text) {
-  const [hour, minute] = String(text || "").split(":").map(Number);
-  return Math.max(0, (hour || 0) * 60 + (minute || 0));
-}
-
-function datetimeLocalValue(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${localDateKey(date)}T${timeValue(date)}`;
-}
-
 function escapeAttr(value) {
   return String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
 }
@@ -257,151 +237,86 @@ async function moveTarget(offset) {
   }
 }
 
-function field(label, control) {
-  return `<div class="field"><label>${label}</label>${control}</div>`;
+function editableTitleElement(root) {
+  return root.querySelector([
+    ".cal-event-title",
+    ".workspace-task-title",
+    ".habit-matrix-title",
+    ".row-title",
+    ".history-name",
+    ".time-block-main strong",
+    ".habit-time-main strong",
+    ".day-timed-main strong",
+    ".multi-entry strong",
+    ".project-row strong",
+    ".template-row > span",
+  ].join(",")) || root.querySelector("strong");
 }
 
-function editorFields(target, item, state) {
-  if (target.kind === "task") {
-    return field("할일", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
-      field("날짜", `<input id="contextEditDate" type="date" value="${escapeAttr(item.date || "")}">`);
-  }
-  if (target.kind === "event") {
-    const start = new Date(item.start);
-    const end = item.end ? new Date(item.end) : new Date(start.getTime() + 30 * 60000);
-    const groups = Array.isArray(state?.eventGroups) ? state.eventGroups : [];
-    const groupOptions = groups.map((group) => `<option value="${escapeAttr(group.id)}"${group.id === item.groupId ? " selected" : ""}>${escapeAttr(group.name)}</option>`).join("");
-    if (item.allDay) {
-      return field("일정", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
-        field("시작 날짜", `<input id="contextEditDate" type="date" required value="${localDateKey(start)}">`) +
-        field("종료 날짜", `<input id="contextEditEndDate" type="date" required value="${localDateKey(end)}">`) +
-        field("그룹", `<select id="contextEditGroup">${groupOptions}</select>`);
-    }
-    return field("일정", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
-      field("날짜", `<input id="contextEditDate" type="date" required value="${localDateKey(start)}">`) +
-      field("시작", `<input id="contextEditStart" type="time" required value="${timeValue(start)}">`) +
-      field("종료", `<input id="contextEditEnd" type="time" required value="${timeValue(end)}">`) +
-      field("그룹", `<select id="contextEditGroup">${groupOptions}</select>`);
-  }
+function itemTitle(target, item) {
+  if (target.kind === "timeBlock") return item.detail || item.sourceTitle || "시간 계획";
+  return item.title || "";
+}
+
+function applyInlineTitle(state, target, value, root) {
+  const item = getItem(state, target);
+  if (!item) return;
   if (target.kind === "timeBlock") {
-    return field("시간 계획", `<input id="contextEditTitle" required value="${escapeAttr(item.detail || item.sourceTitle || "시간 계획")}">`) +
-      field("날짜", `<input id="contextEditDate" type="date" required value="${escapeAttr(item.date || relativeDayKey(0))}">`) +
-      field("시작", `<input id="contextEditStart" type="time" step="1800" required value="${minuteText(item.startMinute)}">`) +
-      field("길이", `<select id="contextEditDuration"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option><option value="150">2시간 30분</option><option value="180">3시간</option><option value="210">3시간 30분</option><option value="240">4시간</option></select>`);
+    item.detail = value;
+    return;
   }
-  if (target.kind === "habit") {
-    const startValue = Number.isFinite(Number(item.startMinute)) ? minuteText(item.startMinute) : "";
-    return field("습관", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
-      field("시간 (선택)", `<input id="contextEditStart" type="time" min="06:00" max="21:30" step="1800" value="${startValue}">`) +
-      field("길이", `<select id="contextEditDuration"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option><option value="150">2시간 30분</option><option value="180">3시간</option><option value="210">3시간 30분</option><option value="240">4시간</option></select>`);
-  }
-  if (target.kind === "project") {
-    return field("제목", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
-      field("구분", `<select id="contextEditStatus"><option>목표</option><option>작업</option><option>보류</option><option>완료</option></select>`) +
-      field("카테고리", `<input id="contextEditCategory" value="${escapeAttr(item.category || "")}">`) +
-      field("진행률", `<input id="contextEditProgress" type="number" min="0" max="100" value="${Number(item.progress || 0)}">`) +
-      field("마감일", `<input id="contextEditDeadline" type="date" value="${escapeAttr(item.deadline || "")}">`);
-  }
-  if (target.kind === "session") {
-    return field("기록 이름", `<input id="contextEditTitle" required value="${escapeAttr(item.title || "집중 기록")}">`) +
-      field("시작", `<input id="contextEditSessionStart" type="datetime-local" required value="${datetimeLocalValue(item.start)}">`) +
-      field("종료", `<input id="contextEditSessionEnd" type="datetime-local" required value="${datetimeLocalValue(item.end)}">`);
-  }
-  return "";
-}
-
-async function openEditor() {
-  const target = currentTarget;
-  hideMenu();
-  if (!target) return;
-  try {
-    const current = await readState();
-    const item = getItem(current?.state, target);
-    if (!item) return;
-    currentTarget = target;
-    $("#contextEditFields").innerHTML = editorFields(target, item, current.state);
-    if (target.kind === "timeBlock" || target.kind === "habit") $("#contextEditDuration").value = String(item.duration || 30);
-    if (target.kind === "project") $("#contextEditStatus").value = item.status || "작업";
-    $("#contextEditDialog").showModal();
-    setTimeout(() => $("#contextEditFields input")?.focus(), 0);
-  } catch (error) {
-    console.error(error);
-    window.alert("항목을 불러오지 못했어요.");
-  }
-}
-
-async function saveEditor() {
-  const target = currentTarget;
-  if (!target) return;
-  try {
-    await writeState((state) => {
-      const item = getItem(state, target);
-      if (!item) return;
-      const title = $("#contextEditTitle")?.value.trim();
-      if (title) {
-        if (target.kind === "timeBlock") item.detail = title;
-        else {
-          const oldTitle = item.title;
-          item.title = title;
-          if (target.kind === "task") {
-            state.timeBlocks.forEach((block) => {
-              if (block.taskId === item.id && block.sourceTitle === oldTitle) block.sourceTitle = title;
-            });
-          }
-        }
-      }
-
-      if (target.kind === "task") {
-        item.date = $("#contextEditDate").value || null;
-      } else if (target.kind === "event") {
-        const date = $("#contextEditDate").value;
-        if (item.allDay) {
-          const endDate = $("#contextEditEndDate").value || date;
-          const first = date <= endDate ? date : endDate;
-          const last = date <= endDate ? endDate : date;
-          item.start = new Date(`${first}T12:00:00`).toISOString();
-          item.end = new Date(`${last}T12:00:00`).toISOString();
-        } else {
-          const start = new Date(`${date}T${$("#contextEditStart").value}:00`);
-          let end = new Date(`${date}T${$("#contextEditEnd").value}:00`);
-          if (!(end > start)) end = new Date(start.getTime() + 30 * 60000);
-          item.start = start.toISOString();
-          item.end = end.toISOString();
-        }
-        item.groupId = $("#contextEditGroup")?.value || state.eventGroups?.[0]?.id || "default";
-      } else if (target.kind === "timeBlock") {
-        item.date = $("#contextEditDate").value || relativeDayKey(0);
-        item.startMinute = minuteFromText($("#contextEditStart").value);
-        item.duration = Number($("#contextEditDuration").value || 30);
-      } else if (target.kind === "habit") {
-        const time = $("#contextEditStart").value;
-        if (time) {
-          item.duration = Number($("#contextEditDuration").value || 30);
-          item.startMinute = Math.max(360, Math.min(1320 - item.duration, minuteFromText(time)));
-        } else {
-          delete item.startMinute;
-          delete item.duration;
-        }
-      } else if (target.kind === "project") {
-        item.status = $("#contextEditStatus").value;
-        item.category = $("#contextEditCategory").value.trim();
-        item.progress = Math.max(0, Math.min(100, Number($("#contextEditProgress").value || 0)));
-        item.deadline = $("#contextEditDeadline").value || null;
-      } else if (target.kind === "session") {
-        const start = new Date($("#contextEditSessionStart").value);
-        const end = new Date($("#contextEditSessionEnd").value);
-        if (!(end > start)) throw new Error("INVALID_SESSION_RANGE");
-        item.start = start.toISOString();
-        item.end = end.toISOString();
-        item.durationMs = end - start;
-      }
+  const oldTitle = item.title;
+  item.title = value;
+  if (target.kind === "task") {
+    state.timeBlocks.forEach((block) => {
+      if (block.taskId !== item.id) return;
+      if (block.sourceTitle === oldTitle) block.sourceTitle = value;
+      if (root.dataset.blockId === block.id) block.detail = value;
     });
-    $("#contextEditDialog").close();
-    currentTarget = null;
-  } catch (error) {
-    console.error(error);
-    window.alert(error?.message === "INVALID_SESSION_RANGE" ? "종료 시간은 시작 시간보다 뒤여야 해요." : "수정하지 못했어요.");
   }
+}
+
+function startInlineEdit(root, target, state) {
+  const item = getItem(state, target);
+  const titleElement = editableTitleElement(root);
+  if (!item || !titleElement || root.querySelector(".context-inline-edit")) return;
+  const original = itemTitle(target, item);
+  const input = document.createElement("input");
+  input.className = "context-inline-edit";
+  input.value = original;
+  input.setAttribute("aria-label", "제목 수정");
+  const wasDraggable = root.draggable;
+  root.draggable = false;
+  titleElement.replaceWith(input);
+  let finished = false;
+  const restore = (value = original) => {
+    if (!input.isConnected) return;
+    titleElement.textContent = value;
+    input.replaceWith(titleElement);
+    root.draggable = wasDraggable;
+  };
+  const commit = async () => {
+    if (finished) return;
+    finished = true;
+    const value = input.value.trim();
+    if (!value || value === original) return restore();
+    restore(value);
+    try {
+      await writeState((latest) => applyInlineTitle(latest, target, value, root));
+    } catch (error) {
+      console.error(error);
+      window.alert("수정하지 못했어요.");
+      titleElement.textContent = original;
+    }
+  };
+  input.addEventListener("click", (event) => event.stopPropagation());
+  input.addEventListener("pointerdown", (event) => event.stopPropagation());
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); commit(); }
+    if (event.key === "Escape") { event.preventDefault(); finished = true; restore(); }
+  });
+  input.addEventListener("blur", commit);
+  requestAnimationFrame(() => { input.focus(); input.select(); });
 }
 
 async function deleteTarget() {
@@ -500,12 +415,6 @@ function ensureUI() {
     <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;
   document.body.appendChild(menu);
 
-  const dialog = document.createElement("dialog");
-  dialog.id = "contextEditDialog";
-  dialog.className = "app-dialog";
-  dialog.innerHTML = `<form method="dialog" id="contextEditForm"><h3>수정하기</h3><div id="contextEditFields"></div><div class="dialog-actions"><button class="soft-btn" type="button" id="contextEditCancel">취소</button><button class="primary-btn" type="submit">저장</button></div></form>`;
-  document.body.appendChild(dialog);
-
   const style = document.createElement("style");
   style.id = "globalContextMenuStyle";
   style.textContent = `
@@ -520,10 +429,12 @@ function ensureUI() {
     .context-group-list button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
     .context-group-dot{width:9px;height:9px;border-radius:3px;background:var(--group-color,#8fa9c4)}
     .context-group-check{text-align:right;color:var(--accent,#7666a8)}
+    [data-context-kind][data-context-id] :is(.row-title,.cal-event-title,.workspace-task-title,.habit-matrix-title,.history-name,strong){cursor:text}
+    .context-inline-edit{display:block;width:100%;min-width:0;height:24px;margin:-3px 0;padding:2px 5px;border:1.5px solid var(--accent,#7666a8);border-radius:5px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:inherit;line-height:1.25;outline:none;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#7666a8) 12%,transparent)}
+    .time-block .context-inline-edit,.multi-entry .context-inline-edit{height:18px;margin:0;padding:0 4px;font-size:10px}
     .global-context-divider{height:1px;background:var(--line,#d2d7df);margin:4px 2px}
     .global-context-menu .hidden{display:none}
     @media (pointer:coarse){[data-context-kind][data-context-id]{-webkit-touch-callout:none}}
-    #contextEditFields{display:grid;gap:2px}
   `;
   document.head.appendChild(style);
 
@@ -533,7 +444,6 @@ function ensureUI() {
     const action = button.dataset.contextAction;
     if (action === "today") moveTarget(0);
     else if (action === "tomorrow") moveTarget(1);
-    else if (action === "edit") openEditor();
     else if (action === "duplicate") duplicateTarget();
     else if (action === "groups") {
       $("#contextGroupList")?.classList.toggle("hidden");
@@ -548,14 +458,6 @@ function ensureUI() {
     if (groupButton) changeTargetGroup(groupButton.dataset.contextGroupId);
   });
 
-  $("#contextEditCancel").addEventListener("click", () => {
-    $("#contextEditDialog").close();
-    currentTarget = null;
-  });
-  $("#contextEditForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveEditor();
-  });
 }
 
 function installListeners() {
@@ -614,16 +516,16 @@ function installListeners() {
     if (!editable) return;
     event.preventDefault();
     event.stopPropagation();
+    event.stopImmediatePropagation();
     try {
       const current = await readState();
       const target = resolveDirect(editable) || resolveByPosition(editable, current?.state);
       if (!target) return;
-      currentTarget = target;
-      await openEditor();
+      startInlineEdit(editable, target, current.state);
     } catch (error) {
       console.error("클릭 수정 연결 실패", error);
     }
-  });
+  }, true);
 
   document.addEventListener("pointerdown", (event) => {
     if (!event.target.closest?.("#globalContextMenu")) hideMenu();
