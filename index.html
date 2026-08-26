@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=3" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=4" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -72,18 +72,16 @@
           </div>
 
           <div class="home-column" id="homeRightColumn">
-          <article class="card">
+          <article class="card uw-upcoming-card">
             <div class="card-header"><div class="card-title">다가오는 일정·할일</div></div>
             <div class="card-body" id="upcomingList"></div>
           </article>
+          <aside class="card uw-someday-sidebar" id="uwSomedaySidebar" aria-hidden="true">
+            <div class="uw-someday-sidebar-head"><strong>언젠가 할일</strong><button class="uw-icon-btn" data-uw-someday-close type="button" aria-label="닫기">×</button></div>
+            <div id="somedayHomeSlot"></div>
+          </aside>
           </div>
         </div>
-
-        <button class="uw-someday-backdrop" data-uw-someday-close type="button" aria-label="언젠가 할일 닫기"></button>
-        <aside class="uw-someday-sidebar" id="uwSomedaySidebar" aria-hidden="true">
-          <div class="uw-someday-sidebar-head"><strong>언젠가 할일</strong><button class="uw-icon-btn" data-uw-someday-close type="button" aria-label="닫기">×</button></div>
-          <div id="somedayHomeSlot"></div>
-        </aside>
       </section>
 
       <section class="page" id="page-calendar">
@@ -229,6 +227,6 @@
   <script type="module" src="./js/manual-time-entry.js?v=4"></script>
   <script type="module" src="./js/workspace-pages.js?v=8"></script>
   <script type="module" src="./js/appearance.js?v=1"></script>
-  <script type="module" src="./js/unified-workspace.js?v=3"></script>
+  <script type="module" src="./js/unified-workspace.js?v=4"></script>
 </body>
 </html>
