@@ -94,7 +94,7 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 #page-home .page-head.has-custom-background .home-progress span { color: #fff; }
 
 /* Panels */
-.card, .calendar-shell, .section-card, .setting-section, .habit-matrix, .habit-manage { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); box-shadow: var(--shadow); }
+.card, .calendar-shell, .section-card, .setting-section, .habit-matrix { border: 1px solid var(--line); border-radius: 24px; background: var(--panel); box-shadow: var(--shadow); }
 #page-home .card { overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: var(--panel); box-shadow: var(--shadow); }
 #page-home .card-header { padding: 18px 20px 12px; border: 0; }
 #page-home .card-body { padding: 0 14px 16px; }
@@ -107,9 +107,9 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 .setting-section { margin-bottom: 16px; padding: 20px; }
 
 /* Rows, checkboxes, inputs */
-.row, .workspace-task, .habit-manage-row, .project-row, .history-row, .activity-row { border-radius: 10px; }
+.row, .workspace-task, .project-row, .history-row, .activity-row { border-radius: 10px; }
 .row { min-height: 42px; padding: 8px 7px; }
-.row:hover, .workspace-task:hover, .habit-manage-row:hover, .project-row:hover, .history-row:hover { background: var(--panel-soft); }
+.row:hover, .workspace-task:hover, .project-row:hover, .history-row:hover { background: var(--panel-soft); }
 .check, .calendar-check { border: 2px solid var(--line-strong); border-radius: 7px; }
 .check.checked, .calendar-check.checked, .habit-day-check.checked { border-color: var(--accent); background: var(--accent); }
 .row.done .row-title, .workspace-task.done .workspace-task-title { color: #bdb4a6; }
@@ -170,9 +170,12 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 .pomodoro-box .timer-controls { width: min(360px, 100%); }
 .pomodoro-box .timer-start-wide { flex: 1 1 100%; min-height: 46px; font-size: 15px; }
 .timer-clock { color: var(--accent-dark); }
-.time-block, .day-timed-event { border-color: #a9cce7; border-radius: 10px; background: var(--pastel-blue); }
-#page-home .time-block.task-time-block { background: color-mix(in srgb, var(--timeline-task-color, #d8d8d5) 78%, white); border-left-color: color-mix(in srgb, var(--timeline-task-color, #d8d8d5) 70%, #555); }
-#page-home .time-block.habit-time-block { background: color-mix(in srgb, var(--timeline-habit-color, #b9d9c3) 78%, white); border-left-color: color-mix(in srgb, var(--timeline-habit-color, #b9d9c3) 70%, #45634f); }
+.time-block, .day-timed-event, .multi-entry { border-color: var(--line); border-radius: 10px; background: #fff; }
+#page-home .time-block.task-time-block, #page-home .time-block.habit-time-block { background: #fff; border-color: var(--line); }
+.day-timed-event.schedule, .day-timed-event.task, .day-timed-event.actual-session,
+.multi-entry.planned, .multi-entry.actual { background: #fff; }
+.day-timed-event.task .calendar-check, .multi-entry.planned.task .calendar-check { border-color: color-mix(in srgb, var(--timeline-task-color, #d8d8d5) 72%, #555); }
+.day-timed-event.task .calendar-check.checked, .multi-entry.planned.task .calendar-check.checked { border-color: var(--timeline-task-color, #d8d8d5); background: var(--timeline-task-color, #d8d8d5); }
 .time-selection, .calendar-range-selection { border-color: var(--accent); background: rgba(137,99,175,.13); }
 #dailyBlockBoard .daily-block-table { border-color: var(--line) !important; border-radius: 16px !important; }
 #dailyBlockBoard .daily-block-row { border-bottom-color: var(--line) !important; }
@@ -183,7 +186,8 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 #dailyBlockBoard .daily-block-check.checked { color: #fff !important; background: var(--accent) !important; border-color: var(--accent) !important; }
 
 /* Habits, projects and activity */
-.habit-matrix, .habit-manage { padding: 16px; }
+.habit-matrix { padding: 16px; }
+.habit-matrix-title { cursor: pointer; }
 .habit-day-check { border: 2px solid var(--line); border-radius: 50%; }
 .project-list { padding: 8px 12px 12px; }
 .project-row { margin-top: 6px; padding: 13px 12px; background: #fff; box-shadow: 0 1px 3px rgba(43,38,33,.05); }

@@ -322,6 +322,8 @@ function renderTimeGrid() {
   const grid = $("#timeGrid");
   if (!grid) return;
   const timelineColors = state.ui?.timelineColors || defaultState().ui.timelineColors;
+  document.documentElement.style.setProperty("--timeline-task-color", safeColor(timelineColors.task));
+  document.documentElement.style.setProperty("--timeline-habit-color", safeColor(timelineColors.habit));
   grid.style.setProperty("--timeline-task-color", safeColor(timelineColors.task));
   grid.style.setProperty("--timeline-habit-color", safeColor(timelineColors.habit));
   grid.innerHTML = "";
@@ -432,10 +434,21 @@ function renderTimeGrid() {
     element.dataset.blockId = block.id;
     element.draggable = true;
     element.style.height = `${Math.max(36, (block.duration / SLOT) * 42 - 6)}px`;
-    element.innerHTML = `<strong>${esc(block.detail)}</strong><small>${minuteLabel(block.startMinute)} · ${block.duration}분</small><button class="time-resize-handle" type="button" aria-label="시간 길이 조절"></button>`;
+    const task = block.taskId ? state.tasks.find((item) => item.id === block.taskId) : null;
+    const taskCheck = task ? `<button class="timeline-type-check task-type-check${task.done ? " checked" : ""}" type="button" aria-label="할일 완료">${task.done ? "✓" : ""}</button>` : '<span class="timeline-type-check task-type-check" aria-hidden="true"></span>';
+    element.classList.toggle("done", Boolean(task?.done));
+    element.innerHTML = `<div class="time-block-main">${taskCheck}<strong>${esc(block.detail)}</strong></div><small>${minuteLabel(block.startMinute)} · ${block.duration}분</small><button class="time-resize-handle" type="button" aria-label="시간 길이 조절"></button>`;
     element.addEventListener("dragstart", (event) => { event.dataTransfer.setData("text/time-block-id", block.id); element.classList.add("dragging"); });
     element.addEventListener("dragend", () => element.classList.remove("dragging"));
     element.addEventListener("click", (event) => { if (event.target.closest(".time-resize-handle")) return; event.stopPropagation(); openBlockEditor(block, element); });
+    element.querySelector("button.task-type-check")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      task.done = !task.done;
+      task.completedAt = task.done ? new Date().toISOString() : null;
+      save();
+      renderHome();
+      renderCalendar();
+    });
     wireTimelineResize(element, block, "timeBlock");
     dropZone.appendChild(element);
   }
@@ -452,7 +465,7 @@ function renderTimeGrid() {
     element.dataset.habitId = habit.id;
     element.draggable = true;
     element.style.height = `${Math.max(36, (duration / SLOT) * 42 - 6)}px`;
-    element.innerHTML = `<div class="habit-time-main"><button class="habit-time-check" type="button" aria-label="습관 완료">${checks[habit.id] ? "✓" : ""}</button><strong>${esc(habit.title)}</strong></div><small>${minuteLabel(startMinute)} · ${duration}분</small><button class="time-resize-handle" type="button" aria-label="습관 길이 조절"></button>`;
+    element.innerHTML = `<div class="habit-time-main"><button class="habit-time-check timeline-type-check habit-type-check${checks[habit.id] ? " checked" : ""}" type="button" aria-label="습관 완료">${checks[habit.id] ? "✓" : ""}</button><strong>${esc(habit.title)}</strong></div><small>${minuteLabel(startMinute)} · ${duration}분</small><button class="time-resize-handle" type="button" aria-label="습관 길이 조절"></button>`;
     element.addEventListener("dragstart", (event) => { event.dataTransfer.setData("text/habit-id", habit.id); element.classList.add("dragging"); });
     element.addEventListener("dragend", () => element.classList.remove("dragging"));
     element.querySelector(".habit-time-check").addEventListener("click", (event) => {
@@ -925,13 +938,19 @@ function renderMultiDayTimeline(startDate, count) {
       const minute = item.startDate.getHours() * 60 + item.startDate.getMinutes();
       if (minute < START_MIN || minute >= END_MIN) continue;
       const element = document.createElement("div");
-      element.className = `multi-entry planned ${item.type}`;
+      element.className = `multi-entry planned ${item.type}${item.type === "task" && item.done ? " done" : ""}`;
       element.style.top = `${((minute - START_MIN) / SLOT) * 42 + 2}px`;
       element.dataset.calendarKind = item.kind;
       element.dataset.calendarId = item.id;
       element.dataset.contextKind = item.kind;
       element.dataset.contextId = item.id;
-      element.textContent = item.title;
+      if (item.type === "task") {
+        element.innerHTML = `<button class="calendar-check task-type-check${item.done ? " checked" : ""}" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료">${item.done ? "✓" : ""}</button><strong>${esc(item.title)}</strong>`;
+      } else {
+        const group = eventGroupFor(item);
+        element.style.setProperty("--event-color", safeColor(group.color));
+        element.innerHTML = `<span class="calendar-event-dot" aria-hidden="true" style="--event-color:${safeColor(group.color)}"></span><strong>${esc(item.title)}</strong>`;
+      }
       lane.querySelector(".multi-plan-lane").appendChild(element);
     }
     for (const session of sessionsForDate(date)) {
@@ -954,6 +973,9 @@ function renderMultiDayTimeline(startDate, count) {
 function renderCalendar() {
   const body = $("#calendarBody");
   const now = new Date();
+  const timelineColors = state.ui?.timelineColors || defaultState().ui.timelineColors;
+  document.documentElement.style.setProperty("--timeline-task-color", safeColor(timelineColors.task));
+  document.documentElement.style.setProperty("--timeline-habit-color", safeColor(timelineColors.habit));
   updateDayModeVisibility();
 
   if (calView === "month") {
@@ -1398,6 +1420,7 @@ function bindUI() {
       state.ui.timelineColors[key] = safeColor(event.target.value);
       save();
       renderTimeGrid();
+      renderCalendar();
     });
   }
   $("#addEventGroupBtn").addEventListener("click", () => {

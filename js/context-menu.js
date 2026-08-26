@@ -484,7 +484,7 @@ function installListeners() {
     if (element.closest("button,input,textarea,select,a,summary,[contenteditable='true']")) return;
     const editable = element.closest([
       "#tasksPageList .workspace-task[data-context-kind='task']",
-      "#habitManageList .habit-manage-row[data-context-kind='habit']",
+      "#habitHistory .habit-matrix-title[data-context-kind='habit']",
       "#habitTemplateList .template-row",
       "#habitList .row",
       "#upcomingList .row",
