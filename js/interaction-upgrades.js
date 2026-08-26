@@ -188,19 +188,6 @@ function wireBlockEditor(){
   },true);
 }
 
-function openQuick(date){
-  document.dispatchEvent(new CustomEvent("onekan:calendar-compose",{detail:{date}}));
-}
-function wireCalendarClick(){
-  const body=$("#calendarBody");if(!body||body.dataset.quickAddWired)return;
-  body.dataset.quickAddWired="1";
-  body.addEventListener("click",e=>{
-    if(e.target.closest(".cal-event,.day-timed-event,.row,button,input,select,a"))return;
-    const cell=e.target.closest("[data-feature-calendar-date]");
-    if(cell)openQuick(cell.dataset.featureCalendarDate);
-  });
-}
-
 function calendarDropDate(target){
   return target.closest?.("[data-feature-calendar-date]")?.dataset.featureCalendarDate||null;
 }
@@ -270,12 +257,12 @@ function wireCalendarDragStay(){
 function observe(){
   if(observer)return;
   const time=$("#timeGrid"),cal=$("#calendarBody");
-  observer=new MutationObserver(()=>{wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarSources();wireCalendarDragStay();scheduleArrange();});
+  observer=new MutationObserver(()=>{wireTimeGrid();wireBlockEditor();wireCalendarSources();wireCalendarDragStay();scheduleArrange();});
   if(time)observer.observe(time,{childList:true,subtree:true});
   if(cal)observer.observe(cal,{childList:true,subtree:true,attributes:true,attributeFilter:["data-feature-id","data-feature-calendar-date"]});
 }
 async function init(){
-  injectStyle();wireTimeGrid();wireBlockEditor();wireCalendarClick();wireCalendarSources();wireCalendarDragStay();observe();
+  injectStyle();wireTimeGrid();wireBlockEditor();wireCalendarSources();wireCalendarDragStay();observe();
   try{await readState();}catch(e){console.error(e);}
   scheduleArrange();
 }

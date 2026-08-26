@@ -240,6 +240,12 @@ function editorFields(target, item, state) {
     const end = item.end ? new Date(item.end) : new Date(start.getTime() + 30 * 60000);
     const groups = Array.isArray(state?.eventGroups) ? state.eventGroups : [];
     const groupOptions = groups.map((group) => `<option value="${escapeAttr(group.id)}"${group.id === item.groupId ? " selected" : ""}>${escapeAttr(group.name)}</option>`).join("");
+    if (item.allDay) {
+      return field("일정", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
+        field("시작 날짜", `<input id="contextEditDate" type="date" required value="${localDateKey(start)}">`) +
+        field("종료 날짜", `<input id="contextEditEndDate" type="date" required value="${localDateKey(end)}">`) +
+        field("그룹", `<select id="contextEditGroup">${groupOptions}</select>`);
+    }
     return field("일정", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
       field("날짜", `<input id="contextEditDate" type="date" required value="${localDateKey(start)}">`) +
       field("시작", `<input id="contextEditStart" type="time" required value="${timeValue(start)}">`) +
@@ -315,11 +321,19 @@ async function saveEditor() {
         item.date = $("#contextEditDate").value || null;
       } else if (target.kind === "event") {
         const date = $("#contextEditDate").value;
-        const start = new Date(`${date}T${$("#contextEditStart").value}:00`);
-        let end = new Date(`${date}T${$("#contextEditEnd").value}:00`);
-        if (!(end > start)) end = new Date(start.getTime() + 30 * 60000);
-        item.start = start.toISOString();
-        item.end = end.toISOString();
+        if (item.allDay) {
+          const endDate = $("#contextEditEndDate").value || date;
+          const first = date <= endDate ? date : endDate;
+          const last = date <= endDate ? endDate : date;
+          item.start = new Date(`${first}T12:00:00`).toISOString();
+          item.end = new Date(`${last}T12:00:00`).toISOString();
+        } else {
+          const start = new Date(`${date}T${$("#contextEditStart").value}:00`);
+          let end = new Date(`${date}T${$("#contextEditEnd").value}:00`);
+          if (!(end > start)) end = new Date(start.getTime() + 30 * 60000);
+          item.start = start.toISOString();
+          item.end = end.toISOString();
+        }
         item.groupId = $("#contextEditGroup")?.value || state.eventGroups?.[0]?.id || "default";
       } else if (target.kind === "timeBlock") {
         item.date = $("#contextEditDate").value || relativeDayKey(0);

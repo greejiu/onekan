@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#faf9f7" />
   <title>오늘한칸</title>
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="./css/style.css?v=12" />
+  <link rel="stylesheet" href="./css/style.css?v=13" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=9" />
 </head>
@@ -94,8 +94,7 @@
         <div class="page-head">
           <div><h1 class="page-title">일정</h1></div>
           <div class="head-actions wrap-actions">
-            <button class="soft-btn" id="addEventBtn" type="button">+ 일정 추가</button>
-            <button class="soft-btn" id="calendarAddTaskBtn" type="button">+ 할일 추가</button>
+            <button class="soft-btn" id="calToday" type="button">오늘</button>
             <div class="calendar-type-filter" id="calendarTypeFilter" aria-label="달력 표시 항목">
               <button class="schedule active" data-calendar-type="schedule" type="button" aria-pressed="true">일정</button>
               <button class="task" data-calendar-type="task" type="button" aria-pressed="false">할일</button>
@@ -106,14 +105,6 @@
         </div>
         <div class="calendar-shell">
           <div class="calendar-toolbar"><button class="ghost-btn" id="calPrev" type="button">‹ 이전</button><strong id="calTitle"></strong><button class="ghost-btn" id="calNext" type="button">다음 ›</button></div>
-          <form class="calendar-inline-add" id="calendarInlineAdd">
-            <div class="calendar-inline-heading"><strong>일정 바로 입력</strong><span id="calendarInlineDateLabel">날짜를 선택하세요</span></div>
-            <input id="calendarInlineTitle" placeholder="일정 제목" aria-label="일정 제목" required />
-            <input id="calendarInlineDate" type="date" aria-label="일정 날짜" required />
-            <input id="calendarInlineTime" type="time" value="09:00" aria-label="일정 시간" required />
-            <select id="calendarInlineGroup" aria-label="일정 그룹"></select>
-            <button class="primary-btn" type="submit">추가</button>
-          </form>
           <div class="calendar-scroll"><div id="calendarBody"></div></div>
         </div>
       </section>
@@ -214,26 +205,6 @@
     <div class="pop-actions"><button class="ghost-btn danger-text" id="deleteBlockBtn" type="button">삭제</button><button class="primary-btn" id="saveBlockBtn" type="button">저장</button></div>
   </div>
 
-  <dialog id="eventDialog" class="app-dialog">
-    <form method="dialog" id="eventForm">
-      <h3>일정 추가</h3>
-      <div class="field"><label>제목</label><input id="eventTitle" required /></div>
-      <div class="field"><label>날짜</label><input id="eventDate" type="date" required /></div>
-      <div class="field"><label>시간</label><input id="eventTime" type="time" value="09:00" required /></div>
-      <div class="field"><label>그룹</label><select id="eventGroup"></select></div>
-      <div class="dialog-actions"><button class="soft-btn" value="cancel" type="button" id="cancelEventBtn">취소</button><button class="primary-btn" value="default" type="submit">추가</button></div>
-    </form>
-  </dialog>
-
-  <dialog id="calendarTaskDialog" class="app-dialog">
-    <form method="dialog" id="calendarTaskForm">
-      <h3>할일 추가</h3>
-      <div class="field"><label>할일</label><input id="calendarTaskTitle" required /></div>
-      <div class="field"><label>날짜</label><input id="calendarTaskDate" type="date" required /></div>
-      <div class="dialog-actions"><button class="soft-btn" value="cancel" type="button" id="cancelCalendarTaskBtn">취소</button><button class="primary-btn" value="default" type="submit">추가</button></div>
-    </form>
-  </dialog>
-
   <dialog id="timelineEventDialog" class="app-dialog">
     <form method="dialog" id="timelineEventForm">
       <h3>일정 추가</h3>
@@ -258,11 +229,11 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/app.js?v=15"></script>
-  <script type="module" src="./js/features.js?v=10"></script>
-  <script type="module" src="./js/calendar-additions.js?v=3"></script>
-  <script type="module" src="./js/interaction-upgrades.js?v=4"></script>
-  <script type="module" src="./js/context-menu.js?v=7"></script>
+  <script type="module" src="./js/app.js?v=16"></script>
+  <script type="module" src="./js/features.js?v=11"></script>
+  <script type="module" src="./js/calendar-additions.js?v=4"></script>
+  <script type="module" src="./js/interaction-upgrades.js?v=5"></script>
+  <script type="module" src="./js/context-menu.js?v=8"></script>
   <script type="module" src="./js/manual-time-entry.js?v=4"></script>
   <script type="module" src="./js/time-block-planner.js?v=7"></script>
   <script type="module" src="./js/time-block-table-style.js?v=7"></script>

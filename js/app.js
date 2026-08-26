@@ -110,6 +110,8 @@ let editingBlockId = null;
 let calView = "month";
 let calDayMode = "timeline";
 let calCursor = new Date();
+let calendarRangeSelection = null;
+let suppressCalendarCellClickUntil = 0;
 
 const START_MIN = 6 * 60;
 const END_MIN = 22 * 60;
@@ -474,7 +476,7 @@ function renderUpcoming() {
     const label = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(date);
     const rows = groupItems.map((item) => {
       const isTask = item.upcomingKind === "task";
-      const time = isTask ? "" : new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(item.when);
+      const time = isTask || item.allDay ? "" : new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(item.when);
       const control = isTask
         ? `<button class="calendar-check" type="button" data-calendar-check="task" data-calendar-id="${item.id}" aria-label="할일 완료"></button>`
         : `<span class="calendar-event-dot" aria-hidden="true" style="--event-color:${safeColor(eventGroupFor(item).color)}"></span>`;
@@ -537,7 +539,7 @@ function eventGroupOptions(selectedId = "") {
 }
 
 function refreshEventGroupInputs() {
-  for (const selector of ["#calendarInlineGroup", "#eventGroup", "#timelineEventGroup"]) {
+  for (const selector of ["#timelineEventGroup"]) {
     const select = $(selector);
     if (!select) continue;
     const previous = select.value;
@@ -546,12 +548,85 @@ function refreshEventGroupInputs() {
   }
 }
 
-function openCalendarComposer(date = localDateKey(calCursor)) {
-  refreshEventGroupInputs();
-  $("#calendarInlineDate").value = date;
-  $("#calendarInlineDateLabel").textContent = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(new Date(`${date}T12:00:00`));
-  $("#calendarInlineAdd").classList.add("active");
-  requestAnimationFrame(() => $("#calendarInlineTitle").focus());
+function calendarDateLabel(dateKey) {
+  return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(new Date(`${dateKey}T12:00:00`));
+}
+
+function orderedDateRange(a, b = a) {
+  return a <= b ? [a, b] : [b, a];
+}
+
+function closeCalendarCellComposer() {
+  $(".calendar-cell-composer")?.remove();
+  $$(".has-calendar-composer").forEach((element) => element.classList.remove("has-calendar-composer"));
+}
+
+function calendarCellDate(element) {
+  return element?.dataset.calendarDate || element?.dataset.featureCalendarDate || element?.dataset.date || null;
+}
+
+function openCalendarCellComposer(host, firstDate, lastDate = firstDate) {
+  if (!host || !firstDate) return;
+  const [startDate, endDate] = orderedDateRange(firstDate, lastDate);
+  const isRange = startDate !== endDate;
+  closeCalendarCellComposer();
+  host.classList.add("has-calendar-composer");
+  const form = document.createElement("form");
+  form.className = "calendar-cell-composer";
+  const rect = host.getBoundingClientRect();
+  if (rect.left + 290 > innerWidth) form.classList.add("align-right");
+  form.innerHTML = `
+    <div class="calendar-cell-composer-head">
+      <span class="${isRange ? "calendar-cell-range-note" : ""}">${isRange ? `${calendarDateLabel(startDate)} – ${calendarDateLabel(endDate)}` : calendarDateLabel(startDate)}</span>
+      <button class="calendar-cell-composer-close" type="button" aria-label="닫기">×</button>
+    </div>
+    ${isRange ? "" : `<div class="quick-add-type"><button class="active" type="button" data-cell-entry-type="schedule">일정</button><button type="button" data-cell-entry-type="task">할일</button></div>`}
+    <input data-cell-entry-title aria-label="제목" placeholder="${isRange ? "여행이나 여러 날 일정" : "일정 제목"}" required />
+    <div class="calendar-cell-event-options">
+      <select data-cell-entry-group aria-label="일정 그룹">${eventGroupOptions(state.eventGroups[0]?.id)}</select>
+      ${isRange ? "" : '<input data-cell-entry-time type="time" value="09:00" aria-label="일정 시간" />'}
+    </div>
+    ${isRange ? "" : '<label class="calendar-cell-all-day"><input data-cell-entry-all-day type="checkbox" /> 종일</label>'}
+    <button class="primary-btn" type="submit">추가</button>`;
+  host.appendChild(form);
+  let entryType = "schedule";
+  const updateType = () => {
+    const isTask = entryType === "task";
+    form.querySelector("[data-cell-entry-title]").placeholder = isTask ? "할일 제목" : "일정 제목";
+    form.querySelector(".calendar-cell-event-options")?.classList.toggle("hidden", isTask);
+    form.querySelector(".calendar-cell-all-day")?.classList.toggle("hidden", isTask);
+    form.querySelectorAll("[data-cell-entry-type]").forEach((button) => button.classList.toggle("active", button.dataset.cellEntryType === entryType));
+  };
+  form.querySelectorAll("[data-cell-entry-type]").forEach((button) => button.addEventListener("click", () => {
+    entryType = button.dataset.cellEntryType;
+    updateType();
+    form.querySelector("[data-cell-entry-title]").focus();
+  }));
+  form.querySelector(".calendar-cell-composer-close").addEventListener("click", closeCalendarCellComposer);
+  form.addEventListener("mousedown", (event) => event.stopPropagation());
+  form.addEventListener("click", (event) => event.stopPropagation());
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const title = form.querySelector("[data-cell-entry-title]").value.trim();
+    if (!title) return;
+    if (entryType === "task" && !isRange) {
+      state.tasks.push({ id: uid(), title, done: false, date: startDate });
+    } else {
+      const allDay = isRange || form.querySelector("[data-cell-entry-all-day]")?.checked;
+      if (allDay) {
+        state.events.push({ id: uid(), title, type: "schedule", allDay: true, groupId: form.querySelector("[data-cell-entry-group]").value || state.eventGroups[0]?.id, start: new Date(`${startDate}T12:00:00`).toISOString(), end: new Date(`${endDate}T12:00:00`).toISOString() });
+      } else {
+        const time = form.querySelector("[data-cell-entry-time]")?.value || "09:00";
+        const start = new Date(`${startDate}T${time}:00`);
+        state.events.push({ id: uid(), title, type: "schedule", groupId: form.querySelector("[data-cell-entry-group]").value || state.eventGroups[0]?.id, start: start.toISOString(), end: new Date(start.getTime() + SLOT * 60000).toISOString() });
+      }
+    }
+    save();
+    closeCalendarCellComposer();
+    renderHome();
+    renderCalendar();
+  });
+  requestAnimationFrame(() => form.querySelector("[data-cell-entry-title]").focus());
 }
 
 function calendarFiltersForView(view = calView) {
@@ -614,8 +689,13 @@ function eventsForDate(date) {
   const key = localDateKey(date);
   const filters = calendarFiltersForView();
   const events = state.events
-    .filter((event) => localDateKey(new Date(event.start)) === key)
-    .map((event) => ({ ...event, kind: "event", type: "schedule", startDate: new Date(event.start) }));
+    .filter((event) => {
+      const startKey = localDateKey(new Date(event.start));
+      const endKey = event.allDay && event.end ? localDateKey(new Date(event.end)) : startKey;
+      const [first, last] = orderedDateRange(startKey, endKey);
+      return key >= first && key <= last;
+    })
+    .map((event) => ({ ...event, kind: "event", type: "schedule", startDate: event.allDay ? null : new Date(event.start) }));
   const tasks = state.tasks
     .filter((task) => task.date === key)
     .map((task) => ({
@@ -643,7 +723,7 @@ function renderDayTimeline(date) {
   const timed = items.filter((item) => item.startDate);
   let html = "";
   if (untimed.length) html += `<div class="untimed-box"><div class="untimed-title">시간 미정</div>${untimed.map(calendarEntryMarkup).join("")}</div>`;
-  html += `<div class="day-timeline" id="dayTimeline" data-feature-calendar-date="${localDateKey(date)}">`;
+  html += `<div class="day-timeline" id="dayTimeline" data-calendar-date="${localDateKey(date)}" data-feature-calendar-date="${localDateKey(date)}">`;
   for (let minute = START_MIN; minute < END_MIN; minute += SLOT) html += `<div class="day-time-row" data-minute="${minute}"><div class="day-time-label">${minuteLabel(minute)}</div><div class="day-time-lane"></div></div>`;
   html += "</div>";
   $("#calendarBody").innerHTML = html;
@@ -706,7 +786,7 @@ function renderMultiDayList(startDate, count) {
     const date = new Date(start);
     date.setDate(date.getDate() + index);
     const items = eventsForDate(date);
-    html += `<section class="multi-day-list-section" data-feature-calendar-date="${localDateKey(date)}"><h3>${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</h3>${items.length ? items.map(calendarListEntryMarkup).join("") : '<div class="empty">항목이 없어요.</div>'}</section>`;
+    html += `<section class="multi-day-list-section" data-calendar-date="${localDateKey(date)}" data-feature-calendar-date="${localDateKey(date)}"><h3>${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</h3>${items.length ? items.map(calendarListEntryMarkup).join("") : '<div class="empty">항목이 없어요.</div>'}</section>`;
   }
   $("#calendarBody").innerHTML = `${html}</div>`;
   bindCalendarChecks();
@@ -723,7 +803,8 @@ function renderMultiDayTimeline(startDate, count) {
   for (let index = 0; index < count; index++) {
     const date = new Date(start);
     date.setDate(date.getDate() + index);
-    html += `<div class="multi-day-head"><strong>${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</strong><small>계획 · 실제</small></div>`;
+    const untimed = eventsForDate(date).filter((item) => !item.startDate);
+    html += `<div class="multi-day-head"><strong>${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</strong><small>계획 · 실제</small>${untimed.length ? `<div class="multi-day-all-day">${untimed.map(calendarEntryMarkup).join("")}</div>` : ""}</div>`;
   }
   html += '<div class="multi-time-axis">';
   for (let minute = START_MIN; minute < END_MIN; minute += SLOT) html += `<div>${minute % 60 === 0 ? minuteLabel(minute) : ""}</div>`;
@@ -731,7 +812,7 @@ function renderMultiDayTimeline(startDate, count) {
   for (let index = 0; index < count; index++) {
     const date = new Date(start);
     date.setDate(date.getDate() + index);
-    html += `<div class="multi-day-lane" data-date="${localDateKey(date)}" data-feature-calendar-date="${localDateKey(date)}"><div class="multi-plan-lane"></div><div class="multi-actual-lane"></div></div>`;
+    html += `<div class="multi-day-lane" data-date="${localDateKey(date)}" data-calendar-date="${localDateKey(date)}" data-feature-calendar-date="${localDateKey(date)}"><div class="multi-plan-lane"></div><div class="multi-actual-lane"></div></div>`;
   }
   $("#calendarBody").innerHTML = `${html}</div>`;
   $$(".multi-day-lane", $("#calendarBody")).forEach((lane, index) => {
@@ -765,6 +846,7 @@ function renderMultiDayTimeline(startDate, count) {
       lane.querySelector(".multi-actual-lane").appendChild(element);
     }
   });
+  bindCalendarChecks();
 }
 
 function renderCalendar() {
@@ -785,7 +867,7 @@ function renderCalendar() {
       const date = new Date(year, month, day);
       const isToday = date.toDateString() === now.toDateString();
       const items = eventsForDate(date);
-      html += `<div class="day-cell ${isToday ? "today" : ""}"><div class="day-num">${day}</div>${items.slice(0, 5).map(calendarEntryMarkup).join("")}</div>`;
+      html += `<div class="day-cell ${isToday ? "today" : ""}" data-calendar-date="${localDateKey(date)}"><div class="day-num">${day}</div>${items.slice(0, 5).map(calendarEntryMarkup).join("")}</div>`;
     }
     html += "</div>";
     body.innerHTML = html;
@@ -804,7 +886,7 @@ function renderCalendar() {
     for (let index = 0; index < 7; index++) {
       const date = new Date(start);
       date.setDate(date.getDate() + index);
-      html += `<div class="week-col"><div class="week-date">${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</div>${eventsForDate(date).map(calendarEntryMarkup).join("")}</div>`;
+      html += `<div class="week-col" data-calendar-date="${localDateKey(date)}"><div class="week-date">${["일", "월", "화", "수", "목", "금", "토"][date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}</div>${eventsForDate(date).map(calendarEntryMarkup).join("")}</div>`;
     }
     html += "</div>";
     body.innerHTML = html;
@@ -827,7 +909,7 @@ function renderCalendar() {
   const items = eventsForDate(calCursor);
   if (calDayMode === "timeline") renderDayTimeline(calCursor);
   else {
-    body.innerHTML = `<div class="day-list">${items.length ? items.map(calendarListEntryMarkup).join("") : '<div class="empty">선택한 항목이 없어요.</div>'}</div>`;
+    body.innerHTML = `<div class="day-list" data-calendar-date="${localDateKey(calCursor)}">${items.length ? items.map(calendarListEntryMarkup).join("") : '<div class="empty">선택한 항목이 없어요.</div>'}</div>`;
     bindCalendarChecks(body);
   }
 }
@@ -1034,6 +1116,56 @@ async function resetForLogout() {
   clearInterval(tickHandle);
 }
 
+function calendarInputHost(target) {
+  return target.closest?.(".day-cell[data-calendar-date], .week-col[data-calendar-date], .multi-day-list-section[data-calendar-date], .day-list[data-calendar-date]") || null;
+}
+
+function clearCalendarRangeHighlight() {
+  $$("#calendarBody .calendar-range-selected").forEach((cell) => cell.classList.remove("calendar-range-selected"));
+}
+
+function paintCalendarRange(startDate, endDate) {
+  const [first, last] = orderedDateRange(startDate, endDate);
+  $$("#calendarBody .day-cell[data-calendar-date]").forEach((cell) => {
+    const key = cell.dataset.calendarDate;
+    cell.classList.toggle("calendar-range-selected", key >= first && key <= last);
+  });
+}
+
+function bindCalendarDirectEntry() {
+  const body = $("#calendarBody");
+  body.addEventListener("mousedown", (event) => {
+    if (event.button !== 0 || event.target.closest(".cal-event,button,input,select,a,.calendar-cell-composer")) return;
+    const cell = event.target.closest(".day-cell[data-calendar-date]");
+    if (!cell) return;
+    closeCalendarCellComposer();
+    calendarRangeSelection = { start: cell.dataset.calendarDate, end: cell.dataset.calendarDate, host: cell };
+    paintCalendarRange(calendarRangeSelection.start, calendarRangeSelection.end);
+    event.preventDefault();
+  });
+  body.addEventListener("mouseover", (event) => {
+    if (!calendarRangeSelection) return;
+    const cell = event.target.closest(".day-cell[data-calendar-date]");
+    if (!cell) return;
+    calendarRangeSelection.end = cell.dataset.calendarDate;
+    paintCalendarRange(calendarRangeSelection.start, calendarRangeSelection.end);
+  });
+  document.addEventListener("mouseup", () => {
+    if (!calendarRangeSelection) return;
+    const selection = calendarRangeSelection;
+    calendarRangeSelection = null;
+    clearCalendarRangeHighlight();
+    suppressCalendarCellClickUntil = Date.now() + 350;
+    openCalendarCellComposer(selection.host, selection.start, selection.end);
+  });
+  body.addEventListener("click", (event) => {
+    if (Date.now() < suppressCalendarCellClickUntil || event.target.closest(".cal-event,.day-timed-event,.row,button,input,select,a,.calendar-cell-composer")) return;
+    const host = calendarInputHost(event.target);
+    const date = calendarCellDate(host);
+    if (host && date) openCalendarCellComposer(host, date);
+  });
+}
+
 function bindUI() {
   $$(".nav-item[data-page]").forEach((button) => button.addEventListener("click", () => goPage(button.dataset.page)));
   $$('[data-go]').forEach((button) => button.addEventListener("click", () => goPage(button.dataset.go)));
@@ -1047,6 +1179,7 @@ function bindUI() {
     applySidebar();
   });
   $("#mobileMenuBtn").addEventListener("click", () => $("#app-section").classList.toggle("mobile-nav-open"));
+  bindCalendarDirectEntry();
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".more")) $$(".menu.open").forEach((menu) => menu.classList.remove("open"));
     if (!event.target.closest("#blockEditor") && !event.target.closest(".time-block")) $("#blockEditor").classList.remove("open");
@@ -1113,43 +1246,8 @@ function bindUI() {
     else calCursor.setDate(calCursor.getDate() + 1);
     renderCalendar();
   });
-
-  const eventDialog = $("#eventDialog");
-  $("#addEventBtn").addEventListener("click", () => {
-    $("#calendarInlineTitle").value = "";
-    openCalendarComposer(localDateKey(calCursor));
-  });
-  document.addEventListener("onekan:calendar-compose", (event) => {
-    $("#calendarInlineTitle").value = "";
-    openCalendarComposer(event.detail?.date || localDateKey(calCursor));
-  });
-  $("#calendarInlineDate").addEventListener("change", () => openCalendarComposer($("#calendarInlineDate").value));
-  $("#calendarInlineAdd").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const title = $("#calendarInlineTitle").value.trim();
-    const date = $("#calendarInlineDate").value;
-    const time = $("#calendarInlineTime").value || "09:00";
-    if (!title || !date) return;
-    const startDate = new Date(`${date}T${time}:00`);
-    state.events.push({ id: uid(), title, type: "schedule", groupId: $("#calendarInlineGroup").value || state.eventGroups[0]?.id, start: startDate.toISOString(), end: new Date(startDate.getTime() + SLOT * 60000).toISOString() });
-    $("#calendarInlineTitle").value = "";
-    save();
-    renderHome();
-    renderCalendar();
-    requestAnimationFrame(() => $("#calendarInlineTitle").focus());
-  });
-  $("#cancelEventBtn").addEventListener("click", () => eventDialog.close());
-  $("#eventForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const title = $("#eventTitle").value.trim();
-    const date = $("#eventDate").value;
-    const time = $("#eventTime").value || "09:00";
-    if (!title || !date) return;
-    const start = new Date(`${date}T${time}:00`).toISOString();
-    state.events.push({ id: uid(), title, type: "schedule", groupId: $("#eventGroup").value || state.eventGroups[0]?.id, start });
-    save();
-    eventDialog.close();
-    renderHome();
+  $("#calToday").addEventListener("click", () => {
+    calCursor = new Date();
     renderCalendar();
   });
 

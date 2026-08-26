@@ -145,9 +145,12 @@ async function moveItemToDate(kind, id, dateKey) {
     const item = state.events.find((event) => event.id === id);
     if (!item || !dateKey) return;
     const date = new Date(item.start);
+    const oldEnd = item.end ? new Date(item.end) : null;
+    const duration = oldEnd && oldEnd > date ? oldEnd - date : 30 * 60000;
     const [year, month, day] = dateKey.split("-").map(Number);
     date.setFullYear(year, month - 1, day);
     item.start = date.toISOString();
+    if (item.end) item.end = new Date(date.getTime() + duration).toISOString();
   });
 }
 
@@ -439,6 +442,7 @@ function wireCalendarNavigation() {
   });
   const prev = $("#calPrev");
   const next = $("#calNext");
+  const today = $("#calToday");
   if (prev && !prev.dataset.featureNavWired) {
     prev.dataset.featureNavWired = "true";
     prev.addEventListener("click", () => {
@@ -454,6 +458,14 @@ function wireCalendarNavigation() {
       if (featureView === "month") featureCursor.setMonth(featureCursor.getMonth() + 1);
       else if (featureView === "week") featureCursor.setDate(featureCursor.getDate() + 7);
       else featureCursor.setDate(featureCursor.getDate() + 1);
+      scheduleCalendarEnhance();
+    });
+  }
+  if (today && !today.dataset.featureNavWired) {
+    today.dataset.featureNavWired = "true";
+    today.addEventListener("click", () => {
+      featureCursor = new Date();
+      featureView = $("#calendarViewSeg button.active")?.dataset.view || featureView;
       scheduleCalendarEnhance();
     });
   }

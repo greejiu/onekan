@@ -1,31 +1,6 @@
 import { supabase } from "./supabase.js";
 
 const $ = (selector) => document.querySelector(selector);
-const pad = (n) => String(n).padStart(2, "0");
-
-function localDateKey(date = new Date()) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function appDayKey(now = new Date()) {
-  const date = new Date(now);
-  date.setHours(date.getHours() - 3);
-  return localDateKey(date);
-}
-
-function parseDayTitle() {
-  const text = $("#calTitle")?.textContent || "";
-  const match = text.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
-  if (!match) return null;
-  return `${match[1]}-${pad(match[2])}-${pad(match[3])}`;
-}
-
-function activeCalendarDate() {
-  return $("#calendarBody .day-timeline[data-feature-calendar-date]")?.dataset.featureCalendarDate
-    || $("#calendarBody .day-list[data-feature-calendar-date]")?.dataset.featureCalendarDate
-    || parseDayTitle()
-    || appDayKey();
-}
 
 async function writeCloudState(mutator) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -40,36 +15,6 @@ async function writeCloudState(mutator) {
   if (saveError) throw saveError;
   $("#reloadCloudBtn")?.click();
   return true;
-}
-
-function wireCalendarTaskButton() {
-  const button = $("#calendarAddTaskBtn");
-  const dialog = $("#calendarTaskDialog");
-  const form = $("#calendarTaskForm");
-  if (!button || !dialog || !form || button.dataset.calendarTaskWired === "1") return;
-  button.dataset.calendarTaskWired = "1";
-
-  button.addEventListener("click", () => {
-    $("#calendarTaskTitle").value = "";
-    $("#calendarTaskDate").value = activeCalendarDate();
-    dialog.showModal();
-    setTimeout(() => $("#calendarTaskTitle")?.focus(), 0);
-  });
-
-  $("#cancelCalendarTaskBtn")?.addEventListener("click", () => dialog.close());
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const title = $("#calendarTaskTitle").value.trim();
-    const date = $("#calendarTaskDate").value;
-    if (!title || !date) return;
-    try {
-      await writeCloudState((state) => state.tasks.push({ id: crypto.randomUUID(), title, done: false, date }));
-      dialog.close();
-    } catch (error) {
-      console.error("달력 할일 저장 실패", error);
-      window.alert("할일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
-    }
-  });
 }
 
 function wireTimelineEventDialog() {
@@ -112,7 +57,6 @@ function wireTimelineEventDialog() {
 }
 
 function init() {
-  wireCalendarTaskButton();
   wireTimelineEventDialog();
 }
 
