@@ -141,6 +141,7 @@ let suppressCalendarCellClickUntil = 0;
 const START_MIN = 6 * 60;
 const END_MIN = 22 * 60;
 const SLOT = 30;
+const HOME_SLOT_HEIGHT = 20;
 
 function setSyncStatus(text, isError = false) {
   for (const id of ["#syncStatus", "#mobileSyncStatus"]) {
@@ -349,7 +350,7 @@ function renderTimeGrid() {
     if (!slot) return;
     selectionEl = document.createElement("div");
     selectionEl.className = "time-selection";
-    selectionEl.style.height = `${((end - start) / SLOT + 1) * 42 - 4}px`;
+    selectionEl.style.height = `${((end - start) / SLOT + 1) * HOME_SLOT_HEIGHT - 2}px`;
     slot.querySelector(".drop-zone").appendChild(selectionEl);
   };
 
@@ -357,7 +358,7 @@ function renderTimeGrid() {
     const slot = document.createElement("div");
     slot.className = "time-slot";
     slot.dataset.minute = minute;
-    slot.innerHTML = `<div class="time-label">${minuteLabel(minute)}</div><div class="drop-zone" tabindex="0" aria-label="${minuteLabel(minute)} 시간 계획 칸"></div>`;
+    slot.innerHTML = `<div class="time-label">${minute % 60 === 0 ? minuteLabel(minute) : ""}</div><div class="drop-zone" tabindex="0" aria-label="${minuteLabel(minute)} 시간 계획 칸"></div>`;
     const dropZone = slot.querySelector(".drop-zone");
 
     dropZone.addEventListener("dragover", (event) => { event.preventDefault(); dropZone.classList.add("over"); });
@@ -433,7 +434,8 @@ function renderTimeGrid() {
     element.className = "time-block task-time-block";
     element.dataset.blockId = block.id;
     element.draggable = true;
-    element.style.height = `${Math.max(36, (block.duration / SLOT) * 42 - 6)}px`;
+    element.classList.toggle("compact", Number(block.duration) <= SLOT);
+    element.style.height = `${Math.max(18, (block.duration / SLOT) * HOME_SLOT_HEIGHT - 2)}px`;
     const task = block.taskId ? state.tasks.find((item) => item.id === block.taskId) : null;
     const taskCheck = task ? `<button class="timeline-type-check task-type-check${task.done ? " checked" : ""}" type="button" aria-label="할일 완료">${task.done ? "✓" : ""}</button>` : '<span class="timeline-type-check task-type-check" aria-hidden="true"></span>';
     element.classList.toggle("done", Boolean(task?.done));
@@ -464,7 +466,8 @@ function renderTimeGrid() {
     element.className = `time-block habit-time-block${checks[habit.id] ? " done" : ""}`;
     element.dataset.habitId = habit.id;
     element.draggable = true;
-    element.style.height = `${Math.max(36, (duration / SLOT) * 42 - 6)}px`;
+    element.classList.toggle("compact", duration <= SLOT);
+    element.style.height = `${Math.max(18, (duration / SLOT) * HOME_SLOT_HEIGHT - 2)}px`;
     element.innerHTML = `<div class="habit-time-main"><button class="habit-time-check timeline-type-check habit-type-check${checks[habit.id] ? " checked" : ""}" type="button" aria-label="습관 완료">${checks[habit.id] ? "✓" : ""}</button><strong>${esc(habit.title)}</strong></div><small>${minuteLabel(startMinute)} · ${duration}분</small><button class="time-resize-handle" type="button" aria-label="습관 길이 조절"></button>`;
     element.addEventListener("dragstart", (event) => { event.dataTransfer.setData("text/habit-id", habit.id); element.classList.add("dragging"); });
     element.addEventListener("dragend", () => element.classList.remove("dragging"));
@@ -493,9 +496,10 @@ function wireTimelineResize(element, item, kind) {
     const originalDuration = Math.max(SLOT, Number(item.duration || SLOT));
     let nextDuration = originalDuration;
     const move = (moveEvent) => {
-      const slots = Math.round((moveEvent.clientY - startY) / 42);
+      const slots = Math.round((moveEvent.clientY - startY) / HOME_SLOT_HEIGHT);
       nextDuration = Math.max(SLOT, Math.min(240, originalDuration + slots * SLOT, END_MIN - Number(item.startMinute)));
-      element.style.height = `${Math.max(36, (nextDuration / SLOT) * 42 - 6)}px`;
+      element.classList.toggle("compact", nextDuration <= SLOT);
+      element.style.height = `${Math.max(18, (nextDuration / SLOT) * HOME_SLOT_HEIGHT - 2)}px`;
       const meta = element.querySelector("small");
       if (meta) meta.textContent = `${minuteLabel(Number(item.startMinute))} · ${nextDuration}분`;
     };

@@ -136,7 +136,7 @@ function wireTimeGrid(){
 
   let selecting=false,a=0,b=0,preview=null;
   const rows=()=>$$('.time-slot',grid);
-  const rowH=()=>rows()[0]?.getBoundingClientRect().height||42;
+  const rowH=()=>rows()[0]?.getBoundingClientRect().height||20;
   const indexAt=y=>Math.max(0,Math.min(rows().length-1,Math.floor((y-grid.getBoundingClientRect().top)/rowH())));
   const paint=()=>{
     preview?.remove();
