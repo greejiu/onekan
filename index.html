@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=1" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=2" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -60,18 +60,15 @@
       <section class="page active" id="page-home">
         <div class="page-head">
           <div class="home-heading"><div class="home-progress" id="homeProgress" aria-label="오늘 할일 진행률"><svg viewBox="0 0 52 52" aria-hidden="true"><circle class="home-progress-track" cx="26" cy="26" r="21"></circle><circle class="home-progress-value" cx="26" cy="26" r="21"></circle></svg><span id="homeProgressLabel">0%</span></div><div><h1 class="page-title">집</h1><div class="page-sub" id="todayLabel"></div></div></div>
+          <button class="soft-btn uw-someday-trigger" data-uw-someday-toggle type="button" aria-controls="uwSomedaySidebar" aria-expanded="false">언젠가</button>
         </div>
 
-        <div class="home-columns home-columns-3">
+        <div class="home-columns home-columns-3 uw-home-layout">
           <div class="home-column" id="homeLeftColumn">
           <article class="card home-timeline-card">
             <div class="card-header"><div class="card-title">오늘 타임라인</div><div class="header-inline"><span class="card-meta">30분 단위</span><button class="ghost-btn" id="addTimeBlockBtn" type="button">＋</button></div></div>
             <div class="time-wrap" id="timeWrap"><div class="time-grid" id="timeGrid"></div></div>
           </article>
-          </div>
-
-          <div class="home-column" id="homeSomedayColumn">
-          <div id="somedayHomeSlot"></div>
           </div>
 
           <div class="home-column" id="homeRightColumn">
@@ -81,6 +78,12 @@
           </article>
           </div>
         </div>
+
+        <button class="uw-someday-backdrop" data-uw-someday-close type="button" aria-label="언젠가 할일 닫기"></button>
+        <aside class="uw-someday-sidebar" id="uwSomedaySidebar" aria-hidden="true">
+          <div class="uw-someday-sidebar-head"><strong>언젠가 할일</strong><button class="uw-icon-btn" data-uw-someday-close type="button" aria-label="닫기">×</button></div>
+          <div id="somedayHomeSlot"></div>
+        </aside>
       </section>
 
       <section class="page" id="page-calendar">
@@ -226,6 +229,6 @@
   <script type="module" src="./js/manual-time-entry.js?v=4"></script>
   <script type="module" src="./js/workspace-pages.js?v=8"></script>
   <script type="module" src="./js/appearance.js?v=1"></script>
-  <script type="module" src="./js/unified-workspace.js?v=1"></script>
+  <script type="module" src="./js/unified-workspace.js?v=2"></script>
 </body>
 </html>
