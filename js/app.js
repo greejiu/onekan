@@ -67,23 +67,6 @@ function defaultState() {
       },
     },
   };
-  const templates = Array.isArray(state.timeBlockTemplates) ? state.timeBlockTemplates : [];
-  for (const task of normalized.tasks) {
-    if (!task.timeBlockTemplateId || !task.date) continue;
-    const template = templates.find((item) => item.id === task.timeBlockTemplateId);
-    if (!template) continue;
-    const startMinute = Number(template.startMinute);
-    if (!Number.isFinite(startMinute)) continue;
-    const duration = Math.max(SLOT, Number(template.endMinute) - startMinute || SLOT);
-    let block = normalized.timeBlocks.find((item) => item.taskId === task.id && item.date === task.date);
-    if (!block) {
-      block = { id: `legacy-${task.id}-${task.date}`, taskId: task.id, sourceTitle: task.title, detail: task.title, date: task.date };
-      normalized.timeBlocks.push(block);
-    }
-    block.startMinute = startMinute;
-    block.duration = duration;
-    delete task.timeBlockTemplateId;
-  }
   return normalized;
 }
 
@@ -91,7 +74,7 @@ function normalizeState(raw) {
   const base = defaultState();
   const state = raw && typeof raw === "object" ? raw : {};
   const savedCalendarFilters = state.ui?.calendarFilters || {};
-  return {
+  const normalized = {
     ...base,
     ...state,
     tasks: Array.isArray(state.tasks) ? state.tasks : [],
@@ -118,6 +101,28 @@ function normalizeState(raw) {
       },
     },
   };
+
+  // 이전 시간블럭 템플릿을 새 타임라인 블록으로 한 번만 옮긴다.
+  // 기본 상태를 만드는 동안에는 아직 state/SLOT가 준비되지 않았으므로,
+  // 저장된 데이터를 정규화한 다음에만 이 변환을 실행한다.
+  const templates = Array.isArray(state.timeBlockTemplates) ? state.timeBlockTemplates : [];
+  for (const task of normalized.tasks) {
+    if (!task.timeBlockTemplateId || !task.date) continue;
+    const template = templates.find((item) => item.id === task.timeBlockTemplateId);
+    if (!template) continue;
+    const startMinute = Number(template.startMinute);
+    if (!Number.isFinite(startMinute)) continue;
+    const duration = Math.max(SLOT, Number(template.endMinute) - startMinute || SLOT);
+    let block = normalized.timeBlocks.find((item) => item.taskId === task.id && item.date === task.date);
+    if (!block) {
+      block = { id: `legacy-${task.id}-${task.date}`, taskId: task.id, sourceTitle: task.title, detail: task.title, date: task.date };
+      normalized.timeBlocks.push(block);
+    }
+    block.startMinute = startMinute;
+    block.duration = duration;
+    delete task.timeBlockTemplateId;
+  }
+  return normalized;
 }
 
 let currentUser = null;
