@@ -256,13 +256,13 @@ function editorFields(target, item, state) {
     return field("시간 계획", `<input id="contextEditTitle" required value="${escapeAttr(item.detail || item.sourceTitle || "시간 계획")}">`) +
       field("날짜", `<input id="contextEditDate" type="date" required value="${escapeAttr(item.date || relativeDayKey(0))}">`) +
       field("시작", `<input id="contextEditStart" type="time" step="1800" required value="${minuteText(item.startMinute)}">`) +
-      field("길이", `<select id="contextEditDuration"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option><option value="180">3시간</option><option value="240">4시간</option></select>`);
+      field("길이", `<select id="contextEditDuration"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option><option value="150">2시간 30분</option><option value="180">3시간</option><option value="210">3시간 30분</option><option value="240">4시간</option></select>`);
   }
   if (target.kind === "habit") {
     const startValue = Number.isFinite(Number(item.startMinute)) ? minuteText(item.startMinute) : "";
     return field("습관", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
       field("시간 (선택)", `<input id="contextEditStart" type="time" min="06:00" max="21:30" step="1800" value="${startValue}">`) +
-      field("길이", `<select id="contextEditDuration"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option><option value="180">3시간</option><option value="240">4시간</option></select>`);
+      field("길이", `<select id="contextEditDuration"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option><option value="150">2시간 30분</option><option value="180">3시간</option><option value="210">3시간 30분</option><option value="240">4시간</option></select>`);
   }
   if (target.kind === "project") {
     return field("제목", `<input id="contextEditTitle" required value="${escapeAttr(item.title)}">`) +
