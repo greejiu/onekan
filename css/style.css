@@ -282,6 +282,19 @@ button:disabled { opacity: .5; cursor: default; }
 .day-timed-event.resizing, .multi-entry.resizing { z-index: 12; opacity: .88; }
 .timeline-entry-type { display: flex; margin-bottom: 12px; }
 
+@media (hover: hover) and (pointer: fine) {
+  .time-resize-handle, .calendar-resize-handle { opacity: 0; pointer-events: none; transition: opacity .14s ease; }
+  .time-block:hover .time-resize-handle,
+  .time-block:focus-within .time-resize-handle,
+  .time-block.resizing .time-resize-handle,
+  .day-timed-event:hover .calendar-resize-handle,
+  .day-timed-event:focus-within .calendar-resize-handle,
+  .day-timed-event.resizing .calendar-resize-handle,
+  .multi-entry:hover .calendar-resize-handle,
+  .multi-entry:focus-within .calendar-resize-handle,
+  .multi-entry.resizing .calendar-resize-handle { opacity: 1; pointer-events: auto; }
+}
+
 .timer-panel { display: grid; grid-template-columns: 1.1fr .9fr; gap: 14px; }
 .timer-box { padding: 26px; text-align: center; }
 .timer-select { max-width: 420px; margin: 0 auto 12px; text-align: left; }
