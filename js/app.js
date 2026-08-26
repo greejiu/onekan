@@ -54,7 +54,7 @@ function defaultState() {
     dailyNotes: [],
     expenses: [],
     sessions: [],
-    timer: { running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0, durationMs: 25 * 60 * 1000 },
+    timer: { mode: "pomodoro", running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0, durationMs: 25 * 60 * 1000 },
     projects: [],
     ui: {
       sidebarCollapsed: false,
@@ -836,12 +836,25 @@ function timerDurationMs() {
   return Math.max(60 * 1000, Number(state.timer?.durationMs || 25 * 60 * 1000));
 }
 
-function timerClockText(milliseconds) {
-  const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
+function timerMode() {
+  return state.timer?.mode === "stopwatch" ? "stopwatch" : "pomodoro";
+}
+
+function timerClockText(milliseconds, roundUp = true) {
+  const seconds = Math.max(0, roundUp ? Math.ceil(milliseconds / 1000) : Math.floor(milliseconds / 1000));
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const rest = seconds % 60;
   return hours ? `${pad(hours)}:${pad(minutes)}:${pad(rest)}` : `${pad(minutes)}:${pad(rest)}`;
+}
+
+function setTimerMode(mode) {
+  if (state.timer.running) return;
+  state.timer.mode = mode === "stopwatch" ? "stopwatch" : "pomodoro";
+  state.timer.accumulatedMs = 0;
+  state.timer.startedAt = null;
+  save();
+  updateTimerUI();
 }
 
 function adjustTimerMinutes(delta) {
@@ -856,13 +869,14 @@ function finishTimer(automatic = false) {
   if (timerFinishing || !state.timer.running) return;
   timerFinishing = true;
   const timer = state.timer;
-  const duration = Math.min(currentTimerElapsed(), timerDurationMs());
+  const mode = timerMode();
+  const duration = mode === "pomodoro" ? Math.min(currentTimerElapsed(), timerDurationMs()) : currentTimerElapsed();
   const task = state.tasks.find((item) => item.id === timer.taskId);
   if (duration >= 1000) {
-    state.sessions.push({ id: uid(), taskId: timer.taskId, title: task?.title || "집중 기록", start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), durationMs: duration });
+    state.sessions.push({ id: uid(), taskId: timer.taskId, title: task?.title || "집중 기록", start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), durationMs: duration, timerMode: mode });
   }
   const durationMs = timerDurationMs();
-  state.timer = { running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0, durationMs };
+  state.timer = { mode, running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0, durationMs };
   save();
   renderTracking();
   renderDashboard();
@@ -872,23 +886,32 @@ function finishTimer(automatic = false) {
 
 function updateTimerUI() {
   const timer = state.timer;
+  const mode = timerMode();
   const duration = timerDurationMs();
   const elapsed = currentTimerElapsed();
   const remaining = timer.running ? Math.max(0, duration - elapsed) : duration;
-  $("#timerClock").textContent = timerClockText(remaining);
-  $("#timerCircle")?.style.setProperty("--timer-progress", `${Math.max(0, Math.min(100, (elapsed / duration) * 100))}%`);
-  $("#timerStatus").textContent = timer.running ? (timer.paused ? "잠시 쉬는 중" : "집중하는 중") : "집중 준비";
+  $("#timerClock").textContent = mode === "stopwatch" ? timerClockText(elapsed, false) : timerClockText(remaining);
+  $("#timerCircle")?.style.setProperty("--timer-progress", mode === "stopwatch" ? "0%" : `${Math.max(0, Math.min(100, (elapsed / duration) * 100))}%`);
+  $("#timerCircle")?.classList.toggle("stopwatch-mode", mode === "stopwatch");
+  $(".timer-minute-controls")?.classList.toggle("hidden", mode === "stopwatch");
+  $("#timerStatus").textContent = timer.running ? (timer.paused ? "잠시 쉬는 중" : mode === "stopwatch" ? "시간을 재는 중" : "집중하는 중") : mode === "stopwatch" ? "스톱워치 준비" : "집중 준비";
   $("#timerStart").disabled = timer.running;
-  $("#timerStart").textContent = timer.running ? "집중 중" : "집중 시작";
+  $("#timerStart").textContent = timer.running ? (mode === "stopwatch" ? "측정 중" : "집중 중") : (mode === "stopwatch" ? "측정 시작" : "집중 시작");
   $("#timerPause").disabled = !timer.running;
   $("#timerPause").textContent = timer.paused ? "계속" : "일시정지";
   $("#timerStop").disabled = !timer.running;
   $("#timerMinusMinute").disabled = timer.running;
   $("#timerPlusMinute").disabled = timer.running;
   $("#timerTaskSelect").disabled = timer.running;
+  $$('[data-timer-mode]').forEach((button) => {
+    const active = button.dataset.timerMode === mode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+    button.disabled = timer.running;
+  });
   $("#trackingTodayTotal").textContent = `오늘 ${fmtDuration(todayFocusMs())}`;
   if ($("#dashFocus")) $("#dashFocus").textContent = fmtDuration(todayFocusMs());
-  if (timer.running && !timer.paused && remaining <= 0) finishTimer(true);
+  if (mode === "pomodoro" && timer.running && !timer.paused && remaining <= 0) finishTimer(true);
 }
 
 function startTicker() {
@@ -1127,7 +1150,7 @@ function bindUI() {
   $("#timerStart").addEventListener("click", () => {
     const taskId = $("#timerTaskSelect").value;
     if (!taskId) return window.alert("먼저 할일을 골라 주세요.");
-    state.timer = { running: true, paused: false, taskId, startedAt: Date.now(), accumulatedMs: 0, durationMs: timerDurationMs() };
+    state.timer = { mode: timerMode(), running: true, paused: false, taskId, startedAt: Date.now(), accumulatedMs: 0, durationMs: timerDurationMs() };
     save();
     renderTracking();
     startTicker();
@@ -1151,6 +1174,7 @@ function bindUI() {
   });
   $("#timerMinusMinute").addEventListener("click", () => adjustTimerMinutes(-1));
   $("#timerPlusMinute").addEventListener("click", () => adjustTimerMinutes(1));
+  $$('[data-timer-mode]').forEach((button) => button.addEventListener("click", () => setTimerMode(button.dataset.timerMode)));
   $("#timerTaskSelect").addEventListener("change", () => {
     const task = state.tasks.find((item) => item.id === $("#timerTaskSelect").value);
     $("#timerTaskLabel").textContent = task ? task.title : "할일을 고르고 시작하세요.";
