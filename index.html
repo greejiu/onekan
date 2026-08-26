@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=7" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=8" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -75,10 +75,14 @@
           </div>
 
           <div class="home-column" id="homeRightColumn">
-          <article class="card uw-upcoming-card">
-            <div class="card-header"><div class="card-title">다가오는 일정</div></div>
+          <details class="card uw-side-toggle uw-upcoming-card" open>
+            <summary class="card-header"><span class="card-title">다가오는 일정</span><span class="uw-toggle-chevron" aria-hidden="true">⌄</span></summary>
             <div class="card-body" id="upcomingList"></div>
-          </article>
+          </details>
+          <details class="card uw-side-toggle uw-someday-card" open>
+            <summary class="card-header"><span class="card-title">언젠가 할일</span><span class="uw-toggle-chevron" aria-hidden="true">⌄</span></summary>
+            <div class="card-body" id="somedayHomeSlot"></div>
+          </details>
           </div>
         </div>
       </section>
@@ -221,6 +225,6 @@
   <script type="module" src="./js/manual-time-entry.js?v=4"></script>
   <script type="module" src="./js/workspace-pages.js?v=8"></script>
   <script type="module" src="./js/appearance.js?v=1"></script>
-  <script type="module" src="./js/unified-workspace.js?v=8"></script>
+  <script type="module" src="./js/unified-workspace.js?v=9"></script>
 </body>
 </html>

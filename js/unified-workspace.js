@@ -25,7 +25,7 @@ function itemMarkup(kind,item,k,compact=false){const done=kind==="task"?!!item.d
 function findAddHost(kind,date,time){const t=time!==null&&time!==undefined?`[data-time="${time}"]`:"";return $(`.uw-list[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t},.uw-all-day-list[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t},.uw-time-hit[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t}`)}
 function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,editId=null,withTime=false}={}){if(!host||$(".uw-inline-form",host))return;const list=kind==="event"?state.events:kind==="habit"?state.habitTemplates:state.tasks;const old=editId?list.find(x=>x.id===editId):null;const form=document.createElement("form");form.className="uw-inline-form";form.innerHTML=`${withTime?`<input type="time" value="${old&&kind==="event"&&!old.allDay?timeOf(old.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(old?.title||"")}" placeholder="${kind==="event"?"일정":"할일"} 입력" autocomplete="off">`;if(editId)host.closest(".uw-item")?.replaceWith(form);else if(host.matches(".uw-empty-hit"))host.replaceWith(form);else host.appendChild(form);const title=$("input[type=text]",form);let saving=false,cancelled=false;const commit=async next=>{if(saving)return;const value=title.value.trim();if(!value){form.remove();return}saving=true;const timeValue=$("input[type=time]",form)?.value||"";await write(s=>{const defaultGroup=s.eventGroups[0]?.id||"default";if(old){old.title=value;if(kind==="event"&&withTime){const d=date||key(new Date(old.start));if(timeValue){const start=new Date(`${d}T${timeValue}:00`);old.start=start.toISOString();old.end=new Date(start.getTime()+duration*60000).toISOString();old.allDay=false}else{old.start=new Date(`${d}T12:00:00`).toISOString();old.end=new Date(`${endDate||d}T12:00:00`).toISOString();old.allDay=true}}return}if(kind==="event"){const start=timeValue?new Date(`${date}T${timeValue}:00`):new Date(`${date}T12:00:00`);s.events.push({id:uid(),title:value,type:"schedule",groupId:defaultGroup,allDay:!timeValue,start:start.toISOString(),end:timeValue?new Date(start.getTime()+duration*60000).toISOString():new Date(`${endDate||date}T12:00:00`).toISOString()})}else{const task={id:uid(),title:value,date:date||null,done:false,groupId:defaultGroup,createdAt:new Date().toISOString()};if(time!==null){const start=new Date(`${date}T${pad(Math.floor(time/60))}:${pad(time%60)}:00`);task.notionStart=start.toISOString();task.notionEnd=new Date(start.getTime()+duration*60000).toISOString();s.timeBlocks.push({id:uid(),taskId:task.id,sourceTitle:value,detail:value,date,startMinute:time,duration})}s.tasks.push(task)}});if(next)setTimeout(()=>{const nextHost=findAddHost(kind,date,time);if(nextHost)openInline(nextHost,{kind,date,endDate,time,duration,withTime})},220)};form.addEventListener("submit",e=>{e.preventDefault();commit(true)});title.addEventListener("keydown",e=>{if(e.key==="Escape"){cancelled=true;form.remove()}});title.addEventListener("blur",()=>setTimeout(()=>{if(!cancelled&&form.isConnected&&!saving)commit(false)},90));requestAnimationFrame(()=>{title.focus();title.select()})}
 
-function allDayPanel(k,items){const shown=items.slice(0,2),extra=Math.max(0,items.length-shown.length);return`<div class="uw-all-day" data-date="${k}"><span class="uw-all-day-label">하루 종일</span><div class="uw-all-day-list" data-uw-add-kind="task" data-date="${k}">${shown.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div>${extra?`<button class="uw-all-day-more" data-uw-all-day-more type="button" aria-expanded="false">+${extra}개 더보기</button><div class="uw-all-day-popover"><div class="uw-list">${items.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")}</div></div>`:""}</div>`}
+function allDayPanel(k,items){const shown=items.slice(0,2),hidden=items.slice(2),extra=hidden.length;return`<div class="uw-all-day" data-date="${k}"><span class="uw-all-day-label">하루 종일</span><div class="uw-all-day-list" data-uw-add-kind="task" data-date="${k}">${shown.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div>${extra?`<button class="uw-all-day-more" data-uw-all-day-more type="button" aria-expanded="false">+${extra}개 더보기</button><div class="uw-all-day-popover"><div class="uw-list">${hidden.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")}</div></div>`:""}</div>`}
 function flatListMarkup(x,k){return itemMarkup(x.kind,x.item,k).replace(/<span class="uw-item-time">.*?<\/span>/,"")}
 function plannerListDay(d){const k=key(d),items=itemsForDay(k);return`<section class="uw-day uw-list-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div><div class="uw-list uw-flat-day-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${items.map(x=>flatListMarkup(x,k)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div></section>`}
 function plannerDay(d){const k=key(d),items=itemsForDay(k),untimed=items.filter(x=>!x.timed),timed=items.filter(x=>x.timed&&x.time>=START&&x.time<END);let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>`<div class="uw-time-entry uw-item ${x.kind==="task"&&x.item.done?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${x.item.id}" data-date="${k}" data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>${allDayPanel(k,untimed)}<div class="uw-timeline"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${blocks}</div></div></section>`}
@@ -91,7 +91,7 @@ async function saveUntimedChange(kind,id,date){
     if(kind==="task"){
       const task=s.tasks.find(x=>x.id===id);
       if(!task)return;
-      task.date=date;
+      task.date=date||null;
       delete task.notionStart;
       delete task.notionEnd;
       s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);
@@ -266,6 +266,7 @@ function wireControlsV2(){
     $$(".uw-drop-target").forEach(x=>x.classList.remove("uw-drop-target"));
     const pointed=document.elementFromPoint(e.clientX,e.clientY);
     const lane=pointed?.closest(".uw-time-lane");
+    const someday=pointed?.closest("[data-uw-someday-drop]");
     const allDay=pointed?.closest(".uw-all-day-list");
     const dateList=pointed?.closest("[data-task-drop-date],.uw-month-cell,.uw-list[data-date]");
     let drop=null;
@@ -276,6 +277,11 @@ function wireControlsV2(){
       g.nextStart=minuteAt(lane,e.clientY);
       g.dropType="time";
       drop=lane.querySelector(`.uw-time-hit[data-time="${g.nextStart}"]`);
+    }else if(someday&&g.kind==="task"){
+      g.nextDate="";
+      g.nextStart=null;
+      g.dropType="someday";
+      drop=someday;
     }else if(allDay&&g.kind!=="habit"){
       g.nextDate=allDay.dataset.date||g.date;
       g.nextStart=null;
@@ -313,7 +319,7 @@ function wireControlsV2(){
     }
     if(!g.validTarget)return;
     if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration);
-    else if(g.dropType==="all-day")await saveUntimedChange(g.kind,g.id,g.nextDate);
+    else if(g.dropType==="all-day"||g.dropType==="someday")await saveUntimedChange(g.kind,g.id,g.nextDate);
     else await saveDateOnlyChange(g.kind,g.id,g.nextDate);
   },{capture:true});
   document.addEventListener("pointercancel",()=>clear(gesture));
