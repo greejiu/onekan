@@ -334,6 +334,7 @@ function wireBoard(board) {
     });
     zone.addEventListener("drop", async (event) => {
       event.preventDefault();
+      event.stopPropagation();
       zone.closest(".daily-block-row")?.classList.remove("over");
       const taskId = event.dataTransfer.getData("text/task-id");
       if (!taskId) return;
@@ -359,7 +360,10 @@ function wireBoard(board) {
       try {
         await writeState((state) => {
           const task = state.tasks.find((item) => item.id === button.dataset.blockCheck);
-          if (task) task.done = !task.done;
+          if (task) {
+            task.done = !task.done;
+            task.completedAt = task.done ? new Date().toISOString() : null;
+          }
         });
       } catch (error) {
         console.error(error);

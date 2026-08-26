@@ -54,7 +54,7 @@ function defaultState() {
     dailyNotes: [],
     expenses: [],
     sessions: [],
-    timer: { running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0 },
+    timer: { running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0, durationMs: 25 * 60 * 1000 },
     projects: [],
     ui: {
       sidebarCollapsed: false,
@@ -105,6 +105,7 @@ let loadedUserId = null;
 let state = defaultState();
 let saveChain = Promise.resolve();
 let tickHandle = null;
+let timerFinishing = false;
 let editingBlockId = null;
 let calView = "month";
 let calDayMode = "timeline";
@@ -831,17 +832,63 @@ function currentTimerElapsed() {
   return Number(timer.accumulatedMs || 0) + (timer.paused ? 0 : Math.max(0, Date.now() - Number(timer.startedAt || Date.now())));
 }
 
-function updateTimerUI() {
-  const milliseconds = currentTimerElapsed();
-  const seconds = Math.floor(milliseconds / 1000);
-  $("#timerClock").textContent = `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`;
+function timerDurationMs() {
+  return Math.max(60 * 1000, Number(state.timer?.durationMs || 25 * 60 * 1000));
+}
+
+function timerClockText(milliseconds) {
+  const seconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  return hours ? `${pad(hours)}:${pad(minutes)}:${pad(rest)}` : `${pad(minutes)}:${pad(rest)}`;
+}
+
+function adjustTimerMinutes(delta) {
+  if (state.timer.running) return;
+  const minutes = Math.max(1, Math.min(180, Math.round(timerDurationMs() / 60000) + delta));
+  state.timer.durationMs = minutes * 60 * 1000;
+  save();
+  updateTimerUI();
+}
+
+function finishTimer(automatic = false) {
+  if (timerFinishing || !state.timer.running) return;
+  timerFinishing = true;
   const timer = state.timer;
-  $("#timerStart").disabled = timer.running && !timer.paused;
+  const duration = Math.min(currentTimerElapsed(), timerDurationMs());
+  const task = state.tasks.find((item) => item.id === timer.taskId);
+  if (duration >= 1000) {
+    state.sessions.push({ id: uid(), taskId: timer.taskId, title: task?.title || "집중 기록", start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), durationMs: duration });
+  }
+  const durationMs = timerDurationMs();
+  state.timer = { running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0, durationMs };
+  save();
+  renderTracking();
+  renderDashboard();
+  if (automatic) window.alert("집중 시간이 끝났어요. 기록에 저장했어요!");
+  timerFinishing = false;
+}
+
+function updateTimerUI() {
+  const timer = state.timer;
+  const duration = timerDurationMs();
+  const elapsed = currentTimerElapsed();
+  const remaining = timer.running ? Math.max(0, duration - elapsed) : duration;
+  $("#timerClock").textContent = timerClockText(remaining);
+  $("#timerCircle")?.style.setProperty("--timer-progress", `${Math.max(0, Math.min(100, (elapsed / duration) * 100))}%`);
+  $("#timerStatus").textContent = timer.running ? (timer.paused ? "잠시 쉬는 중" : "집중하는 중") : "집중 준비";
+  $("#timerStart").disabled = timer.running;
+  $("#timerStart").textContent = timer.running ? "집중 중" : "집중 시작";
   $("#timerPause").disabled = !timer.running;
   $("#timerPause").textContent = timer.paused ? "계속" : "일시정지";
   $("#timerStop").disabled = !timer.running;
+  $("#timerMinusMinute").disabled = timer.running;
+  $("#timerPlusMinute").disabled = timer.running;
+  $("#timerTaskSelect").disabled = timer.running;
   $("#trackingTodayTotal").textContent = `오늘 ${fmtDuration(todayFocusMs())}`;
   if ($("#dashFocus")) $("#dashFocus").textContent = fmtDuration(todayFocusMs());
+  if (timer.running && !timer.paused && remaining <= 0) finishTimer(true);
 }
 
 function startTicker() {
@@ -1080,12 +1127,7 @@ function bindUI() {
   $("#timerStart").addEventListener("click", () => {
     const taskId = $("#timerTaskSelect").value;
     if (!taskId) return window.alert("먼저 할일을 골라 주세요.");
-    if (state.timer.running && state.timer.paused) {
-      state.timer.paused = false;
-      state.timer.startedAt = Date.now();
-    } else {
-      state.timer = { running: true, paused: false, taskId, startedAt: Date.now(), accumulatedMs: 0 };
-    }
+    state.timer = { running: true, paused: false, taskId, startedAt: Date.now(), accumulatedMs: 0, durationMs: timerDurationMs() };
     save();
     renderTracking();
     startTicker();
@@ -1105,15 +1147,13 @@ function bindUI() {
     renderTracking();
   });
   $("#timerStop").addEventListener("click", () => {
-    const timer = state.timer;
-    if (!timer.running) return;
-    const duration = currentTimerElapsed();
-    const task = state.tasks.find((item) => item.id === timer.taskId);
-    state.sessions.push({ id: uid(), taskId: timer.taskId, title: task?.title || "할일", start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), durationMs: duration });
-    state.timer = { running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0 };
-    save();
-    renderTracking();
-    renderDashboard();
+    finishTimer(false);
+  });
+  $("#timerMinusMinute").addEventListener("click", () => adjustTimerMinutes(-1));
+  $("#timerPlusMinute").addEventListener("click", () => adjustTimerMinutes(1));
+  $("#timerTaskSelect").addEventListener("change", () => {
+    const task = state.tasks.find((item) => item.id === $("#timerTaskSelect").value);
+    $("#timerTaskLabel").textContent = task ? task.title : "할일을 고르고 시작하세요.";
   });
 
   $("#addHabitBtn").addEventListener("click", addHabit);

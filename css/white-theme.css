@@ -150,6 +150,20 @@ body { color: var(--text); letter-spacing: -.01em; -webkit-font-smoothing: antia
 /* Time planning and tracking */
 .timer-panel { gap: 20px; }
 .timer-panel > .card:first-child { background: var(--accent-soft); border-color: rgba(239,164,92,.25); }
+.pomodoro-box { display: flex; flex-direction: column; align-items: center; padding: 24px 22px 30px; }
+.pomodoro-status { margin-bottom: 14px; color: var(--muted); font-size: 14px; }
+.pomodoro-circle { --timer-progress: 0%; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: min(330px, 72vw); aspect-ratio: 1; margin-bottom: 24px; border-radius: 50%; background: conic-gradient(var(--accent) var(--timer-progress), var(--line) 0); box-shadow: 0 12px 35px rgba(214,134,58,.1); }
+.pomodoro-circle::before { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: #fffdf9; }
+.pomodoro-circle > * { position: relative; z-index: 1; }
+.pomodoro-circle .timer-clock { margin: 0; color: var(--text); font-size: clamp(54px, 9vw, 78px); font-weight: 400; line-height: 1; letter-spacing: -.04em; }
+.timer-minute-controls { display: flex; gap: 8px; margin-top: 22px; }
+.timer-minute-controls .soft-btn { min-width: 64px; background: #fff; }
+.pomodoro-box .timer-select { width: min(360px, 100%); margin: 0 auto 9px; }
+.pomodoro-box .timer-select label { text-align: center; }
+.pomodoro-box .timer-select select { text-align: center; }
+.pomodoro-box .timer-task { margin-bottom: 4px; text-align: center; }
+.pomodoro-box .timer-controls { width: min(360px, 100%); }
+.pomodoro-box .timer-start-wide { flex: 1 1 100%; min-height: 46px; font-size: 15px; }
 .timer-clock { color: var(--accent-dark); }
 .time-block, .day-timed-event { border-color: #a9cce7; border-radius: 10px; background: var(--pastel-blue); }
 .time-selection, .calendar-range-selection { border-color: var(--accent); background: rgba(239,164,92,.12); }

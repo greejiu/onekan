@@ -272,7 +272,10 @@ function renderSomedayTasks() {
     row.querySelector(".check").addEventListener("click", async () => {
       await mutateCloud((state) => {
         const target = state.tasks.find((item) => item.id === task.id);
-        if (target) target.done = !target.done;
+        if (target) {
+          target.done = !target.done;
+          target.completedAt = target.done ? new Date().toISOString() : null;
+        }
       });
     });
     const title = row.querySelector(".row-title");
@@ -300,6 +303,7 @@ function wireHomeDropTargets() {
       const id = event.dataTransfer.getData("text/task-id");
       if (!id) return;
       event.preventDefault();
+      event.stopPropagation();
       element.classList.remove("feature-drop-active");
       await moveItemToDate("task", id, targetDate);
     });

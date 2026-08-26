@@ -300,7 +300,15 @@ async function saveEditor() {
       const title = $("#contextEditTitle")?.value.trim();
       if (title) {
         if (target.kind === "timeBlock") item.detail = title;
-        else item.title = title;
+        else {
+          const oldTitle = item.title;
+          item.title = title;
+          if (target.kind === "task") {
+            state.timeBlocks.forEach((block) => {
+              if (block.taskId === item.id && block.sourceTitle === oldTitle) block.sourceTitle = title;
+            });
+          }
+        }
       }
 
       if (target.kind === "task") {
@@ -451,11 +459,13 @@ function installListeners() {
     const editable = element.closest([
       "#tasksPageList .workspace-task[data-context-kind='task']",
       "#habitManageList .habit-manage-row[data-context-kind='habit']",
+      "#habitTemplateList .template-row",
       "#habitList .row",
       "#upcomingList .row",
       "#calendarBody .cal-event",
       "#calendarBody .day-timed-event",
       "#calendarBody .day-list .row",
+      "#calendarBody .multi-entry[data-context-kind]",
       ".project-row[data-project-id]",
       "#todaySessions .history-row",
       "#allSessions .history-row",
