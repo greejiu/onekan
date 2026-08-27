@@ -1,10 +1,7 @@
-import { supabase } from "./supabase.js";
-
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const pad=n=>String(n).padStart(2,"0");
 const todayKey=()=>{const d=new Date();d.setHours(d.getHours()-3);return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
-const pending=[];
 
 function installStyle(){
   if($("#uwTaskInputControlStyle"))return;
@@ -58,71 +55,13 @@ function icons(){
   return wrap
 }
 
-function repeatSnapshot(form,date){
-  const select=$(".uw-repeat-select",form),value=select?.value||"none";
-  if(value==="none"||!date)return null;
-  const until=$(".uw-repeat-until input",form)?.value||null;
-  const base=new Date(`${date}T12:00:00`);
-  if(value!=="custom")return{frequency:value,interval:1,until,...(value==="weekly"?{weekdays:[base.getDay()]}:{}),...(value==="monthly"?{dayOfMonth:base.getDate()}:{})};
-  const type=$(".uw-repeat-custom-type",form)?.value||"days",interval=Math.max(1,+$(".uw-repeat-interval input",form)?.value||1);
-  if(type==="days")return{frequency:"daily",interval,until};
-  if(type==="weekdays"){const days=$$(".uw-repeat-weekdays input:checked",form).map(x=>+x.value);return{frequency:"weekly",interval:1,weekdays:days.length?days:[base.getDay()],until}}
-  if(type==="weeks")return{frequency:"weekly",interval,weekdays:[base.getDay()],until};
-  return{frequency:"monthly",interval,dayOfMonth:base.getDate(),until}
-}
-
-async function cloud(){
-  const {data:{session}}=await supabase.auth.getSession();if(!session?.user)return null;
-  const {data,error}=await supabase.from("onekan_state").select("data").eq("user_id",session.user.id).maybeSingle();if(error)throw error;
-  return{user:session.user,state:data?.data&&typeof data.data==="object"?data.data:{}}
-}
-
-async function applyPending(op){
-  const loaded=await cloud();if(!loaded)return false;
-  const current=loaded.state;current.tasks=Array.isArray(current.tasks)?current.tasks:[];current.timeBlocks=Array.isArray(current.timeBlocks)?current.timeBlocks:[];
-  let task=op.editId?current.tasks.find(x=>x.id===op.editId):current.tasks.filter(x=>x.title===op.title&&new Date(x.createdAt||0).getTime()>=op.startedAt-1500).sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0))[0];
-  if(!task)return false;
-  const oldDate=task.date||"";
-  task.date=op.date||null;
-  if(op.recurrence)task.recurrence=op.recurrence;else delete task.recurrence;
-  if(task.notionStart){
-    if(op.date){
-      const oldStart=new Date(task.notionStart),oldEnd=new Date(task.notionEnd||task.notionStart),duration=Math.max(30*60000,oldEnd-oldStart);
-      const start=new Date(`${op.date}T${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`);
-      task.notionStart=start.toISOString();task.notionEnd=new Date(start.getTime()+duration).toISOString()
-    }else{delete task.notionStart;delete task.notionEnd}
-  }
-  if(op.date)current.timeBlocks.filter(x=>x.taskId===task.id).forEach(x=>x.date=op.date);else current.timeBlocks=current.timeBlocks.filter(x=>x.taskId!==task.id);
-  if(oldDate===op.date&&JSON.stringify(task.recurrence||null)===JSON.stringify(op.recurrence||null))return true;
-  const {error}=await supabase.from("onekan_state").upsert({user_id:loaded.user.id,data:current},{onConflict:"user_id"});if(error)throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed",{detail:{source:"task-input-controls"}}));
-  return true
-}
-
-async function flushPending(){
-  for(let i=pending.length-1;i>=0;i--){
-    const op=pending[i];if(Date.now()-op.startedAt>7000){pending.splice(i,1);continue}
-    try{if(await applyPending(op))pending.splice(i,1)}catch(error){console.error("할일 날짜·반복 반영 실패",error)}
-  }
-}
-
-function arm(form){
-  if(form.dataset.uwPatchArmed==="1")return;
-  const date=form.dataset.uwTaskSelectedDate||"",initial=form.dataset.uwTaskInitialDate||"";
-  if(date===initial)return;
-  const title=$("input[type=text]",form)?.value.trim();if(!title)return;
-  form.dataset.uwPatchArmed="1";
-  pending.push({editId:form.dataset.uwTaskEditId||"",title,date,recurrence:repeatSnapshot(form,date),startedAt:Date.now()});
-  setTimeout(flushPending,900)
-}
-
-function decorate(form,removedTask=null){
+function decorate(form,removedItem=null){
   if(form.dataset.uwTaskCompact==="1")return;
-  const title=$("input[type=text]",form);if(!title||title.placeholder!=="할일 입력")return;
+  const title=$("input[type=text]",form),entryKind=title?.placeholder==="일정 입력"?"event":title?.placeholder==="할일 입력"?"task":null;if(!entryKind)return;
   form.dataset.uwTaskCompact="1";form.classList.add("uw-task-compact-input");
-  const initial=removedTask?.dataset.date??form.closest("[data-date]")?.dataset.date??"";
-  form.dataset.uwTaskInitialDate=initial;form.dataset.uwTaskSelectedDate=initial;
-  if(removedTask?.dataset.id)form.dataset.uwTaskEditId=removedTask.dataset.id;
+  const initial=removedItem?.dataset.date??form.dataset.uwEntrySelectedDate??form.closest("[data-date]")?.dataset.date??"";
+  form.dataset.uwTaskInitialDate=initial;form.dataset.uwTaskSelectedDate=initial;form.dataset.uwEntrySelectedDate=initial;
+  if(removedItem?.dataset.id)form.dataset.uwTaskEditId=removedItem.dataset.id;
   const tools=icons(),dateButton=$(".uw-task-date-button",tools),repeatButton=$(".uw-task-repeat-button",tools);
   const dateInput=document.createElement("input");dateInput.type="date";dateInput.className="uw-task-date-native";dateInput.value=initial;
   const panel=document.createElement("div");panel.className="uw-task-repeat-pop";panel.hidden=true;
@@ -135,21 +74,19 @@ function decorate(form,removedTask=null){
     const active=$(".uw-repeat-select",form)?.value!=="none";repeatButton.classList.toggle("active",active)
   };
   dateButton.addEventListener("click",()=>{dateInput.value=form.dataset.uwTaskSelectedDate||"";try{dateInput.showPicker()}catch{dateInput.click()}});
-  dateInput.addEventListener("change",()=>{form.dataset.uwTaskSelectedDate=dateInput.value||"";updateState()});
+  dateInput.addEventListener("change",()=>{form.dataset.uwTaskSelectedDate=dateInput.value||"";form.dataset.uwEntrySelectedDate=dateInput.value||"";form.dataset.uwEntryDateChanged="1";updateState()});
   repeatButton.addEventListener("click",()=>{
-    if(!form.dataset.uwTaskSelectedDate){const d=todayKey();form.dataset.uwTaskSelectedDate=d;dateInput.value=d}
+    if(!form.dataset.uwTaskSelectedDate){const d=todayKey();form.dataset.uwTaskSelectedDate=d;form.dataset.uwEntrySelectedDate=d;dateInput.value=d}
     panel.hidden=!panel.hidden;repeatButton.setAttribute("aria-expanded",String(!panel.hidden));updateState()
   });
   panel.addEventListener("change",updateState);panel.addEventListener("uw-repeat-refresh",updateState);
-  form.addEventListener("submit",()=>arm(form),true);
-  form.addEventListener("focusout",()=>setTimeout(()=>{if(!form.contains(document.activeElement))arm(form)},20));
   updateState()
 }
 
 function init(){
   installStyle();
   const observer=new MutationObserver(records=>records.forEach(record=>{
-    const removed=[...record.removedNodes].find(node=>node.nodeType===1&&node.matches?.('.uw-item[data-uw-kind="task"]'))||null;
+    const removed=[...record.removedNodes].find(node=>node.nodeType===1&&node.matches?.('.uw-item[data-uw-kind="task"],.uw-item[data-uw-kind="event"]'))||null;
     record.addedNodes.forEach(node=>{
       if(node.nodeType!==1)return;
       if(node.matches?.(".uw-inline-form"))decorate(node,removed);
@@ -158,7 +95,6 @@ function init(){
   }));
   observer.observe(document.body,{childList:true,subtree:true});
   $$(".uw-inline-form").forEach(form=>decorate(form));
-  document.addEventListener("onekan:state-changed",event=>{if(event.detail?.source==="unified"&&pending.length)setTimeout(flushPending,40)})
 }
 
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
