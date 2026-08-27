@@ -1,5 +1,32 @@
-// Small interaction safeguards that must register before unified-workspace.js initializes.
-// Keep task titles clickable/editable; moving should start from the dedicated move handle.
+// Compatibility + interaction safeguards loaded before app.js initializes.
+// The current UI no longer contains a few legacy controls that app.js still wires.
+// Add hidden shims so one missing legacy element cannot stop authentication startup.
+
+function ensureLegacyCompatibilityNodes() {
+  const host = document.createElement("div");
+  host.id = "onekanLegacyCompatibility";
+  host.hidden = true;
+  host.setAttribute("aria-hidden", "true");
+
+  const missing = [];
+  if (!document.querySelector("#blockEditor")) missing.push(`
+    <div id="blockEditor">
+      <input id="blockSource" />
+      <input id="blockDetail" />
+      <select id="blockStart"></select>
+      <select id="blockDuration"><option value="30">30</option></select>
+      <button id="saveBlockBtn" type="button"></button>
+      <button id="deleteBlockBtn" type="button"></button>
+    </div>`);
+  if (!document.querySelector("#addEventGroupBtn")) missing.push('<button id="addEventGroupBtn" type="button"></button>');
+  if (!document.querySelector("#reloadCloudBtn")) missing.push('<button id="reloadCloudBtn" type="button"></button>');
+
+  if (!missing.length) return;
+  host.innerHTML = missing.join("");
+  document.body.appendChild(host);
+}
+
+ensureLegacyCompatibilityNodes();
 
 function isFinePointer() {
   return !matchMedia("(hover:none),(pointer:coarse)").matches;
@@ -20,8 +47,8 @@ document.addEventListener(
     if (moveHandle && isFinePointer()) {
       const item = moveHandle.closest(".uw-item");
       if (item && !item.classList.contains("selected")) {
-        // unified-workspace intentionally requires a selected item for handle dragging.
-        // Mark it only for this mouse gesture so the handle remains the sole drag target.
+        // unified-workspace requires a selected item for handle dragging.
+        // Select only for this mouse gesture so the handle is the drag target.
         item.classList.add("selected", "uw-temp-move-selected");
       }
       return;
@@ -31,8 +58,7 @@ document.addEventListener(
     if (!title) return;
     if (event.target.closest?.("[data-uw-resize]")) return;
 
-    // unified-workspace listens on document in capture mode. Registering this guard first
-    // prevents a tiny mouse movement on the title from being interpreted as a move gesture.
+    // Keep the title as an edit/click target instead of starting a move gesture.
     event.stopImmediatePropagation();
   },
   true,
@@ -45,12 +71,10 @@ const interactionStyle = document.createElement("style");
 interactionStyle.dataset.onekanInteractionFix = "1";
 interactionStyle.textContent = `
 @media (hover:hover) and (pointer:fine) {
-  /* Short 30-minute blocks used to be almost entirely covered by resize hit areas. */
   .uw-time-entry .uw-resize-handle {
     height: 4px;
   }
 
-  /* The move affordance is the only grab cursor; the title remains an edit target. */
   .uw-item-title,
   .uw-habit-title {
     cursor: text;
