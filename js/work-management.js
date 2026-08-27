@@ -102,8 +102,9 @@ function dateMeta(item) {
   return parts.join(" · ") || "날짜 없음";
 }
 
-function workRow(item) {
-  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div></article>`;
+function workRow(item, showGroup = false) {
+  const meta = showGroup ? `${groupOf(item).name} · ${dateMeta(item)}` : dateMeta(item);
+  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${esc(meta)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div></article>`;
 }
 
 function sorted(items) {
@@ -111,10 +112,7 @@ function sorted(items) {
 }
 
 function statusSection(kind, definition, items) {
-  const grouped = state.eventGroups
-    .map((groupInfo) => ({ groupInfo, rows: items.filter((item) => groupOf(item).id === groupInfo.id) }))
-    .filter((entry) => entry.rows.length);
-  const body = grouped.map(({ groupInfo, rows }) => `<div class="uw-work-board-group" style="--uw-group:${groupInfo.color}"><div class="uw-work-board-group-head"><span></span><strong>${esc(groupInfo.name)}</strong><small>${rows.length}</small></div>${sorted(rows).map(workRow).join("")}</div>`).join("");
+  const body = sorted(items).map((item) => workRow(item, true)).join("");
   return `<section class="uw-work-status-section" style="--uw-status:${definition.color}" data-work-kind="${kind}" data-work-drop-status="${definition.id}"><div class="uw-work-status-head"><span></span><strong>${definition.label}</strong><small>${items.length}</small></div><div class="uw-work-list">${items.length ? body : '<div class="uw-work-status-empty">여기로 옮길 수 있어요.</div>'}</div></section>`;
 }
 
@@ -131,7 +129,7 @@ function renderKind(kind) {
   const items = allItems.filter((item) => item.status === status);
   const grouped = state.eventGroups.map((group) => ({ group, items: items.filter((item) => groupOf(item).id === group.id) })).filter((entry) => entry.items.length);
   const definition = statusDefs.find((entry) => entry.id === status);
-  root.innerHTML = `<div class="uw-work-filtered-drop" data-work-kind="${kind}" data-work-drop-status="${status}">${grouped.length ? grouped.map(({ group, items: rows }) => `<section class="uw-work-group" style="--uw-group:${group.color}"><div class="uw-work-group-head"><span></span><strong>${esc(group.name)}</strong><small>${rows.length}</small></div><div class="uw-work-list">${sorted(rows).map(workRow).join("")}</div></section>`).join("") : `<div class="empty uw-work-empty">${definition?.label || "이 상태"} 항목이 없어요.</div>`}</div>`;
+  root.innerHTML = `<div class="uw-work-filtered-drop" data-work-kind="${kind}" data-work-drop-status="${status}">${grouped.length ? grouped.map(({ group, items: rows }) => `<section class="uw-work-group" style="--uw-group:${group.color}"><div class="uw-work-group-head"><span></span><strong>${esc(group.name)}</strong><small>${rows.length}</small></div><div class="uw-work-list">${sorted(rows).map((item) => workRow(item, false)).join("")}</div></section>`).join("") : `<div class="empty uw-work-empty">${definition?.label || "이 상태"} 항목이 없어요.</div>`}</div>`;
 }
 
 function fillDialogOptions() {
