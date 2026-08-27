@@ -1,0 +1,28 @@
+name: Equal home columns
+
+on:
+  push:
+    paths:
+      - '.github/workflows/equal-home-columns.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply 1 to 1 home layout
+        run: |
+          python3 -c "from pathlib import Path; p=Path('css/unified-workspace.css'); s=p.read_text(); old='grid-template-columns:minmax(0,2fr) minmax(280px,1fr)!important'; new='grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important'; assert old in s; p.write_text(s.replace(old,new,1)); p=Path('index.html'); s=p.read_text(); assert 'css/unified-workspace.css?v=23' in s; p.write_text(s.replace('css/unified-workspace.css?v=23','css/unified-workspace.css?v=24',1))"
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/equal-home-columns.yml
+          git add css/unified-workspace.css index.html
+          git commit -m "Balance home columns equally"
+          git push
