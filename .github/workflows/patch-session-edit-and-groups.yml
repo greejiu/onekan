@@ -1,0 +1,209 @@
+name: Patch time record editing and date groups
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-session-edit-and-groups.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch time tracking records
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, got {count}')
+              return text.replace(old, new, 1)
+
+          app_path = Path('js/app.js')
+          app = app_path.read_text()
+
+          app = replace_once(app,
+              'let editingBlockId = null;\n',
+              'let editingBlockId = null;\nlet editingSessionId = null;\n',
+              'editing session state')
+
+          app = replace_once(app,
+              '<div class="manual-session-head"><strong>시간 기록 추가</strong><button class="uw-icon-btn" data-close-session type="button" aria-label="닫기">×</button></div>',
+              '<div class="manual-session-head"><strong id="manualSessionDialogTitle">시간 기록 추가</strong><button class="uw-icon-btn" data-close-session type="button" aria-label="닫기">×</button></div>',
+              'manual session title id')
+
+          old_push = '''    state.sessions.push({
+      id: uid(),
+      taskId: null,
+      title,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      durationMs: end - start,
+      timerMode: "manual"
+    });
+    await save();
+    dialog.close();
+    renderTracking();
+    renderDashboard();'''
+          new_push = '''    if (editingSessionId) {
+      const session = state.sessions.find((item) => item.id === editingSessionId);
+      if (!session) {
+        error.textContent = "수정할 기록을 찾지 못했어요.";
+        return;
+      }
+      session.title = title;
+      session.start = start.toISOString();
+      session.end = end.toISOString();
+      session.durationMs = end - start;
+    } else {
+      state.sessions.push({
+        id: uid(),
+        taskId: null,
+        title,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        durationMs: end - start,
+        timerMode: "manual"
+      });
+    }
+    editingSessionId = null;
+    await save();
+    dialog.close();
+    renderTracking();
+    renderDashboard();'''
+          app = replace_once(app, old_push, new_push, 'manual session save')
+
+          render_pattern = re.compile(r'function renderSessions\(\) \{.*?\n\}\n\nfunction ensureManualSessionDialog', re.S)
+          render_replacement = '''function renderSessions() {
+  const dayKey = appDayKey();
+  const today = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) === dayKey).sort((a, b) => new Date(b.end) - new Date(a.end));
+  const past = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) < dayKey).sort((a, b) => new Date(b.end) - new Date(a.end)).slice(0, 50);
+  const rowMarkup = (session) => `<div class="history-row editable-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta">${sessionPeriod(session)}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`;
+  const make = (items) => items.length ? items.map(rowMarkup).join("") : '<div class="empty">아직 기록이 없어요.</div>';
+  const makePast = (items) => {
+    if (!items.length) return '<div class="empty">아직 기록이 없어요.</div>';
+    const groups = new Map();
+    for (const session of items) {
+      const key = localDateKey(appDayDate(new Date(session.end || session.start)));
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(session);
+    }
+    return [...groups.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([key, sessions]) => {
+      const date = new Date(`${key}T12:00:00`);
+      const label = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(date);
+      return `<section class="tracking-date-group" data-tracking-date="${key}"><div class="tracking-date-heading"><strong>${label}</strong></div><div class="tracking-date-records">${sessions.map(rowMarkup).join("")}</div></section>`;
+    }).join("");
+  };
+  $("#todaySessions").innerHTML = make(today);
+  $("#allSessions").innerHTML = makePast(past);
+  $("#trackingTodayTotal").textContent = `오늘 ${fmtDuration(todayFocusMs())}`;
+}
+
+function ensureManualSessionDialog'''
+          app, count = render_pattern.subn(render_replacement, app, count=1)
+          if count != 1:
+              raise SystemExit(f'renderSessions: expected 1 match, got {count}')
+
+          open_pattern = re.compile(r'function openManualSession\(defaultOffset = 0\) \{.*?\n\}\n\nfunction renderTracking', re.S)
+          open_replacement = '''function openManualSession(defaultOffset = 0) {
+  editingSessionId = null;
+  const dialog = ensureManualSessionDialog();
+  $("#manualSessionDialogTitle", dialog).textContent = "시간 기록 추가";
+  const date = appDayDate();
+  date.setDate(date.getDate() + defaultOffset);
+  const now = new Date();
+  let endMinute = defaultOffset === 0 ? now.getHours() * 60 + now.getMinutes() : 18 * 60;
+  endMinute = Math.min(23 * 60 + 55, Math.max(30, Math.round(endMinute / 5) * 5));
+  const startMinute = Math.max(0, endMinute - 30);
+  const timeValue = (minute) => `${String(Math.floor(minute / 60) % 24).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+  $("#manualSessionTitle", dialog).value = "";
+  $("#manualSessionDate", dialog).value = localDateKey(date);
+  $("#manualSessionStart", dialog).value = timeValue(startMinute);
+  $("#manualSessionEnd", dialog).value = timeValue(endMinute);
+  $("#manualSessionError", dialog).textContent = "";
+  dialog.showModal();
+  requestAnimationFrame(() => $("#manualSessionTitle", dialog).focus());
+}
+
+function openSessionEditor(sessionId) {
+  const session = state.sessions.find((item) => item.id === sessionId);
+  if (!session) return window.alert("수정할 기록을 찾지 못했어요.");
+  editingSessionId = sessionId;
+  const dialog = ensureManualSessionDialog();
+  const start = new Date(session.start || session.end);
+  const end = new Date(session.end || session.start);
+  const timeValue = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  $("#manualSessionDialogTitle", dialog).textContent = "시간 기록 변경";
+  $("#manualSessionTitle", dialog).value = session.title || "";
+  $("#manualSessionDate", dialog).value = localDateKey(start);
+  $("#manualSessionStart", dialog).value = timeValue(start);
+  $("#manualSessionEnd", dialog).value = timeValue(end);
+  $("#manualSessionError", dialog).textContent = "";
+  dialog.showModal();
+  requestAnimationFrame(() => $("#manualSessionStart", dialog).focus());
+}
+
+function renderTracking'''
+          app, count = open_pattern.subn(open_replacement, app, count=1)
+          if count != 1:
+              raise SystemExit(f'openManualSession: expected 1 match, got {count}')
+
+          listener_old = '  $$([data-add-session])'
+          # literal selector line is easier to patch below using its exact source text
+          exact_listener = '  $$("[data-add-session]").forEach((button) => button.addEventListener("click", () => openManualSession(Number(button.dataset.defaultOffset || 0))));\n'
+          listener_new = exact_listener + '  document.addEventListener("onekan:edit-session", (event) => openSessionEditor(event.detail?.id));\n'
+          app = replace_once(app, exact_listener, listener_new, 'session edit event')
+
+          app_path.write_text(app)
+
+          context_path = Path('js/context-menu.js')
+          context = context_path.read_text()
+          context = replace_once(context,
+              '  menu.querySelector(\'[data-context-action="duplicate"]\')?.classList.toggle("hidden", !duplicable(target.kind));\n',
+              '  menu.querySelector(\'[data-context-action="duplicate"]\')?.classList.toggle("hidden", !duplicable(target.kind));\n  menu.querySelector(\'[data-context-action="session-time"]\')?.classList.toggle("hidden", target.kind !== "session");\n',
+              'session menu visibility')
+          context = replace_once(context,
+              '    <div class="context-group-list hidden" id="contextGroupList" role="group"></div>\n    <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;',
+              '    <div class="context-group-list hidden" id="contextGroupList" role="group"></div>\n    <button type="button" role="menuitem" class="hidden" data-context-action="session-time">시간 변경</button>\n    <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;',
+              'session menu item')
+          context = replace_once(context,
+              '    else if (action === "duplicate") duplicateTarget();\n',
+              '    else if (action === "duplicate") duplicateTarget();\n    else if (action === "session-time") { const target = currentTarget; hideMenu(); if (target?.kind === "session") document.dispatchEvent(new CustomEvent("onekan:edit-session", { detail: { id: target.id } })); }\n',
+              'session menu action')
+          context_path.write_text(context)
+
+          style_path = Path('css/style.css')
+          style = style_path.read_text()
+          style = replace_once(style,
+              '.history-time { font-variant-numeric: tabular-nums; font-size: 13px; }\n.editable-row { cursor: text; }',
+              '.history-time { font-variant-numeric: tabular-nums; font-size: 13px; }\n.tracking-date-group { margin-bottom: 12px; }\n.tracking-date-group:last-child { margin-bottom: 0; }\n.tracking-date-heading { min-height: 34px; display: flex; align-items: center; padding: 4px 7px; border-bottom: 1px solid var(--line); }\n.tracking-date-heading strong { font-size: 12px; }\n.tracking-date-records .history-row:last-child { border-bottom: 0; }\n.editable-row { cursor: text; }',
+              'tracking date styles')
+          style_path.write_text(style)
+
+          index_path = Path('index.html')
+          index = index_path.read_text()
+          index = replace_once(index, './css/style.css?v=19', './css/style.css?v=20', 'style cache')
+          index = replace_once(index, './js/app.js?v=29', './js/app.js?v=30', 'app cache')
+          index = replace_once(index, './js/context-menu.js?v=16', './js/context-menu.js?v=17', 'context cache')
+          index_path.write_text(index)
+          PY
+      - name: Validate JavaScript
+        run: |
+          node --check js/app.js
+          node --check js/context-menu.js
+      - name: Commit patch
+        run: |
+          rm .github/workflows/patch-session-edit-and-groups.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Edit time records and group history by date"
+          git push
