@@ -1,0 +1,81 @@
+name: Patch recurring task instance time
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-recurring-task-instance-time.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch unified workspace
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('js/unified-workspace.js')
+          text = path.read_text()
+
+          def replace_once(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, got {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+          '  s.habitOverrides=s.habitOverrides&&typeof s.habitOverrides==="object"?s.habitOverrides:{};\n  s.timeBlocks=Array.isArray(s.timeBlocks)?s.timeBlocks:[];',
+          '  s.habitOverrides=s.habitOverrides&&typeof s.habitOverrides==="object"?s.habitOverrides:{};\n  s.taskOverrides=s.taskOverrides&&typeof s.taskOverrides==="object"?s.taskOverrides:{};\n  s.timeBlocks=Array.isArray(s.timeBlocks)?s.timeBlocks:[];',
+          'normalize taskOverrides')
+
+          replace_once(
+          'function cleanHabitOverride(source,date,id){const value=source.habitOverrides?.[date]?.[id];if(value&&Object.keys(value).length===0)delete source.habitOverrides[date][id];if(source.habitOverrides?.[date]&&Object.keys(source.habitOverrides[date]).length===0)delete source.habitOverrides[date]}\nfunction itemsForDay(k){',
+          '''function cleanHabitOverride(source,date,id){const value=source.habitOverrides?.[date]?.[id];if(value&&Object.keys(value).length===0)delete source.habitOverrides[date][id];if(source.habitOverrides?.[date]&&Object.keys(source.habitOverrides[date]).length===0)delete source.habitOverrides[date]}\nfunction taskOverride(source,date,id,create=false){if(!source||!date||!id)return null;if(create){source.taskOverrides||={};source.taskOverrides[date]||={};source.taskOverrides[date][id]||={}}return source.taskOverrides?.[date]?.[id]||null}\nfunction cleanTaskOverride(source,date,id){const value=source.taskOverrides?.[date]?.[id];if(value&&Object.keys(value).length===0)delete source.taskOverrides[date][id];if(source.taskOverrides?.[date]&&Object.keys(source.taskOverrides[date]).length===0)delete source.taskOverrides[date]}\nfunction clearTaskTimingOverrides(source,id){Object.keys(source.taskOverrides||{}).forEach(date=>{const value=source.taskOverrides?.[date]?.[id];if(!value)return;delete value.startMinute;delete value.duration;cleanTaskOverride(source,date,id)})}\nfunction itemsForDay(k){''',
+          'task override helpers')
+
+          old_tasks = '''  const tasks=state.tasks.filter(task=>task.date&&recurrenceOn(task,task.date,k)).map(task=>{\n    let start=null,duration=null;\n    if(task.notionStart&&task.notionEnd){\n      const date=new Date(task.notionStart);\n      start=date.getHours()*60+date.getMinutes();\n      duration=Math.max(SLOT,Math.round((new Date(task.notionEnd)-date)/60000/SLOT)*SLOT)\n    }else{\n      const block=state.timeBlocks.find(block=>block.taskId===task.id&&(block.date===k||task.recurrence&&block.date===task.date));\n      if(block){start=+block.startMinute;duration=+block.duration||SLOT}\n    }\n    return{kind:"task",item:task,timed:start!==null,time:start,duration}\n  });'''
+          new_tasks = '''  const tasks=state.tasks.filter(task=>task.date&&recurrenceOn(task,task.date,k)).map(task=>{\n    const override=taskOverride(state,k,task.id)||{};\n    let start=null,duration=null;\n    if(Object.prototype.hasOwnProperty.call(override,"startMinute")){\n      start=override.startMinute;\n      duration=+override.duration||SLOT\n    }else if(task.notionStart&&task.notionEnd){\n      const date=new Date(task.notionStart);\n      start=date.getHours()*60+date.getMinutes();\n      duration=Math.max(SLOT,Math.round((new Date(task.notionEnd)-date)/60000/SLOT)*SLOT)\n    }else{\n      const block=state.timeBlocks.find(block=>block.taskId===task.id&&block.date===k);\n      if(block){start=+block.startMinute;duration=+block.duration||SLOT}\n    }\n    const timed=start!==null&&start!==undefined&&Number.isFinite(Number(start));\n    return{kind:"task",item:task,timed,time:timed?Number(start):null,duration:timed?(+duration||SLOT):null}\n  });'''
+          replace_once(old_tasks, new_tasks, 'itemsForDay task timing')
+
+          replace_once(
+          'function askHabitScope(mode,habit,date){const dialog=$("#uwHabitScopeDialog");if(!dialog)return Promise.resolve(null);$("#uwHabitScopeTitle").textContent=mode==="delete"?"습관 삭제":"습관 변경";$("#uwHabitScopeMessage").textContent=mode==="delete"?`${dayLabel(fromKey(date),true)}의 ‘${habit?.title||"습관"}’을 어떻게 삭제할까요?`:`${dayLabel(fromKey(date),true)}의 ‘${habit?.title||"습관"}’ 변경 범위를 선택해 주세요.`;const dayButton=dialog.querySelector(\'[data-uw-habit-scope="day"]\'),allButton=dialog.querySelector(\'[data-uw-habit-scope="all"]\');dayButton.textContent=mode==="delete"?"이 날만 숨기기":"이 날만 변경";allButton.textContent=mode==="delete"?"습관 전체 삭제":"전체 반복 변경";dialog.showModal();return new Promise(resolve=>{habitScopeResolve=resolve})}\nfunction wireHabitScopeDialog(){',
+          'function askHabitScope(mode,habit,date){const dialog=$("#uwHabitScopeDialog");if(!dialog)return Promise.resolve(null);$("#uwHabitScopeTitle").textContent=mode==="delete"?"습관 삭제":"습관 변경";$("#uwHabitScopeMessage").textContent=mode==="delete"?`${dayLabel(fromKey(date),true)}의 ‘${habit?.title||"습관"}’을 어떻게 삭제할까요?`:`${dayLabel(fromKey(date),true)}의 ‘${habit?.title||"습관"}’ 변경 범위를 선택해 주세요.`;const dayButton=dialog.querySelector(\'[data-uw-habit-scope="day"]\'),allButton=dialog.querySelector(\'[data-uw-habit-scope="all"]\');dayButton.textContent=mode==="delete"?"이 날만 숨기기":"이 날만 변경";allButton.textContent=mode==="delete"?"습관 전체 삭제":"전체 반복 변경";dialog.showModal();return new Promise(resolve=>{habitScopeResolve=resolve})}\nfunction askTaskScope(task,date){const dialog=$("#uwHabitScopeDialog");if(!dialog)return Promise.resolve(null);$("#uwHabitScopeTitle").textContent="반복 할일 변경";$("#uwHabitScopeMessage").textContent=`${dayLabel(fromKey(date),true)}의 ‘${task?.title||"할일"}’ 시간을 어떻게 변경할까요?`;const dayButton=dialog.querySelector(\'[data-uw-habit-scope="day"]\'),allButton=dialog.querySelector(\'[data-uw-habit-scope="all"]\');dayButton.textContent="이 할일만 변경";allButton.textContent="전체 반복 변경";dialog.showModal();return new Promise(resolve=>{habitScopeResolve=resolve})}\nfunction wireHabitScopeDialog(){',
+          'task scope dialog')
+
+          start = text.index('async function saveTimedChange(kind,id,date,startMinute,duration){')
+          end = text.index('\nasync function saveDateMove', start)
+          if start < 0 or end < 0:
+              raise SystemExit('saveTimedChange boundaries not found')
+          text = text[:start] + '''async function saveTimedChange(kind,id,date,startMinute,duration){\n  if(kind==="habit"){\n    const habit=state?.habitTemplates.find(item=>item.id===id),scope=await askHabitScope("change",habit,date);\n    if(!habit||!scope)return;\n    await write(current=>{const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=startMinute;override.duration=duration}else{target.startMinute=startMinute;target.duration=duration;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});\n    return\n  }\n  if(kind==="task"){\n    const task=state?.tasks.find(item=>item.id===id);\n    if(!task)return;\n    if(task.recurrence?.frequency){\n      const scope=await askTaskScope(task,date);\n      if(!scope)return;\n      await write(current=>{\n        const target=current.tasks.find(item=>item.id===id);\n        if(!target)return;\n        if(scope==="day"){\n          const override=taskOverride(current,date,id,true);\n          override.startMinute=startMinute;\n          override.duration=duration;\n          current.timeBlocks=current.timeBlocks.filter(item=>!(item.taskId===id&&item.date===date));\n          current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:target.title,detail:target.title,date,startMinute,duration});\n          return\n        }\n        const baseDate=target.date||date;\n        const start=new Date(`${baseDate}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);\n        target.notionStart=start.toISOString();\n        target.notionEnd=new Date(start.getTime()+duration*60000).toISOString();\n        current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);\n        current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:target.title,detail:target.title,date:baseDate,startMinute,duration});\n        clearTaskTimingOverrides(current,id)\n      });\n      return\n    }\n    await write(current=>{const target=current.tasks.find(item=>item.id===id);if(!target)return;const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);target.date=date;target.notionStart=start.toISOString();target.notionEnd=new Date(start.getTime()+duration*60000).toISOString();current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:target.title,detail:target.title,date,startMinute,duration})});\n    return\n  }\n  await write(current=>{const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);const event=current.events.find(item=>item.id===id);if(!event)return;event.start=start.toISOString();event.end=new Date(start.getTime()+duration*60000).toISOString();event.allDay=false})\n}''' + text[end:]
+
+          start = text.index('async function saveUntimedChange(kind,id,date){')
+          end = text.index('\nasync function saveDateOnlyChange', start)
+          if start < 0 or end < 0:
+              raise SystemExit('saveUntimedChange boundaries not found')
+          text = text[:start] + '''async function saveUntimedChange(kind,id,date){\n  if(kind==="habit"){\n    const habit=state?.habitTemplates.find(item=>item.id===id),scope=await askHabitScope("change",habit,date);\n    if(!habit||!scope)return;\n    await write(current=>{const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=null;delete override.duration}else{delete target.startMinute;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});\n    return\n  }\n  if(kind==="task"){\n    const task=state?.tasks.find(item=>item.id===id);\n    if(!task)return;\n    if(task.recurrence?.frequency){\n      const scope=await askTaskScope(task,date||task.date);\n      if(!scope)return;\n      await write(current=>{\n        const target=current.tasks.find(item=>item.id===id);\n        if(!target)return;\n        if(scope==="day"){\n          const override=taskOverride(current,date||target.date,id,true);\n          override.startMinute=null;\n          delete override.duration;\n          current.timeBlocks=current.timeBlocks.filter(item=>!(item.taskId===id&&item.date===(date||target.date)));\n          return\n        }\n        delete target.notionStart;\n        delete target.notionEnd;\n        current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);\n        clearTaskTimingOverrides(current,id)\n      });\n      return\n    }\n    await write(s=>{const target=s.tasks.find(x=>x.id===id);if(!target)return;target.date=date||null;delete target.notionStart;delete target.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id)});\n    return\n  }\n  await write(s=>{const event=s.events.find(x=>x.id===id);if(!event)return;const noon=new Date(`${date}T12:00:00`);event.start=noon.toISOString();event.end=noon.toISOString();event.allDay=true})\n}''' + text[end:]
+
+          replace_once(
+          'if(record.kind==="task"){current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id)}}))}',
+          'if(record.kind==="task"){current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id);Object.values(current.taskOverrides||{}).forEach(day=>delete day[record.id])}}))}',
+          'task delete overrides')
+
+          path.write_text(text)
+          PY
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/unified-workspace.js
+          git commit -m "Fix recurring task instance time scope"
+          git push
