@@ -113,8 +113,11 @@ function renderActivity() {
 
 async function renderAll() {
   await readState();
-  renderTasksPage();
-  renderHabitsPage();
+  const unifiedWorkspace = document.querySelector('script[src*="unified-workspace.js"]');
+  if (!unifiedWorkspace) {
+    renderTasksPage();
+    renderHabitsPage();
+  }
   renderActivity();
   wireDynamicDragSources();
 }
