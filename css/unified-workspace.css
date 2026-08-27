@@ -148,3 +148,20 @@
   .uw-work-row{padding:10px}
   .uw-work-progress,.uw-work-links{margin-left:0}
 }
+
+
+/* Precise timeline hit areas and overlap columns */
+.uw-item{cursor:default}
+.uw-item-title,.uw-habit-title{cursor:text;-webkit-user-drag:none}
+.uw-check{cursor:pointer}
+.uw-time-entry{min-width:0}
+.uw-resize-handle{right:2px;left:2px;height:10px;cursor:ns-resize}
+.uw-resize-handle::after{opacity:.14}
+.uw-time-entry:hover .uw-resize-handle::after,.uw-time-entry.selected .uw-resize-handle::after{opacity:.3}
+@media(hover:hover) and (pointer:fine){
+  .uw-item .uw-move-handle,.uw-time-entry .uw-move-handle{display:none!important;pointer-events:none!important}
+}
+@media(hover:none),(pointer:coarse){
+  .uw-item .uw-move-handle,.uw-time-entry .uw-move-handle{display:none!important;pointer-events:none!important;cursor:default}
+  .uw-item.selected .uw-move-handle,.uw-time-entry.selected .uw-move-handle{display:inline-grid!important;place-items:center;pointer-events:auto!important;opacity:.24;color:var(--text)}
+}
