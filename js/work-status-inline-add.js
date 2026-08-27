@@ -86,7 +86,7 @@ async function saveQuickItem({ kind, status, groupName, title }) {
     id: crypto.randomUUID(),
     kind,
     title,
-    status: kind === "goal" ? (goalSection === "done" ? "done" : "doing") : status,
+    status: kind === "goal" ? (goalSection === "done" ? "done" : goalSection === "closed" ? "closed" : "doing") : status,
     groupId: group?.id || current.eventGroups[0]?.id || "default",
     startDate: todayKey(),
     deadline: "",
@@ -94,6 +94,7 @@ async function saveQuickItem({ kind, status, groupName, title }) {
   };
   if (kind === "goal") item.goalTerm = goalSection === "long" ? "long" : "short";
   if (item.status === "done") item.completedAt = new Date().toISOString();
+  if (item.status === "closed") item.closedAt = new Date().toISOString();
   current.projects.push(item);
   const { error } = await supabase.from("onekan_state").upsert({ user_id: userId, data: current }, { onConflict: "user_id" });
   if (error) throw error;

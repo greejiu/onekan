@@ -20,6 +20,7 @@ const goalDefs = [
   { id: "short", label: "단기 목표", color: "#8fa9c4" },
   { id: "long", label: "장기 목표", color: "#88b49a" },
   { id: "done", label: "달성", color: "#a69ab8" },
+  { id: "closed", label: "종료", color: "#b89a91" },
 ];
 
 let user = null;
@@ -59,14 +60,16 @@ function migrate(current) {
     if (item.status === "하는 중") item.status = "doing";
     if (item.status === "paused" || item.status === "보류" || item.status === "중단") item.status = "stopped";
     if (item.status === "완료") item.status = "done";
+    if (item.status === "종료") item.status = "closed";
     if (item.kind === "goal") {
-      item.status = item.status === "done" ? "done" : "doing";
+      item.status = item.status === "done" ? "done" : item.status === "closed" ? "closed" : "doing";
       if (!["short", "long"].includes(item.goalTerm)) item.goalTerm = "short";
     } else if (!statusDefs.some((status) => status.id === item.status)) {
       item.status = "before";
     }
     item.startDate ||= item.createdAt ? String(item.createdAt).slice(0, 10) : "";
     if (item.status === "done" && !item.completedAt) item.completedAt = new Date().toISOString();
+    if (item.kind === "goal" && item.status === "closed" && !item.closedAt) item.closedAt = new Date().toISOString();
     delete item.progress;
   }
   const validGoalIds = new Set(current.projects.filter((item) => item.kind === "goal").map((item) => item.id));
@@ -116,7 +119,12 @@ function dateMeta(item) {
   const parts = [];
   if (item.startDate) parts.push(`시작 ${item.startDate}`);
   if (item.deadline) parts.push(`마감 ${item.deadline}`);
-  if (item.completedAt) parts.push(`${item.kind === "goal" ? "달성" : "완료"} ${String(item.completedAt).slice(0, 10)}`);
+  if (item.kind === "goal") {
+    if (item.status === "done" && item.completedAt) parts.push(`달성 ${String(item.completedAt).slice(0, 10)}`);
+    if (item.status === "closed" && item.closedAt) parts.push(`종료 ${String(item.closedAt).slice(0, 10)}`);
+  } else if (item.completedAt) {
+    parts.push(`완료 ${String(item.completedAt).slice(0, 10)}`);
+  }
   return parts.join(" · ") || "날짜 없음";
 }
 
@@ -142,7 +150,11 @@ function renderKind(kind) {
   $$('[data-work-kind="' + kind + '"][data-work-status]').forEach((button) => button.classList.toggle("active", button.dataset.workStatus === status));
 
   if (kind === "goal") {
-    const matchesGoalSection = (item, section) => section === "done" ? item.status === "done" : item.status !== "done" && item.goalTerm === section;
+    const matchesGoalSection = (item, section) => {
+      if (section === "done") return item.status === "done";
+      if (section === "closed") return item.status === "closed";
+      return item.status === "doing" && item.goalTerm === section;
+    };
     if (status === "all") {
       root.innerHTML = `<div class="uw-work-status-board uw-goal-status-board">${goalDefs.map((definition) => statusSection(kind, definition, allItems.filter((item) => matchesGoalSection(item, definition.id)))).join("")}</div>`;
       return;
@@ -170,6 +182,22 @@ function fillDialogOptions() {
   if (goalSelect) goalSelect.innerHTML = '<option value="">연결 안 함</option>' + state.projects.filter((item) => item.kind === "goal").map((goal) => `<option value="${goal.id}">${esc(goal.title)}</option>`).join("");
 }
 
+function renderGoalProjects(goalId) {
+  const editor = $("#goalProjectsEditor");
+  const list = $("#goalProjectList");
+  const count = $("#goalProjectCount");
+  if (!editor || !list) return;
+  const projects = goalId ? sorted(state.projects.filter((item) => item.kind === "project" && item.goalId === goalId)) : [];
+  editor.hidden = !goalId;
+  if (!goalId) {
+    list.innerHTML = "";
+    if (count) count.textContent = "";
+    return;
+  }
+  if (count) count.textContent = `${projects.length}개`;
+  list.innerHTML = projects.length ? projects.map((project) => `<div class="uw-goal-project-row" style="--uw-group:${groupOf(project).color}"><span></span><strong>${esc(project.title)}</strong><small>${esc(statusDefs.find((entry) => entry.id === project.status)?.label || "시작 전")}</small></div>`).join("") : '<div class="uw-goal-project-empty">아직 연결된 프로젝트가 없어요.</div>';
+}
+
 function openDialog(kind, item = null) {
   const dialog = $("#projectDialog");
   fillDialogOptions(kind, item);
@@ -182,8 +210,8 @@ function openDialog(kind, item = null) {
   const goalTermField = $("#goalTermField");
   const goalTermSelect = $("#goalTerm");
   if (kind === "goal") {
-    statusSelect.innerHTML = '<option value="doing">진행 중</option><option value="done">달성</option>';
-    statusSelect.value = item?.status === "done" ? "done" : "doing";
+    statusSelect.innerHTML = '<option value="doing">진행 중</option><option value="done">달성</option><option value="closed">종료</option>';
+    statusSelect.value = item?.status === "done" ? "done" : item?.status === "closed" ? "closed" : "doing";
     if (statusLabel) statusLabel.textContent = "상태";
     if (goalTermField) goalTermField.hidden = false;
     if (goalTermSelect) goalTermSelect.value = item?.goalTerm === "long" ? "long" : "short";
@@ -196,8 +224,12 @@ function openDialog(kind, item = null) {
   $("#projectGroup").value = item?.groupId || state.eventGroups[0]?.id || "default";
   const goalField = $("#projectGoalField");
   const goalSelect = $("#projectGoal");
-  if (goalField) goalField.hidden = kind !== "project";
+  if (goalField) {
+    goalField.hidden = kind !== "project";
+    goalField.style.display = kind === "project" ? "" : "none";
+  }
   if (goalSelect) goalSelect.value = kind === "project" ? (item?.goalId || "") : "";
+  renderGoalProjects(kind === "goal" ? (item?.id || "") : "");
   $("#projectStartDate").value = item?.startDate || todayKey();
   $("#projectDeadline").value = item?.deadline || "";
   const convertButton = $("#convertProjectBtn");
@@ -224,10 +256,16 @@ async function moveWorkItem(id, status) {
       if (status === "done") {
         item.status = "done";
         item.completedAt ||= new Date().toISOString();
+        item.closedAt = null;
+      } else if (status === "closed") {
+        item.status = "closed";
+        item.closedAt ||= new Date().toISOString();
+        item.completedAt = null;
       } else {
         item.goalTerm = status;
         item.status = "doing";
         item.completedAt = null;
+        item.closedAt = null;
       }
       return;
     }
@@ -347,6 +385,42 @@ function wireUI() {
   $("#addGoalBtn")?.addEventListener("click", () => openDialog("goal"));
   $("#addProjectBtn")?.addEventListener("click", () => openDialog("project"));
   $("#cancelProjectBtn")?.addEventListener("click", () => $("#projectDialog")?.close());
+  $("#goalProjectAddBtn")?.addEventListener("click", async () => {
+    const goalId = $("#projectKind")?.value === "goal" ? $("#projectId")?.value : "";
+    const input = $("#goalProjectNewTitle");
+    const title = input?.value.trim() || "";
+    if (!goalId || !title) return;
+    const button = $("#goalProjectAddBtn");
+    if (button) button.disabled = true;
+    try {
+      await writeState((current) => {
+        const goal = current.projects.find((item) => item.id === goalId && item.kind === "goal");
+        if (!goal) return;
+        current.projects.push({
+          id: uid(),
+          kind: "project",
+          title,
+          status: "before",
+          groupId: $("#projectGroup")?.value || goal.groupId || current.eventGroups[0]?.id || "default",
+          goalId,
+          startDate: todayKey(),
+          deadline: "",
+          createdAt: new Date().toISOString(),
+        });
+      });
+      if (input) input.value = "";
+      renderGoalProjects(goalId);
+      input?.focus({ preventScroll: true });
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+  $("#goalProjectNewTitle")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    event.stopPropagation();
+    $("#goalProjectAddBtn")?.click();
+  });
   $("#convertProjectBtn")?.addEventListener("click", async (event) => {
     const id = event.currentTarget.dataset.workConvertId;
     const nextKind = event.currentTarget.dataset.workConvertKind;
@@ -360,6 +434,7 @@ function wireUI() {
         delete item.goalId;
         item.goalTerm = "short";
         item.status = item.status === "done" ? "done" : "doing";
+        item.closedAt = null;
         current.tasks.forEach((task) => {
           if (task.projectId !== id) return;
           delete task.projectId;
@@ -368,6 +443,7 @@ function wireUI() {
       } else {
         delete item.goalId;
         delete item.goalTerm;
+        delete item.closedAt;
         if (!["before", "doing", "done", "stopped"].includes(item.status)) item.status = "before";
       }
       if (oldKind === "goal" && nextKind === "project") {
@@ -390,7 +466,8 @@ function wireUI() {
       }
       item.title = title;
       item.kind = kind;
-      item.status = kind === "goal" ? ($("#projectStatus").value === "done" ? "done" : "doing") : $("#projectStatus").value;
+      const selectedStatus = $("#projectStatus").value;
+      item.status = kind === "goal" ? (selectedStatus === "done" ? "done" : selectedStatus === "closed" ? "closed" : "doing") : selectedStatus;
       if (kind === "goal") item.goalTerm = $("#goalTerm")?.value === "long" ? "long" : "short";
       else delete item.goalTerm;
       item.groupId = $("#projectGroup").value || current.eventGroups[0]?.id;
@@ -399,8 +476,16 @@ function wireUI() {
       const selectedGoalId = $("#projectGoal")?.value || "";
       if (kind === "project" && selectedGoalId) item.goalId = selectedGoalId;
       else delete item.goalId;
-      if (item.status === "done") item.completedAt ||= new Date().toISOString();
-      else item.completedAt = null;
+      if (item.status === "done") {
+        item.completedAt ||= new Date().toISOString();
+        item.closedAt = null;
+      } else if (kind === "goal" && item.status === "closed") {
+        item.closedAt ||= new Date().toISOString();
+        item.completedAt = null;
+      } else {
+        item.completedAt = null;
+        if (kind === "goal") item.closedAt = null;
+      }
     });
     $("#projectDialog").close();
   });

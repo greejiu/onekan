@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=20" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=27" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=28" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -159,6 +159,7 @@
           <button data-work-kind="goal" data-work-status="short" type="button">단기 목표</button>
           <button data-work-kind="goal" data-work-status="long" type="button">장기 목표</button>
           <button data-work-kind="goal" data-work-status="done" type="button">달성</button>
+          <button data-work-kind="goal" data-work-status="closed" type="button">종료</button>
         </div>
         <div class="uw-work-sections" id="goalSections"></div>
       </section>
@@ -237,6 +238,14 @@
       <div class="field" id="projectGoalField"><label>상위 목표</label><select id="projectGoal"><option value="">연결 안 함</option></select></div>
       <div class="field"><label>시작일</label><input id="projectStartDate" type="date" /></div>
       <div class="field"><label>마감기한</label><input id="projectDeadline" type="date" /></div>
+      <section class="uw-goal-projects-editor" id="goalProjectsEditor" hidden>
+        <div class="uw-goal-projects-head"><strong>연결된 프로젝트</strong><small id="goalProjectCount"></small></div>
+        <div class="uw-goal-project-list" id="goalProjectList"></div>
+        <div class="uw-goal-project-add">
+          <input id="goalProjectNewTitle" type="text" maxlength="120" autocomplete="off" placeholder="새 프로젝트" aria-label="새 프로젝트" />
+          <button id="goalProjectAddBtn" type="button">＋ 추가</button>
+        </div>
+      </section>
       <section class="uw-project-plan-editor" id="projectPlanEditor" hidden>
         <div class="uw-project-plan-editor-head"><strong>계획</strong><small id="projectPlanProgress"></small></div>
         <div class="uw-project-plan-list" id="projectPlanList"></div>
@@ -256,9 +265,9 @@
   <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
   <script type="module" src="./js/unified-workspace.js?v=28"></script>
-  <script type="module" src="./js/work-management.js?v=10"></script>
+  <script type="module" src="./js/work-management.js?v=11"></script>
   <script type="module" src="./js/project-planning.js?v=2"></script>
-  <script type="module" src="./js/work-status-inline-add.js?v=4"></script>
+  <script type="module" src="./js/work-status-inline-add.js?v=5"></script>
   <script type="module" src="./js/task-completed-groups.js?v=2"></script>
 </body>
 </html>
