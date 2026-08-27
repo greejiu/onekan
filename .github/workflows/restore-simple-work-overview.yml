@@ -1,0 +1,63 @@
+name: Restore simple work overview
+
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-simple-work-overview.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore simple overview cards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          work = Path('js/work-management.js')
+          text = work.read_text()
+
+          row_pattern = re.compile(r'function workRow\(item\) \{\n.*?\n\}\n\nfunction sorted', re.S)
+          row_replacement = '''function workRow(item, showGroup = false) {
+            const meta = showGroup ? `${groupOf(item).name} · ${dateMeta(item)}` : dateMeta(item);
+            return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${esc(meta)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div></article>`;
+          }
+
+          function sorted'''
+          text, count = row_pattern.subn(row_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'workRow replacement count: {count}')
+
+          section_pattern = re.compile(r'function statusSection\(kind, definition, items\) \{\n.*?\n\}\n\nfunction renderKind', re.S)
+          section_replacement = '''function statusSection(kind, definition, items) {
+            const body = sorted(items).map((item) => workRow(item, true)).join("");
+            return `<section class="uw-work-status-section" style="--uw-status:${definition.color}" data-work-kind="${kind}" data-work-drop-status="${definition.id}"><div class="uw-work-status-head"><span></span><strong>${definition.label}</strong><small>${items.length}</small></div><div class="uw-work-list">${items.length ? body : '<div class="uw-work-status-empty">여기로 옮길 수 있어요.</div>'}</div></section>`;
+          }
+
+          function renderKind'''
+          text, count = section_pattern.subn(section_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'statusSection replacement count: {count}')
+
+          text = text.replace('${sorted(rows).map(workRow).join("")}', '${sorted(rows).map((item) => workRow(item, false)).join("")}', 1)
+          work.write_text(text)
+
+          index = Path('index.html')
+          html = index.read_text()
+          html = html.replace('./js/work-management.js?v=7', './js/work-management.js?v=8')
+          index.write_text(html)
+          PY
+
+          git rm .github/workflows/restore-simple-work-overview.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/work-management.js index.html
+          git commit -m "Restore simple goal and work overview"
+          git push
