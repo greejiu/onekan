@@ -112,3 +112,4 @@ assert.equal(api.eventOccurrencesForDate('2026-08-27').length, 0, 'event one-day
 assert.equal(api.eventOccurrencesForDate('2026-08-28').length, 1, 'event series survives one-day delete');
 
 console.log('PASS recurrence regression: schedule/task/habit recurrence + per-day overrides + shared scope UX');
+// re-run after recurring-event whole-series date fix
