@@ -9,7 +9,6 @@ let state = null;
 let userId = null;
 let renderTimer = null;
 let reading = false;
-const openProjects = new Set();
 
 async function readState() {
   if (reading) return state;
@@ -23,6 +22,7 @@ async function readState() {
     const current = data?.data && typeof data.data === "object" ? data.data : {};
     current.tasks = Array.isArray(current.tasks) ? current.tasks : [];
     current.projects = Array.isArray(current.projects) ? current.projects : [];
+    current.timeBlocks = Array.isArray(current.timeBlocks) ? current.timeBlocks : [];
     current.eventGroups = Array.isArray(current.eventGroups) && current.eventGroups.length ? current.eventGroups : [{ id: "default", name: "기본", color: "#8fa9c4" }];
     state = current;
     return state;
@@ -52,14 +52,6 @@ function plansFor(projectId) {
     .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
 }
 
-function planSignature(project, plans) {
-  return JSON.stringify([
-    project.id,
-    project.goalId || "",
-    ...plans.map((plan) => [plan.id, plan.title, plan.date || "", Boolean(plan.done), plan.completedAt || ""]),
-  ]);
-}
-
 function planRow(plan) {
   const done = Boolean(plan.done);
   return `<div class="uw-project-plan-row${done ? " done" : ""}" data-project-plan-row="${plan.id}">
@@ -68,34 +60,6 @@ function planRow(plan) {
     <div class="uw-project-plan-date-wrap"><input class="uw-project-plan-date" data-project-plan-date="${plan.id}" type="date" value="${esc(plan.date || "")}" aria-label="계획 날짜" /><small>${plan.date ? "" : "언젠가"}</small></div>
     <button class="uw-project-plan-delete" data-project-plan-delete="${plan.id}" type="button" aria-label="계획 삭제">×</button>
   </div>`;
-}
-
-function decorateProjectRow(row, project) {
-  const plans = plansFor(project.id);
-  const signature = planSignature(project, plans);
-  const existing = $(".uw-project-plans", row);
-  if (existing?.dataset.planSignature === signature) return;
-  const wasOpen = existing?.open || false;
-  existing?.remove();
-
-  const complete = plans.filter((plan) => plan.done).length;
-  const details = document.createElement("details");
-  details.className = "uw-project-plans";
-  details.dataset.projectId = project.id;
-  details.dataset.planSignature = signature;
-  details.open = wasOpen || openProjects.has(project.id);
-  details.addEventListener("toggle", () => { if (details.open) openProjects.add(project.id); else openProjects.delete(project.id); });
-  details.innerHTML = `
-    <summary><span>${plans.length ? "계획" : "계획 세우기"}</span><small>${plans.length ? `${complete}/${plans.length}` : ""}</small><span class="uw-project-plan-chevron" aria-hidden="true">⌄</span></summary>
-    <div class="uw-project-plan-body">
-      <div class="uw-project-plan-list">${plans.length ? plans.map(planRow).join("") : '<div class="uw-project-plan-empty">계획을 실행할 만큼 작게 나눠보세요.</div>'}</div>
-      <form class="uw-project-plan-add" data-project-plan-add="${project.id}">
-        <input class="uw-project-plan-new-title" type="text" maxlength="120" autocomplete="off" placeholder="예: 50~54쪽 읽고 따라 그리기" aria-label="새 계획" required />
-        <div class="uw-project-plan-new-date"><input type="date" aria-label="계획 날짜" /><small>날짜 없으면 언젠가</small></div>
-        <button type="submit">추가</button>
-      </form>
-    </div>`;
-  row.appendChild(details);
 }
 
 function decorateGoalLabel(row, project) {
@@ -107,14 +71,55 @@ function decorateGoalLabel(row, project) {
   if (goal) meta.textContent += ` · 목표 ${goal.title}`;
 }
 
-function render() {
+function decoratePlanSummary(row, project) {
+  const meta = $(".uw-work-row-main small", row);
+  if (!meta) return;
+  $(".uw-project-plan-summary", meta)?.remove();
+  const plans = plansFor(project.id);
+  if (!plans.length) return;
+  const complete = plans.filter((plan) => plan.done).length;
+  const summary = document.createElement("span");
+  summary.className = "uw-project-plan-summary";
+  summary.textContent = ` · 계획 ${complete}/${plans.length}`;
+  meta.appendChild(summary);
+}
+
+function renderCards() {
   if (!state) return;
   $$("#projectSections .uw-work-row[data-work-id]").forEach((row) => {
+    $$(".uw-project-plans", row).forEach((element) => element.remove());
     const project = projectFor(row.dataset.workId);
     if (!project) return;
     decorateGoalLabel(row, project);
-    decorateProjectRow(row, project);
+    decoratePlanSummary(row, project);
   });
+}
+
+function renderDialogPlans() {
+  const dialog = $("#projectDialog");
+  const editor = $("#projectPlanEditor");
+  if (!dialog || !editor) return;
+
+  const kind = $("#projectKind")?.value;
+  const projectId = $("#projectId")?.value || "";
+  const project = kind === "project" && projectId ? projectFor(projectId) : null;
+  editor.hidden = !dialog.open || !project;
+  if (!project || !dialog.open) return;
+
+  const plans = plansFor(project.id);
+  const complete = plans.filter((plan) => plan.done).length;
+  const group = state.eventGroups.find((item) => item.id === project.groupId) || state.eventGroups[0];
+  editor.style.setProperty("--uw-group", group?.color || "#8fa9c4");
+
+  const progress = $("#projectPlanProgress");
+  if (progress) progress.textContent = plans.length ? `${complete}/${plans.length} 완료` : "아직 계획 없음";
+  const list = $("#projectPlanList");
+  if (list) list.innerHTML = plans.length ? plans.map(planRow).join("") : '<div class="uw-project-plan-empty">프로젝트를 실행할 만큼 작게 나눠보세요.</div>';
+}
+
+function render() {
+  renderCards();
+  renderDialogPlans();
 }
 
 async function refresh() {
@@ -131,13 +136,16 @@ function scheduleRender(delay = 40) {
   renderTimer = setTimeout(refresh, delay);
 }
 
-async function addPlan(form) {
-  const projectId = form.dataset.projectPlanAdd;
-  const title = $(".uw-project-plan-new-title", form)?.value.trim() || "";
-  const date = $(".uw-project-plan-new-date input", form)?.value || null;
+async function addPlan() {
+  const projectId = $("#projectId")?.value || "";
+  const titleInput = $("#projectPlanNewTitle");
+  const dateInput = $("#projectPlanNewDate");
+  const title = titleInput?.value.trim() || "";
+  const date = dateInput?.value || null;
   if (!title || !projectId) return;
-  const submit = $("button[type=submit]", form);
-  if (submit) submit.disabled = true;
+
+  const button = $("#projectPlanAddBtn");
+  if (button) button.disabled = true;
   try {
     await writeState((current) => {
       const project = current.projects.find((item) => item.id === projectId && item.kind === "project");
@@ -154,8 +162,11 @@ async function addPlan(form) {
         createdAt: new Date().toISOString(),
       });
     });
+    if (titleInput) titleInput.value = "";
+    if (dateInput) dateInput.value = "";
+    titleInput?.focus({ preventScroll: true });
   } finally {
-    if (submit) submit.disabled = false;
+    if (button) button.disabled = false;
   }
 }
 
@@ -195,15 +206,15 @@ function wireUI() {
   if (document.documentElement.dataset.projectPlanningWired) return;
   document.documentElement.dataset.projectPlanningWired = "1";
 
-  document.addEventListener("submit", async (event) => {
-    const form = event.target.closest?.("[data-project-plan-add]");
-    if (!form) return;
-    event.preventDefault();
-    event.stopPropagation();
-    try { await addPlan(form); } catch (error) { console.error("프로젝트 계획 추가 실패", error); }
-  }, true);
-
   document.addEventListener("click", async (event) => {
+    const add = event.target.closest?.("#projectPlanAddBtn");
+    if (add) {
+      event.preventDefault();
+      event.stopPropagation();
+      try { await addPlan(); } catch (error) { console.error("프로젝트 계획 추가 실패", error); }
+      return;
+    }
+
     const toggle = event.target.closest?.("[data-project-plan-toggle]");
     if (toggle) {
       event.preventDefault();
@@ -211,6 +222,7 @@ function wireUI() {
       await togglePlan(toggle.dataset.projectPlanToggle);
       return;
     }
+
     const remove = event.target.closest?.("[data-project-plan-delete]");
     if (remove) {
       event.preventDefault();
@@ -234,6 +246,11 @@ function wireUI() {
     if (title && event.key === "Enter") {
       event.preventDefault();
       title.blur();
+      return;
+    }
+    if (event.target.matches?.("#projectPlanNewTitle") && event.key === "Enter") {
+      event.preventDefault();
+      $("#projectPlanAddBtn")?.click();
     }
   }, true);
 
@@ -244,6 +261,9 @@ function wireUI() {
 
   const root = $("#projectSections");
   if (root) new MutationObserver(() => scheduleRender(10)).observe(root, { childList: true, subtree: true });
+
+  const dialog = $("#projectDialog");
+  if (dialog) new MutationObserver(() => scheduleRender(0)).observe(dialog, { attributes: true, attributeFilter: ["open"] });
 }
 
 wireUI();
