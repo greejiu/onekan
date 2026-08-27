@@ -1,0 +1,35 @@
+name: Rename group labels to area
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/rename-group-labels-to-area.py'
+      - '.github/workflows/rename-group-labels-to-area.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply label-only patch
+        run: python3 scripts/rename-group-labels-to-area.py
+      - name: Validate changed JavaScript
+        run: |
+          for f in js/*.js; do
+            node --check "$f"
+          done
+      - name: Show remaining labels
+        run: |
+          if grep -RIn --include='*.html' --include='*.js' '그룹' index.html js; then
+            echo 'Remaining 그룹 text found' >&2
+            exit 1
+          fi
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Rename group labels to area'
+          git push
