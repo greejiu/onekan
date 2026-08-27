@@ -282,3 +282,7 @@
 .uw-project-plan-delete{grid-column:3;grid-row:1/3;width:24px;height:24px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:16px;cursor:pointer}.uw-project-plan-delete:hover{background:var(--soft);color:var(--danger)}
 .uw-project-plan-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;padding:7px;border-radius:9px;background:var(--soft)}.uw-project-plan-new-title{grid-column:1/-1;min-width:0;height:31px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:#fff;font:inherit;font-size:10px}.uw-project-plan-new-date{display:flex;align-items:center;gap:6px;min-width:0}.uw-project-plan-new-date input{width:132px;max-width:100%;height:30px;padding:3px 5px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:9px}.uw-project-plan-new-date small{color:var(--muted);font-size:9px;white-space:nowrap}.uw-project-plan-add>button{min-height:30px;padding:4px 10px;border:0;border-radius:7px;background:var(--accent);color:#fff;font-size:10px;cursor:pointer}
 @media(max-width:700px){.uw-project-plans{margin-left:0}.uw-project-plan-row{padding:7px}.uw-project-plan-title{height:32px;font-size:12px}.uw-project-plan-date{height:32px}.uw-project-plan-add{grid-template-columns:1fr}.uw-project-plan-add>button{grid-column:1}.uw-project-plan-new-date{flex-wrap:wrap}}
+
+/* Goal horizon layout */
+.uw-goal-status-board{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+@media(max-width:900px){.uw-goal-status-board{grid-template-columns:repeat(3,minmax(230px,76vw))!important}}

@@ -16,6 +16,11 @@ const statusDefs = [
   { id: "done", label: "완료", color: "#a69ab8" },
   { id: "stopped", label: "중단", color: "#b89a91" },
 ];
+const goalDefs = [
+  { id: "short", label: "단기 목표", color: "#8fa9c4" },
+  { id: "long", label: "장기 목표", color: "#88b49a" },
+  { id: "done", label: "달성", color: "#a69ab8" },
+];
 
 let user = null;
 let state = null;
@@ -54,7 +59,12 @@ function migrate(current) {
     if (item.status === "하는 중") item.status = "doing";
     if (item.status === "paused" || item.status === "보류" || item.status === "중단") item.status = "stopped";
     if (item.status === "완료") item.status = "done";
-    if (!statusDefs.some((status) => status.id === item.status)) item.status = "before";
+    if (item.kind === "goal") {
+      item.status = item.status === "done" ? "done" : "doing";
+      if (!["short", "long"].includes(item.goalTerm)) item.goalTerm = "short";
+    } else if (!statusDefs.some((status) => status.id === item.status)) {
+      item.status = "before";
+    }
     item.startDate ||= item.createdAt ? String(item.createdAt).slice(0, 10) : "";
     if (item.status === "done" && !item.completedAt) item.completedAt = new Date().toISOString();
     delete item.progress;
@@ -106,7 +116,7 @@ function dateMeta(item) {
   const parts = [];
   if (item.startDate) parts.push(`시작 ${item.startDate}`);
   if (item.deadline) parts.push(`마감 ${item.deadline}`);
-  if (item.completedAt) parts.push(`완료 ${String(item.completedAt).slice(0, 10)}`);
+  if (item.completedAt) parts.push(`${item.kind === "goal" ? "달성" : "완료"} ${String(item.completedAt).slice(0, 10)}`);
   return parts.join(" · ") || "날짜 없음";
 }
 
@@ -130,6 +140,20 @@ function renderKind(kind) {
   const status = kind === "goal" ? goalStatus : projectStatus;
   const allItems = state.projects.filter((item) => item.kind === kind);
   $$('[data-work-kind="' + kind + '"][data-work-status]').forEach((button) => button.classList.toggle("active", button.dataset.workStatus === status));
+
+  if (kind === "goal") {
+    const matchesGoalSection = (item, section) => section === "done" ? item.status === "done" : item.status !== "done" && item.goalTerm === section;
+    if (status === "all") {
+      root.innerHTML = `<div class="uw-work-status-board uw-goal-status-board">${goalDefs.map((definition) => statusSection(kind, definition, allItems.filter((item) => matchesGoalSection(item, definition.id)))).join("")}</div>`;
+      return;
+    }
+    const items = allItems.filter((item) => matchesGoalSection(item, status));
+    const grouped = state.eventGroups.map((group) => ({ group, items: items.filter((item) => groupOf(item).id === group.id) })).filter((entry) => entry.items.length);
+    const definition = goalDefs.find((entry) => entry.id === status);
+    root.innerHTML = `<div class="uw-work-filtered-drop" data-work-kind="goal" data-work-drop-status="${status}">${grouped.length ? grouped.map(({ group, items: rows }) => `<section class="uw-work-group" style="--uw-group:${group.color}"><div class="uw-work-group-head"><span></span><strong>${esc(group.name)}</strong><small>${rows.length}</small></div><div class="uw-work-list">${sorted(rows).map((item) => workRow(item, false)).join("")}</div></section>`).join("") : `<div class="empty uw-work-empty">${definition?.label || "목표"}가 없어요.</div>`}</div>`;
+    return;
+  }
+
   if (status === "all") {
     root.innerHTML = `<div class="uw-work-status-board">${statusDefs.map((definition) => statusSection(kind, definition, allItems.filter((item) => item.status === definition.id))).join("")}</div>`;
     return;
@@ -153,7 +177,22 @@ function openDialog(kind, item = null) {
   $("#projectId").value = item?.id || "";
   $("#projectKind").value = kind;
   $("#projectTitle").value = item?.title || "";
-  $("#projectStatus").value = item?.status || "before";
+  const statusSelect = $("#projectStatus");
+  const statusLabel = $("#workStatusLabel");
+  const goalTermField = $("#goalTermField");
+  const goalTermSelect = $("#goalTerm");
+  if (kind === "goal") {
+    statusSelect.innerHTML = '<option value="doing">진행 중</option><option value="done">달성</option>';
+    statusSelect.value = item?.status === "done" ? "done" : "doing";
+    if (statusLabel) statusLabel.textContent = "상태";
+    if (goalTermField) goalTermField.hidden = false;
+    if (goalTermSelect) goalTermSelect.value = item?.goalTerm === "long" ? "long" : "short";
+  } else {
+    statusSelect.innerHTML = '<option value="before">시작 전</option><option value="doing">하는 중</option><option value="done">완료</option><option value="stopped">중단</option>';
+    statusSelect.value = item?.status || "before";
+    if (statusLabel) statusLabel.textContent = "상태";
+    if (goalTermField) goalTermField.hidden = true;
+  }
   $("#projectGroup").value = item?.groupId || state.eventGroups[0]?.id || "default";
   const goalField = $("#projectGoalField");
   const goalSelect = $("#projectGoal");
@@ -176,16 +215,26 @@ function scheduleRender(delay = 60) {
 }
 
 async function moveWorkItem(id, status) {
-  if (!id || !statusDefs.some((entry) => entry.id === status)) return;
+  if (!id) return;
   await writeState((current) => {
     const item = current.projects.find((entry) => entry.id === id);
-    if (!item || item.status === status) return;
-    item.status = status;
-    if (status === "done") {
-      item.completedAt ||= new Date().toISOString();
-    } else {
-      item.completedAt = null;
+    if (!item) return;
+    if (item.kind === "goal") {
+      if (!goalDefs.some((entry) => entry.id === status)) return;
+      if (status === "done") {
+        item.status = "done";
+        item.completedAt ||= new Date().toISOString();
+      } else {
+        item.goalTerm = status;
+        item.status = "doing";
+        item.completedAt = null;
+      }
+      return;
     }
+    if (!statusDefs.some((entry) => entry.id === status) || item.status === status) return;
+    item.status = status;
+    if (status === "done") item.completedAt ||= new Date().toISOString();
+    else item.completedAt = null;
   });
 }
 
@@ -309,6 +358,8 @@ function wireUI() {
       item.kind = nextKind;
       if (nextKind === "goal") {
         delete item.goalId;
+        item.goalTerm = "short";
+        item.status = item.status === "done" ? "done" : "doing";
         current.tasks.forEach((task) => {
           if (task.projectId !== id) return;
           delete task.projectId;
@@ -316,6 +367,8 @@ function wireUI() {
         });
       } else {
         delete item.goalId;
+        delete item.goalTerm;
+        if (!["before", "doing", "done", "stopped"].includes(item.status)) item.status = "before";
       }
       if (oldKind === "goal" && nextKind === "project") {
         current.projects.forEach((project) => { if (project.goalId === id) delete project.goalId; });
@@ -337,7 +390,9 @@ function wireUI() {
       }
       item.title = title;
       item.kind = kind;
-      item.status = $("#projectStatus").value;
+      item.status = kind === "goal" ? ($("#projectStatus").value === "done" ? "done" : "doing") : $("#projectStatus").value;
+      if (kind === "goal") item.goalTerm = $("#goalTerm")?.value === "long" ? "long" : "short";
+      else delete item.goalTerm;
       item.groupId = $("#projectGroup").value || current.eventGroups[0]?.id;
       item.startDate = $("#projectStartDate").value || "";
       item.deadline = $("#projectDeadline").value || "";
