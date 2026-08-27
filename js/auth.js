@@ -22,6 +22,15 @@ function showMessage(text) {
   message.textContent = text;
 }
 
+function setAppStatus(text, isError = false) {
+  for (const selector of ["#syncStatus", "#mobileSyncStatus"]) {
+    const element = document.querySelector(selector);
+    if (!element) continue;
+    element.textContent = text;
+    element.style.color = isError ? "var(--danger)" : "";
+  }
+}
+
 function friendlyAuthError(error, action) {
   const code = error?.code ?? "";
   const text = String(error?.message ?? "").toLowerCase();
@@ -51,22 +60,25 @@ export function setupAuth({ onLogin, onLogout }) {
 
   async function activate(user) {
     if (!user) return false;
-    if (visibleUserId === user.id && !appSection.classList.contains("hidden")) return true;
+
+    // Authentication success and app rendering are separate concerns.
+    // Never leave a successfully authenticated user stuck on the login screen
+    // just because one later renderer/data initializer throws.
+    visibleUserId = user.id;
+    showLoggedIn(user);
+
     if (activationPromise && activatingUserId === user.id) return activationPromise;
 
     activatingUserId = user.id;
     activationPromise = (async () => {
       try {
-        showMessage("데이터 불러오는 중...");
+        setAppStatus("불러오는 중...");
         await onLogin(user);
-        visibleUserId = user.id;
-        showLoggedIn(user);
+        setAppStatus("저장됨");
         return true;
       } catch (error) {
         console.error("로그인 후 데이터 초기화 실패", error);
-        visibleUserId = null;
-        showLoggedOut();
-        showMessage("로그인은 되었지만 데이터를 불러오지 못했어요. 새로고침 후 다시 시도해 주세요.");
+        setAppStatus("데이터 불러오기 실패", true);
         return false;
       } finally {
         activationPromise = null;
@@ -144,9 +156,11 @@ export function setupAuth({ onLogin, onLogout }) {
         await activate(session.user);
         return;
       }
-      visibleUserId = null;
-      showLoggedOut();
-      await onLogout();
+      if (authEvent === "SIGNED_OUT" || !session) {
+        visibleUserId = null;
+        showLoggedOut();
+        await onLogout();
+      }
     }, 0);
   });
 
