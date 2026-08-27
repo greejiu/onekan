@@ -210,3 +210,17 @@
 .uw-scope-body h3{margin:0 0 8px;font-size:16px}
 .uw-scope-body p{margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.55}
 .uw-scope-body .dialog-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+
+/* Goal and work status board */
+.uw-work-status-board{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:10px;align-items:start;overflow-x:auto;padding-bottom:5px}
+.uw-work-status-section{min-height:150px;overflow:hidden;border:1px solid color-mix(in srgb,var(--uw-status) 42%,var(--line));border-radius:13px;background:color-mix(in srgb,var(--uw-status) 7%,#fff);transition:.16s ease}
+.uw-work-status-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid color-mix(in srgb,var(--uw-status) 28%,var(--line));background:color-mix(in srgb,var(--uw-status) 16%,#fff)}
+.uw-work-status-head>span{width:9px;height:9px;border-radius:50%;background:var(--uw-status)}
+.uw-work-status-head strong{font-size:13px}.uw-work-status-head small{margin-left:auto;color:var(--muted)}
+.uw-work-status-empty{padding:18px 8px;color:var(--muted);font-size:11px;text-align:center}
+.uw-work-filtered-drop{min-height:140px;border-radius:13px;transition:.16s ease}
+.uw-work-row[draggable="true"] .uw-work-row-main{cursor:grab}
+.uw-work-row.uw-work-dragging{opacity:.35}
+.uw-work-drop-active{outline:2px dashed var(--accent);outline-offset:-4px;background:var(--accent-soft)!important}
+.uw-work-drag-ghost{position:fixed;z-index:9999;width:min(310px,78vw);pointer-events:none;transform:translate(-50%,-50%) rotate(1deg);box-shadow:0 12px 30px #0003;opacity:.9}
+@media(max-width:900px){.uw-work-status-board{grid-template-columns:repeat(4,minmax(230px,76vw))}}
