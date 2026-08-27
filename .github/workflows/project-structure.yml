@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'scripts/patch-project-structure.py'
+      - '.github/workflows/project-structure.yml'
 jobs:
   patch:
     runs-on: ubuntu-latest
