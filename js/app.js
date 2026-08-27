@@ -1548,7 +1548,7 @@ function bindUI() {
   $("#timerStop").addEventListener("click", () => {
     finishTimer(false);
   });
-  $("[data-add-session]").forEach((button) => button.addEventListener("click", () => openManualSession(Number(button.dataset.defaultOffset || 0))));
+  $$("[data-add-session]").forEach((button) => button.addEventListener("click", () => openManualSession(Number(button.dataset.defaultOffset || 0))));
   $("#timerMinusMinute").addEventListener("click", () => adjustTimerMinutes(-1));
   $("#timerPlusMinute").addEventListener("click", () => adjustTimerMinutes(1));
   $$('[data-timer-mode]').forEach((button) => button.addEventListener("click", () => setTimerMode(button.dataset.timerMode)));
