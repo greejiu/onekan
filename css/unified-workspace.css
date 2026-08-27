@@ -203,3 +203,10 @@
 
 /* Keep long timeline entries readable from their first line. */
 .uw-time-entry{align-items:flex-start}
+
+.uw-habit-scope-dialog{width:min(430px,calc(100vw - 28px));padding:0;border:0;border-radius:16px;background:#fff;box-shadow:0 18px 60px #0004}
+.uw-habit-scope-dialog::backdrop{background:#1b25304d;backdrop-filter:blur(2px)}
+.uw-scope-body{padding:20px}
+.uw-scope-body h3{margin:0 0 8px;font-size:16px}
+.uw-scope-body p{margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.55}
+.uw-scope-body .dialog-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}

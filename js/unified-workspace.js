@@ -5,7 +5,7 @@ const pad=n=>String(n).padStart(2,"0");const esc=v=>String(v??"").replace(/[&<>"
 const key=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;const fromKey=k=>new Date(`${k}T12:00:00`);const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 const todayKey=()=>{const d=new Date();d.setHours(d.getHours()-3);return key(d)};const uid=()=>crypto.randomUUID();
 let START=360,END=1320;const SLOT=30,SLOT_H=20;
-let user=null,state=null,homeDays=1,homeMode="timeline",homeSideTab="upcoming",homeCursor=fromKey(todayKey()),calendarView="month",calendarCursor=new Date(),renderTimer=null,rendering=false,pendingGroupRecords=[],suppressItemClickUntil=0,overdueExpanded=false;
+let user=null,state=null,homeDays=1,homeMode="timeline",homeSideTab="upcoming",homeCursor=fromKey(todayKey()),calendarView="month",calendarCursor=new Date(),renderTimer=null,rendering=false,pendingGroupRecords=[],suppressItemClickUntil=0,overdueExpanded=false,habitScopeResolve=null;
 const selected=new Map();
 let schedulePageMode="list",scheduleCalendarLayout="board";
 let taskPageMode="list",taskListTab="all",taskCalendarView="month",taskCalendarLayout="board",taskCalendarCursor=fromKey(todayKey()),habitCursor=fromKey(todayKey());
@@ -16,6 +16,7 @@ function normalize(s){
   s.events=Array.isArray(s.events)?s.events:[];
   s.habitTemplates=Array.isArray(s.habitTemplates)?s.habitTemplates:[];
   s.habitDays=s.habitDays&&typeof s.habitDays==="object"?s.habitDays:{};
+  s.habitOverrides=s.habitOverrides&&typeof s.habitOverrides==="object"?s.habitOverrides:{};
   s.timeBlocks=Array.isArray(s.timeBlocks)?s.timeBlocks:[];
   s.sessions=Array.isArray(s.sessions)?s.sessions:[];
   s.eventGroups=Array.isArray(s.eventGroups)&&s.eventGroups.length?s.eventGroups:[{id:"default",name:"기본",color:"#8fa9c4"}];
@@ -144,6 +145,8 @@ function eventOnDate(eventItem,date){
   }
   return false
 }
+function habitOverride(source,date,id,create=false){if(!source||!date||!id)return null;if(create){source.habitOverrides||={};source.habitOverrides[date]||={};source.habitOverrides[date][id]||={}}return source.habitOverrides?.[date]?.[id]||null}
+function cleanHabitOverride(source,date,id){const value=source.habitOverrides?.[date]?.[id];if(value&&Object.keys(value).length===0)delete source.habitOverrides[date][id];if(source.habitOverrides?.[date]&&Object.keys(source.habitOverrides[date]).length===0)delete source.habitOverrides[date]}
 function itemsForDay(k){
   const events=state.events.filter(event=>eventOnDate(event,k)).map(event=>({kind:"event",item:event,timed:!event.allDay,time:event.allDay?null:new Date(event.start).getHours()*60+new Date(event.start).getMinutes(),duration:event.allDay?null:Math.max(SLOT,Math.round((new Date(event.end||event.start)-new Date(event.start))/60000/SLOT)*SLOT)}));
   const tasks=state.tasks.filter(task=>task.date&&recurrenceOn(task,task.date,k)).map(task=>{
@@ -158,7 +161,7 @@ function itemsForDay(k){
     }
     return{kind:"task",item:task,timed:start!==null,time:start,duration}
   });
-  const habits=state.habitTemplates.map(habit=>({kind:"habit",item:habit,timed:Number.isFinite(Number(habit.startMinute)),time:Number(habit.startMinute),duration:+habit.duration||SLOT}));
+  const habits=state.habitTemplates.flatMap(habit=>{const override=habitOverride(state,k,habit.id)||{};if(override.hidden)return[];const start=Object.prototype.hasOwnProperty.call(override,"startMinute")?override.startMinute:habit.startMinute;const duration=Object.prototype.hasOwnProperty.call(override,"duration")?override.duration:habit.duration;const item=Object.prototype.hasOwnProperty.call(override,"title")?{...habit,title:override.title}:habit;return[{kind:"habit",item,timed:Number.isFinite(Number(start)),time:Number(start),duration:+duration||SLOT}]});
   return[...events,...tasks,...habits]
 }
 function sessionItemsForDay(k){
@@ -203,9 +206,10 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
   const old=editId?list.find(item=>item.id===editId):null;
   const canRepeat=(kind==="event"||kind==="task")&&!!(date||(old&&kind==="event"?key(new Date(old.start)):old?.date));
   const frequency=old?.recurrence?.frequency||"none";
+  const displayTitle=old&&kind==="habit"&&date?(habitOverride(state,date,old.id)?.title||old.title):old?.title;
   const form=document.createElement("form");
   form.className="uw-inline-form";
-  form.innerHTML=`${withTime?`<input type="time" value="${old&&kind==="event"&&!old.allDay?timeOf(old.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(old?.title||"")}" placeholder="${kind==="event"?"일정":kind==="habit"?"습관":"할일"} 입력" autocomplete="off">${canRepeat?`<select class="uw-repeat-select" aria-label="반복"><option value="none"${frequency==="none"?" selected":""}>반복 없음</option><option value="daily"${frequency==="daily"?" selected":""}>매일</option><option value="weekly"${frequency==="weekly"?" selected":""}>매주</option><option value="monthly"${frequency==="monthly"?" selected":""}>매월</option></select><label class="uw-repeat-until"><span>반복 종료</span><input type="date" value="${old?.recurrence?.until||""}" aria-label="반복 종료일"></label>`:""}`;
+  form.innerHTML=`${withTime?`<input type="time" value="${old&&kind==="event"&&!old.allDay?timeOf(old.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(displayTitle||"")}" placeholder="${kind==="event"?"일정":kind==="habit"?"습관":"할일"} 입력" autocomplete="off">${canRepeat?`<select class="uw-repeat-select" aria-label="반복"><option value="none"${frequency==="none"?" selected":""}>반복 없음</option><option value="daily"${frequency==="daily"?" selected":""}>매일</option><option value="weekly"${frequency==="weekly"?" selected":""}>매주</option><option value="monthly"${frequency==="monthly"?" selected":""}>매월</option></select><label class="uw-repeat-until"><span>반복 종료</span><input type="date" value="${old?.recurrence?.until||""}" aria-label="반복 종료일"></label>`:""}`;
   const scroll={x:scrollX,y:scrollY},editTarget=editId?host.closest(".uw-item"):null;
   const rangeFirst=date&&endDate&&endDate<date?endDate:date;
   const rangeLast=date&&endDate&&endDate<date?date:endDate;
@@ -244,24 +248,34 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
     if(!value){clearRange();form.remove();return}
     saving=true;
     const timeValue=$("input[type=time]",form)?.value||"";
+    const habitScope=old&&kind==="habit"?await askHabitScope("change",old,date||todayKey()):null;
+    if(old&&kind==="habit"&&!habitScope){saving=false;scheduleRender(0);return}
     await write(current=>{
       const defaultGroup=current.eventGroups[0]?.id||"default";
       if(old){
-        old.title=value;
-        const baseDate=kind==="event"?key(new Date(old.start)):old.date;
+        const target=(kind==="event"?current.events:kind==="habit"?current.habitTemplates:current.tasks).find(item=>item.id===old.id);
+        if(!target)return;
+        if(kind==="habit"){
+          const editDate=date||todayKey();
+          if(habitScope==="day")habitOverride(current,editDate,target.id,true).title=value;
+          else{target.title=value;const override=habitOverride(current,editDate,target.id);if(override){delete override.title;cleanHabitOverride(current,editDate,target.id)}}
+          return
+        }
+        target.title=value;
+        const baseDate=kind==="event"?key(new Date(target.start)):target.date;
         const recurrence=recurrenceFor(baseDate);
-        if(recurrence)old.recurrence=recurrence;else delete old.recurrence;
+        if(recurrence)target.recurrence=recurrence;else delete target.recurrence;
         if(kind==="event"&&withTime){
-          const selectedDate=date||key(new Date(old.start));
+          const selectedDate=date||key(new Date(target.start));
           if(timeValue){
             const startDate=new Date(`${selectedDate}T${timeValue}:00`);
-            old.start=startDate.toISOString();
-            old.end=new Date(startDate.getTime()+duration*60000).toISOString();
-            old.allDay=false
+            target.start=startDate.toISOString();
+            target.end=new Date(startDate.getTime()+duration*60000).toISOString();
+            target.allDay=false
           }else{
-            old.start=new Date(`${selectedDate}T12:00:00`).toISOString();
-            old.end=new Date(`${endDate||selectedDate}T12:00:00`).toISOString();
-            old.allDay=true
+            target.start=new Date(`${selectedDate}T12:00:00`).toISOString();
+            target.end=new Date(`${endDate||selectedDate}T12:00:00`).toISOString();
+            target.allDay=true
           }
         }
         return
@@ -465,16 +479,33 @@ function renderHabits(){
     select.value=state.eventGroups.some(g=>g.id===value)?value:state.eventGroups[0]?.id
   }
 }
-function installActionUI(){if($("#uwSelectionBar"))return;document.body.insertAdjacentHTML("beforeend",'<div class="uw-selection-bar" id="uwSelectionBar"><button data-uw-action="edit">수정</button><button data-uw-action="duplicate">복제</button><button data-uw-action="group">그룹</button><button data-uw-action="convert">전환</button><button class="danger" data-uw-action="delete">삭제</button><button data-uw-action="cancel">취소</button></div><div class="uw-context" id="uwContext"></div>')}
+function installActionUI(){if($("#uwSelectionBar"))return;document.body.insertAdjacentHTML("beforeend",'<div class="uw-selection-bar" id="uwSelectionBar"><button data-uw-action="edit">수정</button><button data-uw-action="duplicate">복제</button><button data-uw-action="group">그룹</button><button data-uw-action="convert">전환</button><button class="danger" data-uw-action="delete">삭제</button><button data-uw-action="cancel">취소</button></div><div class="uw-context" id="uwContext"></div><dialog class="app-dialog uw-habit-scope-dialog" id="uwHabitScopeDialog"><div class="uw-scope-body"><h3 id="uwHabitScopeTitle">습관 변경</h3><p id="uwHabitScopeMessage"></p><div class="dialog-actions"><button class="soft-btn" data-uw-habit-scope="cancel" type="button">취소</button><button class="soft-btn" data-uw-habit-scope="day" type="button">이 날만</button><button class="primary-btn" data-uw-habit-scope="all" type="button">전체 반복</button></div></div></dialog>')}
+function askHabitScope(mode,habit,date){const dialog=$("#uwHabitScopeDialog");if(!dialog)return Promise.resolve(null);$("#uwHabitScopeTitle").textContent=mode==="delete"?"습관 삭제":"습관 변경";$("#uwHabitScopeMessage").textContent=mode==="delete"?`${dayLabel(fromKey(date),true)}의 ‘${habit?.title||"습관"}’을 어떻게 삭제할까요?`:`${dayLabel(fromKey(date),true)}의 ‘${habit?.title||"습관"}’ 변경 범위를 선택해 주세요.`;const dayButton=dialog.querySelector('[data-uw-habit-scope="day"]'),allButton=dialog.querySelector('[data-uw-habit-scope="all"]');dayButton.textContent=mode==="delete"?"이 날만 숨기기":"이 날만 변경";allButton.textContent=mode==="delete"?"습관 전체 삭제":"전체 반복 변경";dialog.showModal();return new Promise(resolve=>{habitScopeResolve=resolve})}
+function wireHabitScopeDialog(){const dialog=$("#uwHabitScopeDialog");if(!dialog||dialog.dataset.uwBound)return;dialog.dataset.uwBound="1";dialog.addEventListener("click",event=>{const button=event.target.closest("[data-uw-habit-scope]");if(!button)return;const value=button.dataset.uwHabitScope;dialog.close();const resolve=habitScopeResolve;habitScopeResolve=null;resolve?.(value==="cancel"?null:value)});dialog.addEventListener("cancel",event=>{event.preventDefault();dialog.close();const resolve=habitScopeResolve;habitScopeResolve=null;resolve?.(null)})}
 function coarse(){return matchMedia("(hover:none),(pointer:coarse)").matches}
 function toggleSelection(item){const token=`${item.dataset.uwKind}:${item.dataset.id}:${item.dataset.date||""}`;if(selected.has(token)){selected.delete(token);item.classList.remove("selected")}else{selected.set(token,{kind:item.dataset.uwKind,id:item.dataset.id,date:item.dataset.date||null});item.classList.add("selected")}document.body.classList.toggle("uw-selection-active",selected.size>0);$("#uwSelectionBar")?.classList.toggle("open",selected.size>0)}
 function clearSelection(){selected.clear();document.body.classList.remove("uw-selection-active");$("#uwSelectionBar")?.classList.remove("open");$$('.uw-item.selected').forEach(x=>x.classList.remove("selected"))}
 function showGroupPicker(records){pendingGroupRecords=records;const menu=$("#uwContext");menu.innerHTML=`<strong style="padding:7px 9px;font-size:11px">그룹 선택</strong>${state.eventGroups.map(g=>`<button data-uw-group-id="${g.id}"><span style="display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:50%;background:${g.color}"></span>${esc(g.name)}</button>`).join("")}`;menu.style.left="auto";menu.style.right="14px";menu.style.top="auto";menu.style.bottom="64px";menu.classList.add("open")}
-async function action(name,records=[...selected.values()]){if(name==="cancel"){clearSelection();return}if(name==="edit"&&records.length===1){const r=records[0],el=$(`.uw-item[data-uw-kind="${r.kind}"][data-id="${CSS.escape(r.id)}"]`);clearSelection();if(el)openInline(el,{kind:r.kind,date:r.date,editId:r.id,withTime:r.kind==="event"&&calendarView==="day"});return}if(name==="group"){showGroupPicker(records);return}else if(name==="duplicate"){await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)arr.push({...x,id:uid(),title:`${x.title} 복사`,done:false,completedAt:null})}))}else if(name==="convert"){await write(s=>records.forEach(r=>{if(r.kind==="task"){const t=s.tasks.find(x=>x.id===r.id);if(!t)return;const d=t.date||todayKey();s.events.push({id:uid(),title:t.title,type:"schedule",groupId:t.groupId,allDay:!t.notionStart,start:t.notionStart||new Date(`${d}T12:00:00`).toISOString(),end:t.notionEnd||new Date(`${d}T12:00:00`).toISOString(),...(t.recurrence?{recurrence:{...t.recurrence}}:{})});s.tasks=s.tasks.filter(x=>x.id!==r.id);s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==r.id)}else if(r.kind==="event"){const e=s.events.find(x=>x.id===r.id);if(!e)return;s.tasks.push({id:uid(),title:e.title,date:key(new Date(e.start)),done:false,groupId:e.groupId,...(!e.allDay?{notionStart:e.start,notionEnd:e.end}:{}),...(e.recurrence?{recurrence:{...e.recurrence}}:{})});s.events=s.events.filter(x=>x.id!==r.id)}}))}else if(name==="delete"){await write(s=>records.forEach(r=>{if(r.kind==="event")s.events=s.events.filter(x=>x.id!==r.id);if(r.kind==="task"){s.tasks=s.tasks.filter(x=>x.id!==r.id);s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==r.id)}if(r.kind==="habit"){s.habitTemplates=s.habitTemplates.filter(x=>x.id!==r.id);Object.values(s.habitDays).forEach(day=>delete day[r.id])}}))}clearSelection()}
+async function action(name,records=[...selected.values()]){
+  if(name==="cancel"){clearSelection();return}
+  if(name==="edit"&&records.length===1){const r=records[0],el=$(`.uw-item[data-uw-kind="${r.kind}"][data-id="${CSS.escape(r.id)}"]`);clearSelection();if(el)openInline(el,{kind:r.kind,date:r.date,editId:r.id,withTime:r.kind==="event"&&calendarView==="day"});return}
+  if(name==="group"){showGroupPicker(records);return}
+  if(name==="delete"){
+    const habitRecords=records.filter(record=>record.kind==="habit"),otherRecords=records.filter(record=>record.kind!=="habit"),decisions=[];
+    for(const record of habitRecords){const habit=state.habitTemplates.find(item=>item.id===record.id);if(!habit)continue;const scope=await askHabitScope("delete",habit,record.date||todayKey());if(scope)decisions.push({...record,date:record.date||todayKey(),scope})}
+    if(decisions.length)await write(current=>decisions.forEach(record=>{if(record.scope==="day"){habitOverride(current,record.date,record.id,true).hidden=true;return}current.habitTemplates=current.habitTemplates.filter(item=>item.id!==record.id);Object.values(current.habitDays).forEach(day=>delete day[record.id]);Object.values(current.habitOverrides||{}).forEach(day=>delete day[record.id])}));
+    records=otherRecords;
+    if(!records.length){clearSelection();return}
+  }
+  if(name==="duplicate"){await write(current=>records.forEach(record=>{const list=record.kind==="event"?current.events:record.kind==="habit"?current.habitTemplates:current.tasks;const item=list.find(value=>value.id===record.id);if(item)list.push({...item,id:uid(),title:`${item.title} 복사`,done:false,completedAt:null})}))}
+  else if(name==="convert"){await write(current=>records.forEach(record=>{if(record.kind==="task"){const task=current.tasks.find(item=>item.id===record.id);if(!task)return;const date=task.date||todayKey();current.events.push({id:uid(),title:task.title,type:"schedule",groupId:task.groupId,allDay:!task.notionStart,start:task.notionStart||new Date(`${date}T12:00:00`).toISOString(),end:task.notionEnd||new Date(`${date}T12:00:00`).toISOString(),...(task.recurrence?{recurrence:{...task.recurrence}}:{})});current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id)}else if(record.kind==="event"){const event=current.events.find(item=>item.id===record.id);if(!event)return;current.tasks.push({id:uid(),title:event.title,date:key(new Date(event.start)),done:false,groupId:event.groupId,...(!event.allDay?{notionStart:event.start,notionEnd:event.end}:{}),...(event.recurrence?{recurrence:{...event.recurrence}}:{})});current.events=current.events.filter(item=>item.id!==record.id)}}))}
+  else if(name==="delete"){await write(current=>records.forEach(record=>{if(record.kind==="event")current.events=current.events.filter(item=>item.id!==record.id);if(record.kind==="task"){current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id)}}))}
+  clearSelection()
+}
 
 function setSomedayOpen(open){homeSideTab=open?"someday":"upcoming";renderSideTab()}
 
-function wireClicks(){installActionUI();document.addEventListener("click",async e=>{if(Date.now()<suppressItemClickUntil){e.preventDefault();e.stopImmediatePropagation();return}const somedayToggle=e.target.closest("[data-uw-someday-toggle]");if(somedayToggle){setSomedayOpen(!document.body.classList.contains("uw-someday-open"));return}if(e.target.closest("[data-uw-someday-close]")){setSomedayOpen(false);return}const sessionToggle=e.target.closest("[data-uw-toggle-sessions]");if(sessionToggle){await write(current=>{current.ui||={};current.ui.showSessionsOnTimeline=current.ui.showSessionsOnTimeline===false});return}$$(".uw-all-day.open").forEach(x=>{if(!e.target.closest(".uw-all-day"))x.classList.remove("open")});const more=e.target.closest("[data-uw-all-day-more]");if(more){const panel=more.closest(".uw-all-day"),open=!panel.classList.contains("open");$$(".uw-all-day.open").forEach(x=>x.classList.remove("open"));panel.classList.toggle("open",open);more.setAttribute("aria-expanded",String(open));return}const groupButton=e.target.closest("[data-uw-group-id]");if(groupButton){const records=[...pendingGroupRecords],groupId=groupButton.dataset.uwGroupId;pendingGroupRecords=[];$("#uwContext")?.classList.remove("open");await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)x.groupId=groupId}));clearSelection();return}const tab=e.target.closest("#taskPageTabs [data-task-tab]");if(tab){e.stopImmediatePropagation();taskListTab=tab.dataset.taskTab;$('#taskPageTabs [data-task-tab]').forEach(x=>x.classList.toggle("active",x===tab));renderTasks();return}const a=e.target.closest("[data-uw-action]");if(a){await action(a.dataset.uwAction);return}const homeModeButton=e.target.closest("[data-uw-home-mode]");if(homeModeButton){homeMode=homeModeButton.dataset.uwHomeMode;renderPlanner();return}if(e.target.closest("[data-uw-home-prev]")){homeCursor=addDays(homeCursor,-homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-next]")){homeCursor=addDays(homeCursor,homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-today]")){homeCursor=fromKey(todayKey());renderPlanner();return}const cv=e.target.closest("[data-uw-cal-view]");if(cv){e.stopImmediatePropagation();calendarView=cv.dataset.uwCalView;renderCalendar();return}if(e.target.closest("[data-uw-habit-prev]")){habitCursor=addDays(habitCursor,-7);renderHabits();return}
+function wireClicks(){installActionUI();wireHabitScopeDialog();document.addEventListener("click",async e=>{if(Date.now()<suppressItemClickUntil){e.preventDefault();e.stopImmediatePropagation();return}const somedayToggle=e.target.closest("[data-uw-someday-toggle]");if(somedayToggle){setSomedayOpen(!document.body.classList.contains("uw-someday-open"));return}if(e.target.closest("[data-uw-someday-close]")){setSomedayOpen(false);return}const sessionToggle=e.target.closest("[data-uw-toggle-sessions]");if(sessionToggle){await write(current=>{current.ui||={};current.ui.showSessionsOnTimeline=current.ui.showSessionsOnTimeline===false});return}$$(".uw-all-day.open").forEach(x=>{if(!e.target.closest(".uw-all-day"))x.classList.remove("open")});const more=e.target.closest("[data-uw-all-day-more]");if(more){const panel=more.closest(".uw-all-day"),open=!panel.classList.contains("open");$$(".uw-all-day.open").forEach(x=>x.classList.remove("open"));panel.classList.toggle("open",open);more.setAttribute("aria-expanded",String(open));return}const groupButton=e.target.closest("[data-uw-group-id]");if(groupButton){const records=[...pendingGroupRecords],groupId=groupButton.dataset.uwGroupId;pendingGroupRecords=[];$("#uwContext")?.classList.remove("open");await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)x.groupId=groupId}));clearSelection();return}const tab=e.target.closest("#taskPageTabs [data-task-tab]");if(tab){e.stopImmediatePropagation();taskListTab=tab.dataset.taskTab;$('#taskPageTabs [data-task-tab]').forEach(x=>x.classList.toggle("active",x===tab));renderTasks();return}const a=e.target.closest("[data-uw-action]");if(a){await action(a.dataset.uwAction);return}const homeModeButton=e.target.closest("[data-uw-home-mode]");if(homeModeButton){homeMode=homeModeButton.dataset.uwHomeMode;renderPlanner();return}if(e.target.closest("[data-uw-home-prev]")){homeCursor=addDays(homeCursor,-homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-next]")){homeCursor=addDays(homeCursor,homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-today]")){homeCursor=fromKey(todayKey());renderPlanner();return}const cv=e.target.closest("[data-uw-cal-view]");if(cv){e.stopImmediatePropagation();calendarView=cv.dataset.uwCalView;renderCalendar();return}if(e.target.closest("[data-uw-habit-prev]")){habitCursor=addDays(habitCursor,-7);renderHabits();return}
 if(e.target.closest("[data-uw-habit-next]")){habitCursor=addDays(habitCursor,7);renderHabits();return}
 if(e.target.closest("[data-uw-habit-today]")){habitCursor=fromKey(todayKey());renderHabits();return}
 const hc=e.target.closest("[data-uw-habit-check]");if(hc){await write(s=>{s.habitDays[hc.dataset.date]||={};s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]=!s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]});return}const check=e.target.closest("[data-uw-check]");if(check){e.stopPropagation();await write(s=>{if(check.dataset.uwCheck==="task"){const t=s.tasks.find(x=>x.id===check.dataset.id);if(t){if(t.recurrence?.frequency){t.recurrenceDone||={};t.recurrenceDone[check.dataset.date]=!t.recurrenceDone[check.dataset.date]}else{t.done=!t.done;t.completedAt=t.done?new Date().toISOString():null}}}else{s.habitDays[check.dataset.date]||={};s.habitDays[check.dataset.date][check.dataset.id]=!s.habitDays[check.dataset.date][check.dataset.id]}});return}const del=e.target.closest("[data-uw-delete-habit]");if(del){await action("delete",[{kind:"habit",id:del.dataset.uwDeleteHabit,date:todayKey()}]);return}const dup=e.target.closest("[data-uw-duplicate-habit]");if(dup){await action("duplicate",[{kind:"habit",id:dup.dataset.uwDuplicateHabit,date:todayKey()}]);return}const item=e.target.closest(".uw-item[data-uw-kind]");if(item){if(Date.now()<suppressItemClickUntil)return;if(coarse()){toggleSelection(item);return}if(!e.target.closest(".uw-item-title,.uw-habit-title"))return;openInline(item,{kind:item.dataset.uwKind,date:item.dataset.date,editId:item.dataset.id,withTime:item.dataset.uwKind==="event"&&calendarView==="day"});return}const add=e.target.closest("[data-uw-add-kind]");if(add&&!e.target.closest(".uw-item,.uw-inline-form")){const kind=add.dataset.uwAddKind,date=add.dataset.date||null,time=add.dataset.time?+add.dataset.time:null;const empty=e.target.closest(".uw-empty-hit"),target=empty||(add.matches(".uw-list,.uw-all-day-list,.uw-time-hit,.uw-month-cell")?add:findAddHost(kind,date,time)||add.parentElement);openInline(target,{kind,date,time,withTime:add.dataset.withTime==="1"||target.dataset.withTime==="1"})}},true);
@@ -483,7 +514,15 @@ document.addEventListener("contextmenu",e=>{const item=e.target.closest(".uw-ite
 
 function minuteAt(lane,clientY){const rect=lane.getBoundingClientRect();return Math.max(START,Math.min(END-SLOT,START+Math.floor((clientY-rect.top)/SLOT_H)*SLOT))}
 function dateTargetAt(x,y){return document.elementFromPoint(x,y)?.closest("[data-date],[data-task-drop-date]")}
-async function saveTimedChange(kind,id,date,startMinute,duration){await write(s=>{if(kind==="habit"){const h=s.habitTemplates.find(x=>x.id===id);if(h){h.startMinute=startMinute;h.duration=duration}return}const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);if(kind==="event"){const x=s.events.find(v=>v.id===id);if(!x)return;x.start=start.toISOString();x.end=new Date(start.getTime()+duration*60000).toISOString();x.allDay=false;return}const t=s.tasks.find(x=>x.id===id);if(!t)return;t.date=date;t.notionStart=start.toISOString();t.notionEnd=new Date(start.getTime()+duration*60000).toISOString();s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);s.timeBlocks.push({id:uid(),taskId:id,sourceTitle:t.title,detail:t.title,date,startMinute,duration})})}
+async function saveTimedChange(kind,id,date,startMinute,duration){
+  if(kind==="habit"){
+    const habit=state?.habitTemplates.find(item=>item.id===id),scope=await askHabitScope("change",habit,date);
+    if(!habit||!scope)return;
+    await write(current=>{const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=startMinute;override.duration=duration}else{target.startMinute=startMinute;target.duration=duration;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
+    return
+  }
+  await write(current=>{const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);if(kind==="event"){const event=current.events.find(item=>item.id===id);if(!event)return;event.start=start.toISOString();event.end=new Date(start.getTime()+duration*60000).toISOString();event.allDay=false;return}const task=current.tasks.find(item=>item.id===id);if(!task)return;task.date=date;task.notionStart=start.toISOString();task.notionEnd=new Date(start.getTime()+duration*60000).toISOString();current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:task.title,detail:task.title,date,startMinute,duration})})
+}
 async function saveDateMove(kind,id,date){await write(s=>{if(kind==="habit")return;if(kind==="task"){const t=s.tasks.find(x=>x.id===id);if(!t)return;t.date=date||null;delete t.notionStart;delete t.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);return}const e=s.events.find(x=>x.id===id);if(!e)return;const oldStart=new Date(e.start),oldEnd=new Date(e.end||e.start),duration=Math.max(0,oldEnd-oldStart),clock=e.allDay?"12:00:00":`${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`;const start=new Date(`${date}T${clock}`);e.start=start.toISOString();e.end=new Date(start.getTime()+duration).toISOString()})}
 function wireSideTabs(){document.addEventListener("click",event=>{const button=event.target.closest("[data-uw-side-tab]");if(!button)return;homeSideTab=button.dataset.uwSideTab;renderSideTab()})}
 function wireControls(){let gesture=null;
