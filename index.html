@@ -167,9 +167,20 @@
         <div class="page-head"><div><h1 class="page-title">설정</h1></div></div>
         <div class="settings-wrap">
           <section class="setting-section">
-            <h3>테마와 타임라인</h3><div class="setting-desc">테마 색상과 하루에 표시할 시간 범위를 정할 수 있어요.</div>
+            <h3>집 배경 &amp; 테마</h3><div class="setting-desc">집 제목 영역의 사진과 앱의 테마 색상을 함께 정할 수 있어요.</div>
+            <div class="appearance-settings">
+              <input id="homeBackgroundFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+              <label class="uw-auto-theme"><input id="homeAutoTheme" type="checkbox" checked /> 사진 색상으로 테마 자동 설정</label>
+              <label><span>테마 색상</span><input id="homeThemeColor" type="color" value="#8fa9c4" /></label>
+              <select id="homeBackgroundPosition" aria-label="배경 위치"><option value="center">가운데</option><option value="top">위쪽</option><option value="bottom">아래쪽</option></select>
+              <label class="appearance-range">사진 밝기 <input id="homeBackgroundOverlay" type="range" min="0" max="80" value="28" /></label>
+              <button class="ghost-btn danger-text" id="removeHomeBackground" type="button">사진 제거</button>
+            </div>
+            <div class="setting-desc" id="homeBackgroundStatus">사진을 선택하면 자동으로 저장됩니다.</div>
+          </section>
+          <section class="setting-section">
+            <h3>타임라인 시작 · 종료 시간</h3><div class="setting-desc">하루 타임라인에 표시할 시간 범위를 정할 수 있어요.</div>
             <div class="uw-preference-grid">
-              <label><span>테마 색상</span><input id="themeColor" type="color" value="#8fa9c4" /></label>
               <label><span>시작 시간</span><input id="timelineStart" type="time" step="1800" value="06:00" /></label>
               <label><span>종료 시간</span><input id="timelineEnd" type="time" step="1800" value="22:00" /></label>
             </div>
@@ -185,18 +196,6 @@
             <h3>그룹</h3><div class="setting-desc">일정·할일·습관·목표·작업현황에서 공통으로 사용하는 그룹입니다.</div>
             <div id="eventGroupList"></div>
             <div class="event-group-add"><input id="newEventGroupName" placeholder="새 그룹 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 그룹 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
-          </section>
-          <section class="setting-section">
-            <h3>집 배경</h3><div class="setting-desc">집 제목 영역에 사용할 사진을 올리고 위치와 밝기를 조절할 수 있어요.</div>
-            <div class="appearance-settings">
-              <input id="homeBackgroundFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
-              <label class="uw-auto-theme"><input id="homeAutoTheme" type="checkbox" checked /> 사진 색상으로 테마 자동 설정</label>
-              <label><span>테마</span><input id="homeThemeColor" type="color" value="#8fa9c4" /></label>
-              <select id="homeBackgroundPosition" aria-label="배경 위치"><option value="center">가운데</option><option value="top">위쪽</option><option value="bottom">아래쪽</option></select>
-              <label class="appearance-range">사진 밝기 <input id="homeBackgroundOverlay" type="range" min="0" max="80" value="28" /></label>
-              <button class="ghost-btn danger-text" id="removeHomeBackground" type="button">사진 제거</button>
-            </div>
-            <div class="setting-desc" id="homeBackgroundStatus">사진을 선택하면 자동으로 저장됩니다.</div>
           </section>
           <section class="setting-section">
             <h3>동기화</h3><div class="setting-desc">로그인한 계정 기준으로 Supabase에 저장됩니다. PC와 모바일에서 같은 계정으로 로그인하면 같은 데이터를 봅니다.</div>
