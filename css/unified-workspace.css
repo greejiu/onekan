@@ -200,3 +200,6 @@
 .uw-overdue-date>span{color:#737b83}
 .uw-overdue-date ul{grid-column:1/-1;margin:0;padding-left:20px;color:#59616a}
 @media(max-width:700px){.uw-overdue-row{align-items:flex-start;flex-direction:column}.uw-overdue-actions{align-self:flex-end}}
+
+/* Keep long timeline entries readable from their first line. */
+.uw-time-entry{align-items:flex-start}
