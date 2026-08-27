@@ -21,125 +21,85 @@ jobs:
           from pathlib import Path
           import re
 
+          def sub_once(text, pattern, replacement, label, flags=0):
+              text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f'{label} not found')
+              return text
+
           work_path = Path('js/work-management.js')
           work = work_path.read_text()
 
-          old_cleanup = '''  for (const task of current.tasks) {
-            if (task.projectId && !current.projects.some((item) => item.id === task.projectId && item.kind === "project")) delete task.projectId;
-            if (task.goalId && !current.projects.some((item) => item.id === task.goalId && item.kind === "goal")) delete task.goalId;
-          }'''
-          new_cleanup = '''  for (const item of current.projects) delete item.goalId;
+          work = sub_once(
+              work,
+              r'''  for \(const task of current\.tasks\) \{\n    if \(task\.projectId && !current\.projects\.some\(.*?\)\) delete task\.projectId;\n    if \(task\.goalId && !current\.projects\.some\(.*?\)\) delete task\.goalId;\n  \}''',
+              '''  for (const item of current.projects) delete item.goalId;
           for (const task of current.tasks) {
             delete task.projectId;
             delete task.goalId;
-          }'''
-          if old_cleanup not in work:
-              raise SystemExit('migrate link cleanup block not found')
-          work = work.replace(old_cleanup, new_cleanup)
+          }''',
+              'legacy link cleanup',
+              re.S,
+          )
 
-          work, count = re.subn(
+          work = sub_once(
+              work,
               r'''function workTasks\(item\) \{.*?\n\}\n\nfunction progressOf\(item\) \{.*?\n\}''',
               '''function progressOf(item) {
             return Math.max(0, Math.min(100, Number(item.progress || 0)));
           }''',
-              work,
-              count=1,
-              flags=re.S,
+              'linked progress block',
+              re.S,
           )
-          if count != 1:
-              raise SystemExit('workTasks/progressOf block not found')
 
-          work, count = re.subn(
+          work = sub_once(
+              work,
               r'''function linkMarkup\(item\) \{.*?\n\}\n\nfunction workRow''',
               'function workRow',
-              work,
-              count=1,
-              flags=re.S,
+              'link markup',
+              re.S,
           )
-          if count != 1:
-              raise SystemExit('linkMarkup block not found')
           work = work.replace('${linkMarkup(item)}</article>', '</article>')
 
-          work, count = re.subn(
+          work = sub_once(
+              work,
               r'''function fillDialogOptions\(kind, item = null\) \{.*?\n\}\n\nfunction openDialog''',
               '''function fillDialogOptions() {
             $("#projectGroup").innerHTML = state.eventGroups.map((group) => `<option value="${group.id}">${esc(group.name)}</option>`).join("");
           }
 
           function openDialog''',
-              work,
-              count=1,
-              flags=re.S,
+              'goal picker options',
+              re.S,
           )
-          if count != 1:
-              raise SystemExit('fillDialogOptions block not found')
           work = work.replace('  $("#projectGoal").value = item?.goalId || "";\n', '')
-
-          old_convert = '''      const oldKind = item.kind;
-                item.kind = nextKind;
-                delete item.goalId;
-                if (oldKind === "project" && nextKind === "goal") {
-                  current.tasks.forEach((task) => {
-                    if (task.projectId !== id) return;
-                    delete task.projectId;
-                    task.goalId = id;
-                  });
-                } else if (oldKind === "goal" && nextKind === "project") {
-                  current.tasks.forEach((task) => {
-                    if (task.goalId !== id) return;
-                    delete task.goalId;
-                    task.projectId = id;
-                  });
-                  current.projects.forEach((project) => { if (project.goalId === id) delete project.goalId; });
-                }'''
-          new_convert = '''      item.kind = nextKind;
-                delete item.goalId;'''
-          if old_convert not in work:
-              raise SystemExit('convert linking block not found')
-          work = work.replace(old_convert, new_convert)
-
-          old_submit_link = '''      if (kind === "project") item.goalId = $("#projectGoal").value || null;
-                else delete item.goalId;'''
-          if old_submit_link not in work:
-              raise SystemExit('submit linking block not found')
-          work = work.replace(old_submit_link, '      delete item.goalId;')
-
-          work, count = re.subn(
-              r'''    const unlink = event\.target\.closest\("\[data-work-unlink-task\]"\);\n    if \(unlink\) \{.*?\n    \}\n''',
-              '',
-              work,
-              count=1,
-              flags=re.S,
-          )
-          if count != 1:
-              raise SystemExit('unlink click handler not found')
-
-          work, count = re.subn(
-              r'''  document\.addEventListener\("change", async \(event\) => \{\n    const picker = event\.target\.closest\("\[data-work-link-task\]"\);.*?\n  \}\);\n''',
-              '',
-              work,
-              count=1,
-              flags=re.S,
-          )
-          if count != 1:
-              raise SystemExit('link picker change handler not found')
+          work = work.replace('      if (kind === "project") item.goalId = $("#projectGoal").value || null;\n      else delete item.goalId;', '      delete item.goalId;')
 
           work_path.write_text(work)
 
           index_path = Path('index.html')
           index = index_path.read_text()
-          goal_field = '      <div class="field" id="projectGoalField"><label>연결 목표</label><select id="projectGoal"><option value="">연결 안 함</option></select></div>\n'
-          if goal_field not in index:
-              raise SystemExit('projectGoalField not found')
-          index = index.replace(goal_field, '')
-          index = index.replace('<div class="field"><label>수동 진행률</label><input id="projectProgress" type="number" min="0" max="100" value="0" /><small>연결된 할일이 있으면 완료율이 자동 적용됩니다.</small></div>', '<div class="field"><label>진행률</label><input id="projectProgress" type="number" min="0" max="100" value="0" /><small>0~100 사이에서 직접 입력합니다.</small></div>')
+          index = sub_once(
+              index,
+              r'''\n      <div class="field" id="projectGoalField"><label>연결 목표</label><select id="projectGoal"><option value="">연결 안 함</option></select></div>''',
+              '',
+              'project goal field',
+          )
+          old_progress = '<div class="field"><label>수동 진행률</label><input id="projectProgress" type="number" min="0" max="100" value="0" /><small>연결된 할일이 있으면 완료율이 자동 적용됩니다.</small></div>'
+          new_progress = '<div class="field"><label>진행률</label><input id="projectProgress" type="number" min="0" max="100" value="0" /><small>0~100 사이에서 직접 입력합니다.</small></div>'
+          if old_progress not in index:
+              raise SystemExit('progress helper text not found')
+          index = index.replace(old_progress, new_progress)
+          if './js/work-management.js?v=3' not in index:
+              raise SystemExit('work-management version not found')
           index = index.replace('./js/work-management.js?v=3', './js/work-management.js?v=4')
           index_path.write_text(index)
           PY
 
+          node --check js/work-management.js
           rm .github/workflows/remove-work-linking.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Remove work item linking UI and logic"
+          git commit -m "Remove work item linking UI and behavior"
           git push
