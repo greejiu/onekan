@@ -23,3 +23,5 @@ marker = '/* Project plans inside edit dialog */'
 if marker not in css:
     css += '''\n\n/* Project plans inside edit dialog */\n.uw-project-plan-summary{color:var(--accent-dark);font-weight:700}\n.uw-project-plan-editor{display:grid;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);--uw-group:#8fa9c4}\n.uw-project-plan-editor[hidden]{display:none!important}\n.uw-project-plan-editor-head{display:flex;align-items:center;justify-content:space-between;gap:8px}\n.uw-project-plan-editor-head strong{font-size:12px}\n.uw-project-plan-editor-head small{color:var(--muted);font-size:9px}\n.uw-project-plan-editor .uw-project-plan-list{max-height:280px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}\n.uw-project-plan-editor .uw-project-plan-row{grid-template-columns:22px minmax(0,1fr) 24px}\n.uw-project-plan-editor .uw-project-plan-add{margin-top:2px}\n@media(max-width:700px){.uw-project-plan-editor .uw-project-plan-list{max-height:240px}.uw-project-plan-editor{margin-top:10px;padding-top:10px}}\n'''
 css_path.write_text(css)
+
+# trigger
