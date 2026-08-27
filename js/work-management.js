@@ -82,6 +82,7 @@ function migrate(current) {
     if (task.projectId && !validProjectIds.has(task.projectId)) {
       delete task.projectId;
       if (task.projectPlan) delete task.projectPlan;
+      if (task.projectPlanLinkedExisting) delete task.projectPlanLinkedExisting;
     }
     delete task.goalId;
   }
@@ -182,13 +183,33 @@ function fillDialogOptions() {
   if (goalSelect) goalSelect.innerHTML = '<option value="">연결 안 함</option>' + state.projects.filter((item) => item.kind === "goal").map((goal) => `<option value="${goal.id}">${esc(goal.title)}</option>`).join("");
 }
 
+function ensureGoalExistingProjectPicker(editor) {
+  let box = $("#goalExistingProjectLink", editor);
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "goalExistingProjectLink";
+    box.className = "uw-existing-link-box";
+    box.innerHTML = '<select id="goalExistingProjectSelect" aria-label="기존 프로젝트 선택"></select><button id="goalExistingProjectLinkBtn" type="button">기존 프로젝트 연결</button>';
+    editor.appendChild(box);
+  }
+  if (!$("#existingLinkPickerStyle")) {
+    const style = document.createElement("style");
+    style.id = "existingLinkPickerStyle";
+    style.textContent = '.uw-existing-link-box{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;margin-top:7px;padding-top:8px;border-top:1px dashed var(--line)}.uw-existing-link-box select{min-width:0;height:32px;padding:4px 7px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);font:inherit;font-size:10px}.uw-existing-link-box button{min-height:32px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--accent-dark);font:inherit;font-size:10px;cursor:pointer}.uw-existing-link-box button:disabled{opacity:.45;cursor:default}@media(max-width:700px){.uw-existing-link-box{grid-template-columns:1fr}.uw-existing-link-box select,.uw-existing-link-box button{height:36px;font-size:12px}}';
+    document.head.appendChild(style);
+  }
+  return box;
+}
+
 function renderGoalProjects(goalId) {
   const editor = $("#goalProjectsEditor");
   const list = $("#goalProjectList");
   const count = $("#goalProjectCount");
   if (!editor || !list) return;
+  const picker = ensureGoalExistingProjectPicker(editor);
   const projects = goalId ? sorted(state.projects.filter((item) => item.kind === "project" && item.goalId === goalId)) : [];
   editor.hidden = !goalId;
+  picker.hidden = !goalId;
   if (!goalId) {
     list.innerHTML = "";
     if (count) count.textContent = "";
@@ -196,6 +217,12 @@ function renderGoalProjects(goalId) {
   }
   if (count) count.textContent = `${projects.length}개`;
   list.innerHTML = projects.length ? projects.map((project) => `<div class="uw-goal-project-row" style="--uw-group:${groupOf(project).color}"><span></span><strong>${esc(project.title)}</strong><small>${esc(statusDefs.find((entry) => entry.id === project.status)?.label || "시작 전")}</small></div>`).join("") : '<div class="uw-goal-project-empty">아직 연결된 프로젝트가 없어요.</div>';
+
+  const available = sorted(state.projects.filter((item) => item.kind === "project" && !item.goalId));
+  const select = $("#goalExistingProjectSelect", picker);
+  const button = $("#goalExistingProjectLinkBtn", picker);
+  if (select) select.innerHTML = available.length ? '<option value="">기존 프로젝트 선택…</option>' + available.map((project) => `<option value="${project.id}">${esc(project.title)} · ${esc(statusDefs.find((entry) => entry.id === project.status)?.label || "시작 전")}</option>`).join("") : '<option value="">연결할 프로젝트가 없어요</option>';
+  if (button) button.disabled = !available.length;
 }
 
 function openDialog(kind, item = null) {
@@ -421,6 +448,27 @@ function wireUI() {
     event.stopPropagation();
     $("#goalProjectAddBtn")?.click();
   });
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest?.("#goalExistingProjectLinkBtn");
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const goalId = $("#projectKind")?.value === "goal" ? $("#projectId")?.value : "";
+    const projectId = $("#goalExistingProjectSelect")?.value || "";
+    if (!goalId || !projectId) return;
+    button.disabled = true;
+    try {
+      await writeState((current) => {
+        const goal = current.projects.find((item) => item.id === goalId && item.kind === "goal");
+        const project = current.projects.find((item) => item.id === projectId && item.kind === "project" && !item.goalId);
+        if (!goal || !project) return;
+        project.goalId = goalId;
+      });
+      renderGoalProjects(goalId);
+    } finally {
+      button.disabled = false;
+    }
+  }, true);
   $("#convertProjectBtn")?.addEventListener("click", async (event) => {
     const id = event.currentTarget.dataset.workConvertId;
     const nextKind = event.currentTarget.dataset.workConvertKind;
@@ -439,6 +487,7 @@ function wireUI() {
           if (task.projectId !== id) return;
           delete task.projectId;
           if (task.projectPlan) delete task.projectPlan;
+          if (task.projectPlanLinkedExisting) delete task.projectPlanLinkedExisting;
         });
       } else {
         delete item.goalId;

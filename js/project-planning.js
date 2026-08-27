@@ -95,6 +95,18 @@ function renderCards() {
   });
 }
 
+function ensureExistingTaskPicker(editor) {
+  let box = $("#projectExistingTaskLink", editor);
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "projectExistingTaskLink";
+    box.className = "uw-existing-link-box";
+    box.innerHTML = '<select id="projectExistingTaskSelect" aria-label="기존 할일 선택"></select><button id="projectExistingTaskLinkBtn" type="button">기존 할일 연결</button>';
+    editor.appendChild(box);
+  }
+  return box;
+}
+
 function renderDialogPlans() {
   const dialog = $("#projectDialog");
   const editor = $("#projectPlanEditor");
@@ -115,6 +127,15 @@ function renderDialogPlans() {
   if (progress) progress.textContent = plans.length ? `${complete}/${plans.length} 완료` : "아직 계획 없음";
   const list = $("#projectPlanList");
   if (list) list.innerHTML = plans.length ? plans.map(planRow).join("") : '<div class="uw-project-plan-empty">프로젝트를 실행할 만큼 작게 나눠보세요.</div>';
+
+  const picker = ensureExistingTaskPicker(editor);
+  const available = [...state.tasks]
+    .filter((task) => !task.projectId && task.projectPlan !== true && task.recurrenceOn !== true)
+    .sort((a, b) => String(a.date || "9999").localeCompare(String(b.date || "9999")) || String(a.title || "").localeCompare(String(b.title || ""), "ko"));
+  const select = $("#projectExistingTaskSelect", picker);
+  const button = $("#projectExistingTaskLinkBtn", picker);
+  if (select) select.innerHTML = available.length ? '<option value="">기존 할일 선택…</option>' + available.map((task) => `<option value="${task.id}">${esc(task.title)} · ${task.date ? esc(task.date) : "언젠가"}${task.done ? " · 완료" : ""}</option>`).join("") : '<option value="">연결할 할일이 없어요</option>';
+  if (button) button.disabled = !available.length;
 }
 
 function render() {
@@ -197,7 +218,15 @@ async function updatePlanDate(id, value) {
 
 async function deletePlan(id) {
   await writeState((current) => {
-    current.tasks = current.tasks.filter((item) => !(item.id === id && item.projectPlan === true));
+    const task = current.tasks.find((item) => item.id === id && item.projectPlan === true);
+    if (!task) return;
+    if (task.projectPlanLinkedExisting) {
+      delete task.projectId;
+      delete task.projectPlan;
+      delete task.projectPlanLinkedExisting;
+      return;
+    }
+    current.tasks = current.tasks.filter((item) => item.id !== id);
     current.timeBlocks = Array.isArray(current.timeBlocks) ? current.timeBlocks.filter((block) => block.taskId !== id) : [];
   });
 }
@@ -212,6 +241,29 @@ function wireUI() {
       event.preventDefault();
       event.stopPropagation();
       try { await addPlan(); } catch (error) { console.error("프로젝트 계획 추가 실패", error); }
+      return;
+    }
+
+    const linkExisting = event.target.closest?.("#projectExistingTaskLinkBtn");
+    if (linkExisting) {
+      event.preventDefault();
+      event.stopPropagation();
+      const projectId = $("#projectKind")?.value === "project" ? $("#projectId")?.value : "";
+      const taskId = $("#projectExistingTaskSelect")?.value || "";
+      if (!projectId || !taskId) return;
+      linkExisting.disabled = true;
+      try {
+        await writeState((current) => {
+          const project = current.projects.find((item) => item.id === projectId && item.kind === "project");
+          const task = current.tasks.find((item) => item.id === taskId && !item.projectId && item.projectPlan !== true && item.recurrenceOn !== true);
+          if (!project || !task) return;
+          task.projectId = projectId;
+          task.projectPlan = true;
+          task.projectPlanLinkedExisting = true;
+        });
+      } finally {
+        linkExisting.disabled = false;
+      }
       return;
     }
 
