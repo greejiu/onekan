@@ -1,0 +1,17 @@
+name: Recurrence regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/recurrence-regression.mjs'
+      - '.github/workflows/recurrence-regression.yml'
+      - 'js/unified-workspace.js'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JavaScript syntax
+        run: node --check js/unified-workspace.js
+      - name: Recurrence regression
+        run: node scripts/recurrence-regression.mjs
