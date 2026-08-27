@@ -1,0 +1,102 @@
+name: Improve group visibility
+
+on:
+  push:
+    paths:
+      - '.github/workflows/improve-group-visibility.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Make groups visually distinct
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          unified = Path('js/unified-workspace.js')
+          text = unified.read_text()
+          old = '<div class="uw-habit-group-title" style="--uw-group:${group.color}"><span></span>${esc(group.name)}</div>'
+          new = '<div class="uw-habit-group-title" style="--uw-group:${group.color}"><span class="uw-habit-group-dot"></span><strong>${esc(group.name)}</strong><small>${items.length}</small></div>'
+          if old not in text:
+              raise SystemExit('habit group title pattern not found')
+          text = text.replace(old, new, 1)
+          unified.write_text(text)
+
+          work = Path('js/work-management.js')
+          text = work.read_text()
+          row_pattern = re.compile(r'function workRow\(item\) \{\n.*?\n\}\n\nfunction sorted', re.S)
+          row_replacement = '''function workRow(item) {
+            return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div></article>`;
+          }
+
+          function sorted'''
+          text, count = row_pattern.subn(row_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'workRow replacement count: {count}')
+
+          section_pattern = re.compile(r'function statusSection\(kind, definition, items\) \{\n.*?\n\}\n\nfunction renderKind', re.S)
+          section_replacement = '''function statusSection(kind, definition, items) {
+            const grouped = state.eventGroups
+              .map((groupInfo) => ({ groupInfo, rows: items.filter((item) => groupOf(item).id === groupInfo.id) }))
+              .filter((entry) => entry.rows.length);
+            const body = grouped.map(({ groupInfo, rows }) => `<div class="uw-work-board-group" style="--uw-group:${groupInfo.color}"><div class="uw-work-board-group-head"><span></span><strong>${esc(groupInfo.name)}</strong><small>${rows.length}</small></div>${sorted(rows).map(workRow).join("")}</div>`).join("");
+            return `<section class="uw-work-status-section" style="--uw-status:${definition.color}" data-work-kind="${kind}" data-work-drop-status="${definition.id}"><div class="uw-work-status-head"><span></span><strong>${definition.label}</strong><small>${items.length}</small></div><div class="uw-work-list">${items.length ? body : '<div class="uw-work-status-empty">여기로 옮길 수 있어요.</div>'}</div></section>`;
+          }
+
+          function renderKind'''
+          text, count = section_pattern.subn(section_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'statusSection replacement count: {count}')
+          work.write_text(text)
+
+          css = Path('css/unified-workspace.css')
+          ctext = css.read_text()
+          marker = '/* Stronger visual grouping: habits, goals, work */'
+          if marker not in ctext:
+              ctext += '''\n\n/* Stronger visual grouping: habits, goals, work */
+          .uw-habit-group-title{min-height:42px;padding:8px 12px;border-left:4px solid var(--uw-group);background:color-mix(in srgb,var(--uw-group) 11%,#fff);font-size:12px}
+          .uw-habit-group-title .uw-habit-group-dot{width:10px;height:10px;flex:none;border-radius:50%;background:var(--uw-group)}
+          .uw-habit-group-title strong{flex:1;font-size:12px}
+          .uw-habit-group-title small{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:color-mix(in srgb,var(--uw-group) 18%,#fff);color:var(--text);font-size:9px;font-weight:700}
+          .uw-habit-week-row .uw-habit-name{padding-left:14px}
+
+          .uw-work-group{border-color:color-mix(in srgb,var(--uw-group) 35%,var(--line))}
+          .uw-work-group-head{min-height:46px;padding:9px 13px;border-left:4px solid var(--uw-group);background:color-mix(in srgb,var(--uw-group) 11%,#fff)}
+          .uw-work-group-head strong{font-size:12px}
+          .uw-work-group-head small{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:color-mix(in srgb,var(--uw-group) 18%,#fff);color:var(--text);font-weight:700}
+
+          .uw-work-board-group{background:#fff}
+          .uw-work-board-group+.uw-work-board-group{border-top:1px solid var(--line)}
+          .uw-work-board-group-head{display:flex;align-items:center;gap:7px;min-height:34px;padding:7px 10px;border-left:4px solid var(--uw-group);border-bottom:1px solid color-mix(in srgb,var(--uw-group) 22%,var(--line));background:color-mix(in srgb,var(--uw-group) 10%,#fff)}
+          .uw-work-board-group-head>span{width:8px;height:8px;flex:none;border-radius:50%;background:var(--uw-group)}
+          .uw-work-board-group-head strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+          .uw-work-board-group-head small{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:color-mix(in srgb,var(--uw-group) 18%,#fff);font-size:8px;font-weight:700}
+          .uw-work-board-group .uw-work-row{background:#fff}
+          .uw-work-row-main>div{min-width:0;flex:1}
+          .uw-work-row-main>div>strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          .uw-work-row-main>div>small{display:block;margin-top:2px;color:var(--muted);font-size:9px}
+          '''
+          css.write_text(ctext)
+
+          index = Path('index.html')
+          html = index.read_text()
+          html = html.replace('./css/unified-workspace.css?v=20', './css/unified-workspace.css?v=21')
+          html = html.replace('./js/unified-workspace.js?v=24', './js/unified-workspace.js?v=25')
+          html = html.replace('./js/work-management.js?v=6', './js/work-management.js?v=7')
+          index.write_text(html)
+          PY
+
+          git rm .github/workflows/improve-group-visibility.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/unified-workspace.js js/work-management.js css/unified-workspace.css index.html
+          git commit -m "Make habit and work groups easier to scan"
+          git push
