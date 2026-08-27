@@ -418,7 +418,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
           if(!old.recurrence?.frequency||dateChanged)current.timeBlocks.filter(block=>block.taskId===target.id).forEach(block=>{block.date=selectedDate||previousDate})
         }
         if(kind==="event"){
-          const eventDate=selectedDate||key(new Date(target.start));
+          const eventDate=old.recurrence?.frequency&&!dateChanged?key(new Date(target.start)):(selectedDate||key(new Date(target.start)));
           if(timeValue){
             const startDate=new Date(`${eventDate}T${timeValue}:00`);
             target.start=startDate.toISOString();
