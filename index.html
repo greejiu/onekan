@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=14" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=15" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -137,10 +137,10 @@
               <div class="timer-controls"><button class="primary-btn timer-start-wide" id="timerStart" type="button">집중 시작</button><button class="soft-btn" id="timerPause" type="button" disabled>일시정지</button><button class="soft-btn" id="timerStop" type="button" disabled>종료</button></div>
             </div>
           </article>
-          <article class="card"><div class="card-header"><div class="card-title">오늘 기록 보기</div></div><div class="card-body" id="todaySessions"></div></article>
+          <article class="card"><div class="card-header"><div class="card-title">오늘 기록</div><button class="uw-icon-btn session-add-btn" data-add-session data-default-offset="0" type="button" aria-label="오늘 시간 기록 추가">＋</button></div><div class="card-body" id="todaySessions"></div></article>
         </div>
         <div class="section-gap"></div>
-        <article class="card"><div class="card-header"><div class="card-title">지나간 시간들</div></div><div class="card-body" id="allSessions"></div></article>
+        <article class="card"><div class="card-header"><div class="card-title">지나간 시간들</div><button class="uw-icon-btn session-add-btn" data-add-session data-default-offset="-1" type="button" aria-label="지난 시간 기록 추가">＋</button></div><div class="card-body" id="allSessions"></div></article>
       </section>
 
       <section class="page uw-work-page" id="page-goals">
@@ -234,11 +234,11 @@
     </form>
   </dialog>
 
-  <script type="module" src="./js/app.js?v=26"></script>
+  <script type="module" src="./js/app.js?v=27"></script>
   <script type="module" src="./js/context-menu.js?v=16"></script>
   <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
-  <script type="module" src="./js/unified-workspace.js?v=16"></script>
+  <script type="module" src="./js/unified-workspace.js?v=17"></script>
   <script type="module" src="./js/work-management.js?v=1"></script>
 </body>
 </html>

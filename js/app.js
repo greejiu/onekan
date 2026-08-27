@@ -82,6 +82,7 @@ function defaultState() {
       themeColor: "#8fa9c4",
       timelineRange: { start: 360, end: 1320 },
       timelineColors: { task: "#d8d8d5", habit: "#b9d9c3" },
+      showSessionsOnTimeline: true,
       calendarFilters: {
         month: { schedule: true, task: false },
         week: { schedule: true, task: true },
@@ -121,6 +122,7 @@ function normalizeState(raw) {
       themeColor: state.ui?.themeColor || base.ui.themeColor,
       timelineRange: { ...base.ui.timelineRange, ...(state.ui?.timelineRange || {}) },
       timelineColors: { ...base.ui.timelineColors, ...(state.ui?.timelineColors || {}) },
+      showSessionsOnTimeline: state.ui?.showSessionsOnTimeline !== false,
       calendarFilters: {
         month: { ...base.ui.calendarFilters.month, ...(savedCalendarFilters.month || {}) },
         week: { ...base.ui.calendarFilters.week, ...(savedCalendarFilters.week || {}) },
@@ -1179,14 +1181,102 @@ function startTicker() {
   tickHandle = setInterval(updateTimerUI, 1000);
 }
 
+function sessionPeriod(session) {
+  const start = new Date(session.start || session.end);
+  const end = new Date(session.end || session.start);
+  const date = new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric" }).format(start);
+  const time = (value) => `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+  return `${date} · ${time(start)}–${time(end)}`;
+}
+
 function renderSessions() {
   const dayKey = appDayKey();
   const today = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) === dayKey).sort((a, b) => new Date(b.end) - new Date(a.end));
-  const all = [...state.sessions].sort((a, b) => new Date(b.end) - new Date(a.end)).slice(0, 50);
-  const make = (items) => items.length ? items.map((session) => `<div class="history-row editable-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta">${new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(session.end))}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`).join("") : '<div class="empty">아직 기록이 없어요.</div>';
+  const past = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) < dayKey).sort((a, b) => new Date(b.end) - new Date(a.end)).slice(0, 50);
+  const make = (items) => items.length ? items.map((session) => `<div class="history-row editable-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta">${sessionPeriod(session)}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`).join("") : '<div class="empty">아직 기록이 없어요.</div>';
   $("#todaySessions").innerHTML = make(today);
-  $("#allSessions").innerHTML = make(all);
+  $("#allSessions").innerHTML = make(past);
   $("#trackingTodayTotal").textContent = `오늘 ${fmtDuration(todayFocusMs())}`;
+}
+
+function ensureManualSessionDialog() {
+  let dialog = $("#manualSessionDialog");
+  if (dialog) return dialog;
+  dialog = document.createElement("dialog");
+  dialog.id = "manualSessionDialog";
+  dialog.className = "manual-session-dialog";
+  dialog.innerHTML = `
+    <form id="manualSessionForm">
+      <div class="manual-session-head"><strong>시간 기록 추가</strong><button class="uw-icon-btn" data-close-session type="button" aria-label="닫기">×</button></div>
+      <label><span>기록 이름</span><input id="manualSessionTitle" type="text" required maxlength="80" placeholder="무엇을 했나요?"></label>
+      <label><span>할일 연결</span><select id="manualSessionTask"><option value="">연결 안 함</option></select></label>
+      <label><span>날짜</span><input id="manualSessionDate" type="date" required></label>
+      <div class="manual-session-times">
+        <label><span>시작</span><input id="manualSessionStart" type="time" required></label>
+        <label><span>종료</span><input id="manualSessionEnd" type="time" required></label>
+      </div>
+      <div class="manual-session-error" id="manualSessionError" role="alert"></div>
+      <div class="manual-session-actions"><button class="soft-btn" data-close-session type="button">취소</button><button class="primary-btn" type="submit">기록 저장</button></div>
+    </form>`;
+  document.body.appendChild(dialog);
+  dialog.querySelectorAll("[data-close-session]").forEach((button) => button.addEventListener("click", () => dialog.close()));
+  dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+  $("#manualSessionTask", dialog).addEventListener("change", (event) => {
+    const task = state.tasks.find((item) => item.id === event.target.value);
+    const title = $("#manualSessionTitle", dialog);
+    if (task && !title.value.trim()) title.value = task.title;
+  });
+  $("#manualSessionForm", dialog).addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const title = $("#manualSessionTitle", dialog).value.trim();
+    const date = $("#manualSessionDate", dialog).value;
+    const startValue = $("#manualSessionStart", dialog).value;
+    const endValue = $("#manualSessionEnd", dialog).value;
+    const error = $("#manualSessionError", dialog);
+    const start = new Date(`${date}T${startValue}:00`);
+    const end = new Date(`${date}T${endValue}:00`);
+    if (!title || !date || !startValue || !endValue || !Number.isFinite(+start) || !Number.isFinite(+end)) {
+      error.textContent = "이름·날짜·시간을 모두 입력해 주세요.";
+      return;
+    }
+    if (end <= start) {
+      error.textContent = "종료 시간은 시작 시간보다 뒤여야 해요.";
+      return;
+    }
+    state.sessions.push({
+      id: uid(),
+      taskId: $("#manualSessionTask", dialog).value || null,
+      title,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      durationMs: end - start,
+      timerMode: "manual"
+    });
+    await save();
+    dialog.close();
+    renderTracking();
+    renderDashboard();
+  });
+  return dialog;
+}
+
+function openManualSession(defaultOffset = 0) {
+  const dialog = ensureManualSessionDialog();
+  const date = appDayDate();
+  date.setDate(date.getDate() + defaultOffset);
+  const now = new Date();
+  let endMinute = defaultOffset === 0 ? now.getHours() * 60 + now.getMinutes() : 18 * 60;
+  endMinute = Math.min(23 * 60 + 55, Math.max(30, Math.round(endMinute / 5) * 5));
+  const startMinute = Math.max(0, endMinute - 30);
+  const timeValue = (minute) => `${String(Math.floor(minute / 60) % 24).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+  $("#manualSessionTitle", dialog).value = "";
+  $("#manualSessionDate", dialog).value = localDateKey(date);
+  $("#manualSessionStart", dialog).value = timeValue(startMinute);
+  $("#manualSessionEnd", dialog).value = timeValue(endMinute);
+  $("#manualSessionError", dialog).textContent = "";
+  $("#manualSessionTask", dialog).innerHTML = '<option value="">연결 안 함</option>' + state.tasks.map((task) => `<option value="${task.id}">${esc(task.title)}</option>`).join("");
+  dialog.showModal();
+  requestAnimationFrame(() => $("#manualSessionTitle", dialog).focus());
 }
 
 function renderTracking() {
@@ -1458,6 +1548,7 @@ function bindUI() {
   $("#timerStop").addEventListener("click", () => {
     finishTimer(false);
   });
+  $("[data-add-session]").forEach((button) => button.addEventListener("click", () => openManualSession(Number(button.dataset.defaultOffset || 0))));
   $("#timerMinusMinute").addEventListener("click", () => adjustTimerMinutes(-1));
   $("#timerPlusMinute").addEventListener("click", () => adjustTimerMinutes(1));
   $$('[data-timer-mode]').forEach((button) => button.addEventListener("click", () => setTimerMode(button.dataset.timerMode)));
