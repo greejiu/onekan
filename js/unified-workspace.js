@@ -131,6 +131,9 @@ function nextOccurrence(item,afterDate,limit=370){
 function taskDoneOn(item,date){
   return item.recurrence?.frequency?!!item.recurrenceDone?.[date]:!!item.done
 }
+function itemDoneOn(kind,item,date){
+  return kind==="task"?taskDoneOn(item,date):kind==="habit"?!!state.habitDays[date]?.[item.id]:false
+}
 function recurrenceLabel(item){
   const frequency=item.recurrence?.frequency;
   return frequency==="daily"?"매일":frequency==="weekly"?"매주":frequency==="monthly"?"매월":""
@@ -161,7 +164,7 @@ function itemsForDay(k){
     }
     return{kind:"task",item:task,timed:start!==null,time:start,duration}
   });
-  const habits=state.habitTemplates.flatMap(habit=>{const override=habitOverride(state,k,habit.id)||{};if(override.hidden)return[];const start=Object.prototype.hasOwnProperty.call(override,"startMinute")?override.startMinute:habit.startMinute;const duration=Object.prototype.hasOwnProperty.call(override,"duration")?override.duration:habit.duration;const item=Object.prototype.hasOwnProperty.call(override,"title")?{...habit,title:override.title}:habit;return[{kind:"habit",item,timed:Number.isFinite(Number(start)),time:Number(start),duration:+duration||SLOT}]});
+  const habits=state.habitTemplates.flatMap(habit=>{const override=habitOverride(state,k,habit.id)||{};if(override.hidden)return[];const start=Object.prototype.hasOwnProperty.call(override,"startMinute")?override.startMinute:habit.startMinute;const duration=Object.prototype.hasOwnProperty.call(override,"duration")?override.duration:habit.duration;const item=Object.prototype.hasOwnProperty.call(override,"title")?{...habit,title:override.title}:habit;const timed=start!==null&&start!==undefined&&Number.isFinite(Number(start));return[{kind:"habit",item,timed,time:timed?Number(start):null,duration:+duration||SLOT}]});
   return[...events,...tasks,...habits]
 }
 function sessionItemsForDay(k){
@@ -189,12 +192,12 @@ function sessionToggleMarkup(){
 }
 function checkMarkup(kind,item,k){
   if(kind==="event")return'<span class="uw-event-dot" aria-hidden="true"></span>';
-  const done=kind==="task"?taskDoneOn(item,k):!!state.habitDays[k]?.[item.id];
+  const done=itemDoneOn(kind,item,k);
   const color=kind==="task"?"var(--timeline-task-color)":"var(--timeline-habit-color)";
   return`<button class="uw-check${done?" checked":""}" style="--uw-check-color:${color}" data-uw-check="${kind}" data-id="${item.id}" data-date="${k}" type="button">${done?"✓":""}</button>`
 }
 function itemMarkup(kind,item,k,compact=false){
-  const done=kind==="task"?taskDoneOn(item,k):kind==="habit"?!!state.habitDays[k]?.[item.id]:false;
+  const done=itemDoneOn(kind,item,k);
   const time=kind==="event"&&!item.allDay?timeOf(item.start):"";
   const repeat=recurrenceLabel(item);
   return`<div class="uw-item uw-${kind}${done?" done":""}${compact?" compact":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}" draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
@@ -312,9 +315,9 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
 function allDayPanel(k,items){const shown=items.slice(0,2),hidden=items.slice(2),extra=hidden.length;return`<div class="uw-all-day" data-date="${k}" data-uw-all-day-drop><span class="uw-all-day-label">하루 종일</span><div class="uw-all-day-list" data-uw-add-kind="task" data-date="${k}">${shown.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div>${extra?`<button class="uw-all-day-more" data-uw-all-day-more type="button" aria-expanded="false">+${extra}개 더보기</button><div class="uw-all-day-popover"><div class="uw-list">${hidden.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")}</div></div>`:""}</div>`}
 function flatListMarkup(x,k){return itemMarkup(x.kind,x.item,k).replace(/<span class="uw-item-time">.*?<\/span>/,"")}
 function plannerListDay(d){const k=key(d),items=itemsForDay(k);return`<section class="uw-day uw-list-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div><div class="uw-list uw-flat-day-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${items.map(x=>flatListMarkup(x,k)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div></section>`}
-function plannerDay(d){const k=key(d),items=timelineItemsForDay(k),untimed=items.filter(x=>!x.timed),timed=layoutTimedItems(items.filter(x=>x.timed&&x.time>=START&&x.time<END));let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>x.kind==="session"?sessionBlockMarkup(x,k):`<div class="uw-time-entry uw-item ${x.kind==="task"&&taskDoneOn(x.item,k)?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${x.item.id}" data-date="${k}" data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>${allDayPanel(k,untimed)}<div class="uw-timeline" style="height:${timelineHeight()}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}${blocks}</div></div></section>`}
+function plannerDay(d){const k=key(d),items=timelineItemsForDay(k),untimed=items.filter(x=>!x.timed),timed=layoutTimedItems(items.filter(x=>x.timed&&x.time>=START&&x.time<END));let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>x.kind==="session"?sessionBlockMarkup(x,k):`<div class="uw-time-entry uw-item ${itemDoneOn(x.kind,x.item,k)?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${x.item.id}" data-date="${k}" data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>${allDayPanel(k,untimed)}<div class="uw-timeline" style="height:${timelineHeight()}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}${blocks}</div></div></section>`}
 function renderPlanner(){const card=$(".home-timeline-card");if(!card)return;$$("[data-uw-home-mode]").forEach(b=>b.classList.toggle("active",b.dataset.uwHomeMode===homeMode));const daySelect=$("[data-uw-home-days-select]");if(daySelect)daySelect.value=String(homeDays);const dayRenderer=homeMode==="timeline"?plannerDay:plannerListDay;card.innerHTML=`<div class="uw-planner-head"><div><div class="uw-planner-title">${homeMode==="timeline"?"타임라인":"목록"}</div><small class="card-meta">${homeMode==="timeline"?"30분 단위":"시간 구분 없이 날짜별 표시"}</small></div>${homeMode==="timeline"?sessionToggleMarkup():""}</div><div class="uw-home-planner"><div class="uw-planner-days ${homeMode==="list"?"uw-planner-list-days":""}" style="--uw-days:${homeDays}">${Array.from({length:homeDays},(_,i)=>dayRenderer(addDays(homeCursor,i))).join("")}</div></div>`}
-function upcomingKeys(){return Array.from({length:7},(_,i)=>key(addDays(fromKey(todayKey()),i)))}
+function upcomingKeys(){return Array.from({length:7},(_,i)=>key(addDays(fromKey(todayKey()),i+1)))}
 function renderUpcoming(){const root=$("#upcomingList");if(!root)return;const dates=upcomingKeys();root.innerHTML=dates.map(k=>{const rows=[...schedules(k).map(item=>({kind:"event",item})),...state.tasks.filter(task=>task.date&&recurrenceOn(task,task.date,k)&&!taskDoneOn(task,k)).map(item=>({kind:"task",item}))];return`<div class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(k),true)}</span><button class="uw-icon-btn" data-uw-add-kind="task" data-date="${k}">＋</button></div><div class="uw-list" data-uw-add-kind="task" data-date="${k}">${rows.map(x=>itemMarkup(x.kind,x.item,k)).join("")||'<div class="uw-empty-hit">일정·할일 입력</div>'}</div></div>`}).join("")}
 function renderSomeday(){const root=$("#somedayHomeSlot");if(!root)return;const tasks=state.tasks.filter(t=>!t.done&&!t.date);root.innerHTML=`<div class="uw-list uw-someday-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop><button class="uw-someday-add uw-empty-hit" data-uw-add-kind="task" data-date="" type="button">＋ 할일 입력</button>${tasks.map(t=>itemMarkup("task",t,"")).join("")}</div>`}
 function renderSideTab(){$$('[data-uw-side-tab]').forEach(button=>{const active=button.dataset.uwSideTab===homeSideTab;button.classList.toggle("active",active);button.setAttribute("aria-selected",String(active))});$$('[data-uw-side-panel]').forEach(panel=>{panel.hidden=panel.dataset.uwSidePanel!==homeSideTab})}
@@ -549,8 +552,13 @@ function wireDragClickGuard(){
 }
 
 async function saveUntimedChange(kind,id,date){
+  if(kind==="habit"){
+    const habit=state?.habitTemplates.find(item=>item.id===id),scope=await askHabitScope("change",habit,date);
+    if(!habit||!scope)return;
+    await write(current=>{const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=null;delete override.duration}else{delete target.startMinute;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
+    return
+  }
   await write(s=>{
-    if(kind==="habit")return;
     if(kind==="task"){
       const task=s.tasks.find(x=>x.id===id);
       if(!task)return;
@@ -748,7 +756,7 @@ function wireControlsV2(){
       g.nextStart=null;
       g.dropType="someday";
       drop=someday;
-    }else if(allDay&&g.kind!=="habit"){
+    }else if(allDay){
       g.nextDate=allDay.dataset.date||g.date;
       g.nextStart=null;
       g.dropType="all-day";
