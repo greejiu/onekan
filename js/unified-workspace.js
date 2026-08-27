@@ -32,7 +32,7 @@ function normalize(s){
   return s
 }
 async function read(){const {data:{session}}=await supabase.auth.getSession();user=session?.user||null;if(!user)return null;const {data,error}=await supabase.from("onekan_state").select("data").eq("user_id",user.id).maybeSingle();if(error)throw error;state=normalize(data?.data);return state}
-async function write(mutator){await read();if(!state||!user)return;mutator(state);const {error}=await supabase.from("onekan_state").upsert({user_id:user.id,data:state},{onConflict:"user_id"});if(error)throw error;$("#reloadCloudBtn")?.click();scheduleRender(130)}
+async function write(mutator){await read();if(!state||!user)return;mutator(state);const {error}=await supabase.from("onekan_state").upsert({user_id:user.id,data:state},{onConflict:"user_id"});if(error)throw error;document.dispatchEvent(new CustomEvent("onekan:state-changed",{detail:{source:"unified"}}));$("#reloadCloudBtn")?.click();scheduleRender(130)}
 function scheduleRender(ms=60){clearTimeout(renderTimer);renderTimer=setTimeout(renderAll,ms)}
 function group(item){return state.eventGroups.find(g=>g.id===item.groupId)||state.eventGroups[0]}
 function groupStyle(item){return `--uw-group:${group(item).color}`}
@@ -62,21 +62,174 @@ function updateCurrentTimeLines(){
 }
 function dayLabel(d,long=false){return new Intl.DateTimeFormat("ko-KR",long?{month:"long",day:"numeric",weekday:"short"}:{month:"numeric",day:"numeric",weekday:"short"}).format(d)}
 function timeOf(iso){if(!iso)return"";const d=new Date(iso);return`${pad(d.getHours())}:${pad(d.getMinutes())}`}
-function eventOnDate(e,k){const a=key(new Date(e.start)),b=e.allDay&&e.end?key(new Date(e.end)):a;return k>=a&&k<=b}
-function itemsForDay(k){const events=state.events.filter(e=>eventOnDate(e,k)).map(e=>({kind:"event",item:e,timed:!e.allDay,time:e.allDay?null:new Date(e.start).getHours()*60+new Date(e.start).getMinutes(),duration:e.allDay?null:Math.max(SLOT,Math.round((new Date(e.end||e.start)-new Date(e.start))/60000/SLOT)*SLOT)}));const tasks=state.tasks.filter(t=>t.date===k).map(t=>{let start=null,duration=null;if(t.notionStart&&t.notionEnd){const d=new Date(t.notionStart);start=d.getHours()*60+d.getMinutes();duration=Math.max(SLOT,Math.round((new Date(t.notionEnd)-d)/60000/SLOT)*SLOT)}else{const b=state.timeBlocks.find(b=>b.taskId===t.id&&b.date===k);if(b){start=+b.startMinute;duration=+b.duration||SLOT}}return{kind:"task",item:t,timed:start!==null,time:start,duration}});const habits=state.habitTemplates.map(h=>({kind:"habit",item:h,timed:Number.isFinite(Number(h.startMinute)),time:Number(h.startMinute),duration:+h.duration||SLOT}));return[...events,...tasks,...habits]}
-function checkMarkup(kind,item,k){if(kind==="event")return'<span class="uw-event-dot" aria-hidden="true"></span>';const done=kind==="task"?!!item.done:!!state.habitDays[k]?.[item.id];const color=kind==="task"?"var(--timeline-task-color)":"var(--timeline-habit-color)";return`<button class="uw-check${done?" checked":""}" style="--uw-check-color:${color}" data-uw-check="${kind}" data-id="${item.id}" data-date="${k}" type="button">${done?"✓":""}</button>`}
-function itemMarkup(kind,item,k,compact=false){const done=kind==="task"?!!item.done:kind==="habit"?!!state.habitDays[k]?.[item.id]:false;const time=kind==="event"&&!item.allDay?timeOf(item.start):"";return`<div class="uw-item uw-${kind}${done?" done":""}${compact?" compact":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}" draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button" aria-label="선택"></button></div>`}
-
+function dayDistance(first,last){
+  const a=fromKey(first),b=fromKey(last);
+  return Math.round((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())-Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000)
+}
+function recurrenceOn(item,baseDate,targetDate){
+  if(!baseDate||!targetDate)return false;
+  const recurrence=item.recurrence;
+  if(!recurrence||!recurrence.frequency||recurrence.frequency==="none")return targetDate===baseDate;
+  if(targetDate<baseDate||recurrence.until&&targetDate>recurrence.until)return false;
+  const interval=Math.max(1,+recurrence.interval||1),diff=dayDistance(baseDate,targetDate);
+  if(recurrence.frequency==="daily")return diff%interval===0;
+  const base=fromKey(baseDate),target=fromKey(targetDate);
+  if(recurrence.frequency==="weekly"){
+    const weekdays=Array.isArray(recurrence.weekdays)&&recurrence.weekdays.length?recurrence.weekdays:[base.getDay()];
+    return Math.floor(diff/7)%interval===0&&weekdays.includes(target.getDay())
+  }
+  if(recurrence.frequency==="monthly"){
+    const months=(target.getFullYear()-base.getFullYear())*12+target.getMonth()-base.getMonth();
+    const wanted=Math.min(+recurrence.dayOfMonth||base.getDate(),new Date(target.getFullYear(),target.getMonth()+1,0).getDate());
+    return months>=0&&months%interval===0&&target.getDate()===wanted
+  }
+  return targetDate===baseDate
+}
+function nextOccurrence(item,afterDate,limit=370){
+  const base=item.date;
+  if(!base||!item.recurrence)return null;
+  for(let offset=0;offset<=limit;offset++){
+    const date=key(addDays(fromKey(afterDate),offset));
+    if(recurrenceOn(item,base,date))return date
+  }
+  return null
+}
+function taskDoneOn(item,date){
+  return item.recurrence?.frequency?!!item.recurrenceDone?.[date]:!!item.done
+}
+function recurrenceLabel(item){
+  const frequency=item.recurrence?.frequency;
+  return frequency==="daily"?"매일":frequency==="weekly"?"매주":frequency==="monthly"?"매월":""
+}
+function eventOnDate(eventItem,date){
+  const start=key(new Date(eventItem.start)),end=eventItem.allDay&&eventItem.end?key(new Date(eventItem.end)):start;
+  if(!eventItem.recurrence?.frequency)return date>=start&&date<=end;
+  const span=Math.max(0,dayDistance(start,end));
+  for(let offset=0;offset<=span;offset++){
+    const occurrenceStart=key(addDays(fromKey(date),-offset));
+    if(recurrenceOn(eventItem,start,occurrenceStart))return true
+  }
+  return false
+}
+function itemsForDay(k){
+  const events=state.events.filter(event=>eventOnDate(event,k)).map(event=>({kind:"event",item:event,timed:!event.allDay,time:event.allDay?null:new Date(event.start).getHours()*60+new Date(event.start).getMinutes(),duration:event.allDay?null:Math.max(SLOT,Math.round((new Date(event.end||event.start)-new Date(event.start))/60000/SLOT)*SLOT)}));
+  const tasks=state.tasks.filter(task=>task.date&&recurrenceOn(task,task.date,k)).map(task=>{
+    let start=null,duration=null;
+    if(task.notionStart&&task.notionEnd){
+      const date=new Date(task.notionStart);
+      start=date.getHours()*60+date.getMinutes();
+      duration=Math.max(SLOT,Math.round((new Date(task.notionEnd)-date)/60000/SLOT)*SLOT)
+    }else{
+      const block=state.timeBlocks.find(block=>block.taskId===task.id&&(block.date===k||task.recurrence&&block.date===task.date));
+      if(block){start=+block.startMinute;duration=+block.duration||SLOT}
+    }
+    return{kind:"task",item:task,timed:start!==null,time:start,duration}
+  });
+  const habits=state.habitTemplates.map(habit=>({kind:"habit",item:habit,timed:Number.isFinite(Number(habit.startMinute)),time:Number(habit.startMinute),duration:+habit.duration||SLOT}));
+  return[...events,...tasks,...habits]
+}
+function checkMarkup(kind,item,k){
+  if(kind==="event")return'<span class="uw-event-dot" aria-hidden="true"></span>';
+  const done=kind==="task"?taskDoneOn(item,k):!!state.habitDays[k]?.[item.id];
+  const color=kind==="task"?"var(--timeline-task-color)":"var(--timeline-habit-color)";
+  return`<button class="uw-check${done?" checked":""}" style="--uw-check-color:${color}" data-uw-check="${kind}" data-id="${item.id}" data-date="${k}" type="button">${done?"✓":""}</button>`
+}
+function itemMarkup(kind,item,k,compact=false){
+  const done=kind==="task"?taskDoneOn(item,k):kind==="habit"?!!state.habitDays[k]?.[item.id]:false;
+  const time=kind==="event"&&!item.allDay?timeOf(item.start):"";
+  const repeat=recurrenceLabel(item);
+  return`<div class="uw-item uw-${kind}${done?" done":""}${compact?" compact":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}" draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
+}
 function findAddHost(kind,date,time){const t=time!==null&&time!==undefined?`[data-time="${time}"]`:"";return $(`.uw-list[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t},.uw-all-day-list[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t},.uw-time-hit[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t}`)}
-function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,editId=null,withTime=false}={}){if(!host||$(".uw-inline-form",host))return;const list=kind==="event"?state.events:kind==="habit"?state.habitTemplates:state.tasks;const old=editId?list.find(x=>x.id===editId):null;const form=document.createElement("form");form.className="uw-inline-form";form.innerHTML=`${withTime?`<input type="time" value="${old&&kind==="event"&&!old.allDay?timeOf(old.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(old?.title||"")}" placeholder="${kind==="event"?"일정":"할일"} 입력" autocomplete="off">`;const scroll={x:scrollX,y:scrollY},editTarget=editId?host.closest(".uw-item"):null;if(editTarget){if(editTarget.classList.contains("uw-time-entry")){form.classList.add("uw-time-inline");form.style.top=editTarget.style.top;form.style.height=editTarget.style.height}editTarget.replaceWith(form)}else if(host.matches(".uw-empty-hit"))host.replaceWith(form);else host.appendChild(form);const title=$("input[type=text]",form);let saving=false,cancelled=false;const commit=async next=>{if(saving)return;const value=title.value.trim();if(!value){form.remove();return}saving=true;const timeValue=$("input[type=time]",form)?.value||"";await write(s=>{const defaultGroup=s.eventGroups[0]?.id||"default";if(old){old.title=value;if(kind==="event"&&withTime){const d=date||key(new Date(old.start));if(timeValue){const start=new Date(`${d}T${timeValue}:00`);old.start=start.toISOString();old.end=new Date(start.getTime()+duration*60000).toISOString();old.allDay=false}else{old.start=new Date(`${d}T12:00:00`).toISOString();old.end=new Date(`${endDate||d}T12:00:00`).toISOString();old.allDay=true}}return}if(kind==="event"){const start=timeValue?new Date(`${date}T${timeValue}:00`):new Date(`${date}T12:00:00`);s.events.push({id:uid(),title:value,type:"schedule",groupId:defaultGroup,allDay:!timeValue,start:start.toISOString(),end:timeValue?new Date(start.getTime()+duration*60000).toISOString():new Date(`${endDate||date}T12:00:00`).toISOString()})}else{const task={id:uid(),title:value,date:date||null,done:false,groupId:defaultGroup,createdAt:new Date().toISOString()};if(time!==null){const start=new Date(`${date}T${pad(Math.floor(time/60))}:${pad(time%60)}:00`);task.notionStart=start.toISOString();task.notionEnd=new Date(start.getTime()+duration*60000).toISOString();s.timeBlocks.push({id:uid(),taskId:task.id,sourceTitle:value,detail:value,date,startMinute:time,duration})}s.tasks.push(task)}});if(next)setTimeout(()=>{const nextHost=findAddHost(kind,date,time);if(nextHost)openInline(nextHost,{kind,date,endDate,time,duration,withTime})},220)};form.addEventListener("submit",e=>{e.preventDefault();commit(true)});title.addEventListener("keydown",e=>{if(e.key==="Escape"){cancelled=true;form.remove()}});title.addEventListener("blur",()=>setTimeout(()=>{if(!cancelled&&form.isConnected&&!saving)commit(false)},90));requestAnimationFrame(()=>{try{title.focus({preventScroll:true})}catch{title.focus()}title.select();window.scrollTo(scroll.x,scroll.y)})}
-
+function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,editId=null,withTime=false}={}){
+  if(!host||$(".uw-inline-form",host))return;
+  const list=kind==="event"?state.events:kind==="habit"?state.habitTemplates:state.tasks;
+  const old=editId?list.find(item=>item.id===editId):null;
+  const canRepeat=(kind==="event"||kind==="task")&&!!(date||(old&&kind==="event"?key(new Date(old.start)):old?.date));
+  const frequency=old?.recurrence?.frequency||"none";
+  const form=document.createElement("form");
+  form.className="uw-inline-form";
+  form.innerHTML=`${withTime?`<input type="time" value="${old&&kind==="event"&&!old.allDay?timeOf(old.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(old?.title||"")}" placeholder="${kind==="event"?"일정":kind==="habit"?"습관":"할일"} 입력" autocomplete="off">${canRepeat?`<select class="uw-repeat-select" aria-label="반복"><option value="none"${frequency==="none"?" selected":""}>반복 없음</option><option value="daily"${frequency==="daily"?" selected":""}>매일</option><option value="weekly"${frequency==="weekly"?" selected":""}>매주</option><option value="monthly"${frequency==="monthly"?" selected":""}>매월</option></select><label class="uw-repeat-until"><span>반복 종료</span><input type="date" value="${old?.recurrence?.until||""}" aria-label="반복 종료일"></label>`:""}`;
+  const scroll={x:scrollX,y:scrollY},editTarget=editId?host.closest(".uw-item"):null;
+  if(editTarget){
+    if(editTarget.classList.contains("uw-time-entry")){
+      form.classList.add("uw-time-inline");
+      form.style.top=editTarget.style.top;
+    }
+    editTarget.replaceWith(form)
+  }else if(host.matches(".uw-empty-hit"))host.replaceWith(form);
+  else host.appendChild(form);
+  const title=$("input[type=text]",form);
+  let saving=false,cancelled=false;
+  const recurrenceFor=baseDate=>{
+    const value=$(".uw-repeat-select",form)?.value||"none";
+    if(value==="none"||!baseDate)return null;
+    const base=fromKey(baseDate);
+    return{frequency:value,interval:1,until:$(".uw-repeat-until input",form)?.value||null,...(value==="weekly"?{weekdays:[base.getDay()]}:{}),...(value==="monthly"?{dayOfMonth:base.getDate()}:{})}
+  };
+  const commit=async next=>{
+    if(saving)return;
+    const value=title.value.trim();
+    if(!value){form.remove();return}
+    saving=true;
+    const timeValue=$("input[type=time]",form)?.value||"";
+    await write(current=>{
+      const defaultGroup=current.eventGroups[0]?.id||"default";
+      if(old){
+        old.title=value;
+        const baseDate=kind==="event"?key(new Date(old.start)):old.date;
+        const recurrence=recurrenceFor(baseDate);
+        if(recurrence)old.recurrence=recurrence;else delete old.recurrence;
+        if(kind==="event"&&withTime){
+          const selectedDate=date||key(new Date(old.start));
+          if(timeValue){
+            const startDate=new Date(`${selectedDate}T${timeValue}:00`);
+            old.start=startDate.toISOString();
+            old.end=new Date(startDate.getTime()+duration*60000).toISOString();
+            old.allDay=false
+          }else{
+            old.start=new Date(`${selectedDate}T12:00:00`).toISOString();
+            old.end=new Date(`${endDate||selectedDate}T12:00:00`).toISOString();
+            old.allDay=true
+          }
+        }
+        return
+      }
+      if(kind==="event"){
+        const startDate=timeValue?new Date(`${date}T${timeValue}:00`):new Date(`${date}T12:00:00`);
+        const item={id:uid(),title:value,type:"schedule",groupId:defaultGroup,allDay:!timeValue,start:startDate.toISOString(),end:timeValue?new Date(startDate.getTime()+duration*60000).toISOString():new Date(`${endDate||date}T12:00:00`).toISOString()};
+        const recurrence=recurrenceFor(date);
+        if(recurrence)item.recurrence=recurrence;
+        current.events.push(item)
+      }else if(kind==="habit"){
+        current.habitTemplates.push({id:uid(),title:value,groupId:defaultGroup})
+      }else{
+        const task={id:uid(),title:value,date:date||null,done:false,groupId:defaultGroup,createdAt:new Date().toISOString()};
+        const recurrence=recurrenceFor(date);
+        if(recurrence)task.recurrence=recurrence;
+        if(time!==null){
+          const startDate=new Date(`${date}T${pad(Math.floor(time/60))}:${pad(time%60)}:00`);
+          task.notionStart=startDate.toISOString();
+          task.notionEnd=new Date(startDate.getTime()+duration*60000).toISOString();
+          current.timeBlocks.push({id:uid(),taskId:task.id,sourceTitle:value,detail:value,date,startMinute:time,duration})
+        }
+        current.tasks.push(task)
+      }
+    });
+    if(next)setTimeout(()=>{const nextHost=findAddHost(kind,date,time);if(nextHost)openInline(nextHost,{kind,date,endDate,time,duration,withTime})},220)
+  };
+  form.addEventListener("submit",event=>{event.preventDefault();commit(true)});
+  form.addEventListener("keydown",event=>{if(event.key==="Escape"){event.preventDefault();cancelled=true;form.remove()}});
+  form.addEventListener("focusout",()=>setTimeout(()=>{if(!cancelled&&form.isConnected&&!saving&&!form.contains(document.activeElement))commit(false)},120));
+  requestAnimationFrame(()=>{try{title.focus({preventScroll:true})}catch{title.focus()}title.select();window.scrollTo(scroll.x,scroll.y)})
+}
 function allDayPanel(k,items){const shown=items.slice(0,2),hidden=items.slice(2),extra=hidden.length;return`<div class="uw-all-day" data-date="${k}"><span class="uw-all-day-label">하루 종일</span><div class="uw-all-day-list" data-uw-add-kind="task" data-date="${k}">${shown.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div>${extra?`<button class="uw-all-day-more" data-uw-all-day-more type="button" aria-expanded="false">+${extra}개 더보기</button><div class="uw-all-day-popover"><div class="uw-list">${hidden.map(x=>itemMarkup(x.kind,x.item,k,true)).join("")}</div></div>`:""}</div>`}
 function flatListMarkup(x,k){return itemMarkup(x.kind,x.item,k).replace(/<span class="uw-item-time">.*?<\/span>/,"")}
 function plannerListDay(d){const k=key(d),items=itemsForDay(k);return`<section class="uw-day uw-list-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div><div class="uw-list uw-flat-day-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${items.map(x=>flatListMarkup(x,k)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div></section>`}
-function plannerDay(d){const k=key(d),items=itemsForDay(k),untimed=items.filter(x=>!x.timed),timed=items.filter(x=>x.timed&&x.time>=START&&x.time<END);let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>`<div class="uw-time-entry uw-item ${x.kind==="task"&&x.item.done?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${x.item.id}" data-date="${k}" data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>${allDayPanel(k,untimed)}<div class="uw-timeline" style="height:${timelineHeight()}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}${blocks}</div></div></section>`}
+function plannerDay(d){const k=key(d),items=itemsForDay(k),untimed=items.filter(x=>!x.timed),timed=items.filter(x=>x.timed&&x.time>=START&&x.time<END);let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>`<div class="uw-time-entry uw-item ${x.kind==="task"&&taskDoneOn(x.item,k)?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${x.item.id}" data-date="${k}" data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>${allDayPanel(k,untimed)}<div class="uw-timeline" style="height:${timelineHeight()}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}${blocks}</div></div></section>`}
 function renderPlanner(){const card=$(".home-timeline-card");if(!card)return;$$("[data-uw-home-mode]").forEach(b=>b.classList.toggle("active",b.dataset.uwHomeMode===homeMode));const daySelect=$("[data-uw-home-days-select]");if(daySelect)daySelect.value=String(homeDays);const dayRenderer=homeMode==="timeline"?plannerDay:plannerListDay;card.innerHTML=`<div class="uw-planner-head"><div><div class="uw-planner-title">${homeMode==="timeline"?"타임라인":"목록"}</div><small class="card-meta">${homeMode==="timeline"?"30분 단위":"시간 구분 없이 날짜별 표시"}</small></div></div><div class="uw-home-planner"><div class="uw-planner-days ${homeMode==="list"?"uw-planner-list-days":""}" style="--uw-days:${homeDays}">${Array.from({length:homeDays},(_,i)=>dayRenderer(addDays(homeCursor,i))).join("")}</div></div>`}
 function upcomingKeys(){return Array.from({length:7},(_,i)=>key(addDays(fromKey(todayKey()),i+1)))}
-function renderUpcoming(){const root=$("#upcomingList");if(!root)return;const dates=upcomingKeys();root.innerHTML=dates.map(k=>{const rows=[...schedules(k).map(item=>({kind:"event",item})),...state.tasks.filter(t=>!t.done&&t.date===k).map(item=>({kind:"task",item}))];return`<div class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(k),true)}</span><button class="uw-icon-btn" data-uw-add-kind="task" data-date="${k}">＋</button></div><div class="uw-list" data-uw-add-kind="task" data-date="${k}">${rows.map(x=>itemMarkup(x.kind,x.item,k)).join("")||'<div class="uw-empty-hit">일정·할일 입력</div>'}</div></div>`}).join("")}
+function renderUpcoming(){const root=$("#upcomingList");if(!root)return;const dates=upcomingKeys();root.innerHTML=dates.map(k=>{const rows=[...schedules(k).map(item=>({kind:"event",item})),...state.tasks.filter(task=>task.date&&recurrenceOn(task,task.date,k)&&!taskDoneOn(task,k)).map(item=>({kind:"task",item}))];return`<div class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(k),true)}</span><button class="uw-icon-btn" data-uw-add-kind="task" data-date="${k}">＋</button></div><div class="uw-list" data-uw-add-kind="task" data-date="${k}">${rows.map(x=>itemMarkup(x.kind,x.item,k)).join("")||'<div class="uw-empty-hit">일정·할일 입력</div>'}</div></div>`}).join("")}
 function renderSomeday(){const root=$("#somedayHomeSlot");if(!root)return;const tasks=state.tasks.filter(t=>!t.done&&!t.date);root.innerHTML=`<div class="uw-list uw-someday-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop><button class="uw-someday-add uw-empty-hit" data-uw-add-kind="task" data-date="" type="button">＋ 할일 입력</button>${tasks.map(t=>itemMarkup("task",t,"")).join("")}</div>`}
 function renderSideTab(){$$('[data-uw-side-tab]').forEach(button=>{const active=button.dataset.uwSideTab===homeSideTab;button.classList.toggle("active",active);button.setAttribute("aria-selected",String(active))});$$('[data-uw-side-panel]').forEach(panel=>{panel.hidden=panel.dataset.uwSidePanel!==homeSideTab})}
 function renderHome(){renderPlanner();renderSomeday();renderUpcoming();renderSideTab()}
@@ -94,7 +247,15 @@ function renderScheduleSubnav(){
   const label=month?"월은 보드 보기":scheduleCalendarLayout==="board"?"타임라인으로 보기":"보드로 보기";
   nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,text])=>`<button class="${calendarView===id?"active":""}" data-schedule-cal-view="${id}" type="button">${text}</button>`).join("")}</div><button class="uw-layout-toggle" data-schedule-cal-layout-toggle type="button"${month?' disabled title="월 보기는 보드로 고정돼요"':""}>${label}</button></div>`
 }
-function scheduleList(){const byDate=new Map();state.events.forEach(event=>{const date=key(new Date(event.start));if(!byDate.has(date))byDate.set(date,[]);byDate.get(date).push(event)});if(!byDate.has(todayKey()))byDate.set(todayKey(),[]);return`<div class="uw-schedule-list">${[...byDate.keys()].sort().map(date=>`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${byDate.get(date).sort((a,b)=>new Date(a.start)-new Date(b.start)).map(event=>itemMarkup("event",event,date)).join("")}${scheduleInput(date)}</div></section>`).join("")}</div>`}
+function scheduleList(){
+  const dates=new Set([todayKey()]);
+  state.events.forEach(event=>dates.add(key(new Date(event.start))));
+  for(let offset=0;offset<=90;offset++){
+    const date=key(addDays(fromKey(todayKey()),offset));
+    if(schedules(date).length)dates.add(date)
+  }
+  return`<div class="uw-schedule-list">${[...dates].sort().map(date=>`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date)).join("")}${scheduleInput(date)}</div></section>`).join("")}</div>`
+}
 function scheduleMonthBoard(){const y=calendarCursor.getFullYear(),m=calendarCursor.getMonth(),first=new Date(y,m,1),start=addDays(first,-first.getDay());return`<div class="uw-task-month-grid">${["일","월","화","수","목","금","토"].map(x=>`<div class="uw-task-dow">${x}</div>`).join("")}${Array.from({length:42},(_,i)=>{const d=addDays(start,i),date=key(d);return`<section class="uw-task-month-cell uw-month-cell${d.getMonth()!==m?" outside":""}${date===todayKey()?" today":""}" data-uw-add-kind="event" data-date="${date}"><span class="uw-task-day-number">${d.getDate()}</span><div class="uw-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date,true)).join("")}${scheduleInput(date,true)}</div></section>`}).join("")}</div>`}
 function scheduleBoardDay(d){const date=key(d);return`<section class="uw-task-board-day${date===todayKey()?" today":""}"><div class="uw-day-head"><strong>${dayLabel(d,true)}</strong></div><div class="uw-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date)).join("")}${scheduleInput(date)}</div></section>`}
 function scheduleBoard(){const count=calendarView==="week"?7:1,start=calendarView==="week"?addDays(calendarCursor,-calendarCursor.getDay()):calendarCursor;return`<div class="uw-task-board-grid" style="--uw-task-days:${count}">${Array.from({length:count},(_,i)=>scheduleBoardDay(addDays(start,i))).join("")}</div>`}
@@ -117,18 +278,44 @@ function wireScheduleViewControls(){
   },true)
 }
 
-function visibleTasks(tab){const t=todayKey();return state.tasks.filter(x=>tab==="today"?!x.done&&x.date===t:tab==="upcoming"?!x.done&&x.date&&x.date>t:tab==="someday"?!x.done&&!x.date:tab==="done"?x.done:!x.done).sort((a,b)=>+a.done-+b.done||String(a.date||"9999").localeCompare(String(b.date||"9999"))||String(a.title).localeCompare(String(b.title),"ko"))}
+function visibleTasks(tab){
+  const today=todayKey(),tomorrow=key(addDays(fromKey(today),1));
+  const rows=[];
+  for(const task of state.tasks){
+    if(tab==="done"){
+      if(!task.recurrence?.frequency&&task.done)rows.push(task);
+      continue
+    }
+    if(tab==="someday"){
+      if(!task.done&&!task.date)rows.push(task);
+      continue
+    }
+    if(tab==="today"){
+      if(task.date&&recurrenceOn(task,task.date,today)&&!taskDoneOn(task,today))rows.push({...task,_occurrenceDate:today});
+      continue
+    }
+    if(tab==="upcoming"){
+      if(task.recurrence?.frequency){
+        const next=nextOccurrence(task,tomorrow);
+        if(next)rows.push({...task,_occurrenceDate:next})
+      }else if(!task.done&&task.date&&task.date>today)rows.push(task);
+      continue
+    }
+    if(!task.done)rows.push(task)
+  }
+  return rows.sort((a,b)=>+taskDoneOn(a,a._occurrenceDate||a.date)-+taskDoneOn(b,b._occurrenceDate||b.date)||String(a._occurrenceDate||a.date||"9999").localeCompare(String(b._occurrenceDate||b.date||"9999"))||String(a.title).localeCompare(String(b.title),"ko"))
+}
 function renderTasks(){renderTasksV2()}
 
-function taskRowsForDate(k){return state.tasks.filter(task=>task.date===k).sort((a,b)=>+a.done-+b.done||String(a.notionStart||"").localeCompare(String(b.notionStart||""))||String(a.title).localeCompare(String(b.title),"ko"))}
-function taskListMarkup(tasks,k,compact=false){return tasks.map(task=>itemMarkup("task",task,task.date||k,compact)).join("")}
+function taskRowsForDate(k){return state.tasks.filter(task=>task.date&&recurrenceOn(task,task.date,k)).sort((a,b)=>+taskDoneOn(a,k)-+taskDoneOn(b,k)||String(a.notionStart||"").localeCompare(String(b.notionStart||""))||String(a.title).localeCompare(String(b.title),"ko"))}
+function taskListMarkup(tasks,k,compact=false){return tasks.map(task=>itemMarkup("task",task,task._occurrenceDate||task.date||k,compact)).join("")}
 function taskListInput(date,compact=false){return`<button class="uw-empty-hit uw-task-inline-add" data-uw-add-kind="task" data-date="${date||""}" type="button" aria-label="할일 입력">${compact?"＋":"＋ 할일 입력"}</button>`}
 function taskCalendarTitle(){if(taskCalendarView==="month")return`${taskCalendarCursor.getFullYear()}년 ${taskCalendarCursor.getMonth()+1}월`;if(taskCalendarView==="week"){const start=addDays(taskCalendarCursor,-taskCalendarCursor.getDay());return`${dayLabel(start)} – ${dayLabel(addDays(start,6))}`}return dayLabel(taskCalendarCursor,true)}
 function taskCalendarNav(){return`<div class="uw-task-calendar-nav"><button class="uw-icon-btn" data-task-cal-prev type="button" aria-label="이전 기간">‹</button><strong>${taskCalendarTitle()}</strong><div><button class="uw-task-today" data-task-cal-today type="button">오늘</button><button class="uw-icon-btn" data-task-cal-next type="button" aria-label="다음 기간">›</button></div></div>`}
 function taskMonthBoard(){const y=taskCalendarCursor.getFullYear(),m=taskCalendarCursor.getMonth(),first=new Date(y,m,1),start=addDays(first,-first.getDay());return`<div class="uw-task-month-grid">${["일","월","화","수","목","금","토"].map(x=>`<div class="uw-task-dow">${x}</div>`).join("")}${Array.from({length:42},(_,i)=>{const d=addDays(start,i),k=key(d),tasks=taskRowsForDate(k);return`<section class="uw-task-month-cell${d.getMonth()!==m?" outside":""}${k===todayKey()?" today":""}"><span class="uw-task-day-number">${d.getDate()}</span><div class="uw-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${taskListMarkup(tasks,k,true)}${taskListInput(k,true)}</div></section>`}).join("")}</div>`}
 function taskBoardDay(d){const k=key(d),tasks=taskRowsForDate(k);return`<section class="uw-task-board-day${k===todayKey()?" today":""}"><div class="uw-day-head"><strong>${dayLabel(d,true)}</strong></div><div class="uw-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${taskListMarkup(tasks,k)}${taskListInput(k)}</div></section>`}
 function taskBoard(){const count=taskCalendarView==="week"?7:1,start=taskCalendarView==="week"?addDays(taskCalendarCursor,-taskCalendarCursor.getDay()):taskCalendarCursor;return`<div class="uw-task-board-grid" style="--uw-task-days:${count}">${Array.from({length:count},(_,i)=>taskBoardDay(addDays(start,i))).join("")}</div>`}
-function taskTimelineDay(d){const k=key(d),items=itemsForDay(k).filter(x=>x.kind==="task"),untimed=items.filter(x=>!x.timed),timed=items.filter(x=>x.timed&&x.time>=START&&x.time<END);let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>`<div class="uw-time-entry uw-item ${x.item.done?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${groupStyle(x.item)}" data-uw-kind="task" data-id="${x.item.id}" data-date="${k}" data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup("task",x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d,true)}</strong></div>${allDayPanel(k,untimed)}<div class="uw-timeline" style="height:${timelineHeight()}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}${blocks}</div></div></section>`}
+function taskTimelineDay(d){const k=key(d),items=itemsForDay(k).filter(x=>x.kind==="task"),untimed=items.filter(x=>!x.timed),timed=items.filter(x=>x.timed&&x.time>=START&&x.time<END);let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>`<div class="uw-time-entry uw-item ${taskDoneOn(x.item,k)?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${groupStyle(x.item)}" data-uw-kind="task" data-id="${x.item.id}" data-date="${k}" data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup("task",x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}"><div class="uw-day-head"><strong>${dayLabel(d,true)}</strong></div>${allDayPanel(k,untimed)}<div class="uw-timeline" style="height:${timelineHeight()}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}${blocks}</div></div></section>`}
 function taskTimeline(){const count=taskCalendarView==="week"?7:1,start=taskCalendarView==="week"?addDays(taskCalendarCursor,-taskCalendarCursor.getDay()):taskCalendarCursor;return`<div class="uw-task-timeline-scroll"><div class="uw-planner-days" style="--uw-days:${count}">${Array.from({length:count},(_,i)=>taskTimelineDay(addDays(start,i))).join("")}</div></div>`}
 function renderTaskSubnav(){
   const nav=$("#taskPageTabs");
@@ -209,14 +396,14 @@ function coarse(){return matchMedia("(hover:none),(pointer:coarse)").matches}
 function toggleSelection(item){const token=`${item.dataset.uwKind}:${item.dataset.id}:${item.dataset.date||""}`;if(selected.has(token)){selected.delete(token);item.classList.remove("selected")}else{selected.set(token,{kind:item.dataset.uwKind,id:item.dataset.id,date:item.dataset.date||null});item.classList.add("selected")}document.body.classList.toggle("uw-selection-active",selected.size>0);$("#uwSelectionBar")?.classList.toggle("open",selected.size>0)}
 function clearSelection(){selected.clear();document.body.classList.remove("uw-selection-active");$("#uwSelectionBar")?.classList.remove("open");$$('.uw-item.selected').forEach(x=>x.classList.remove("selected"))}
 function showGroupPicker(records){pendingGroupRecords=records;const menu=$("#uwContext");menu.innerHTML=`<strong style="padding:7px 9px;font-size:11px">그룹 선택</strong>${state.eventGroups.map(g=>`<button data-uw-group-id="${g.id}"><span style="display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:50%;background:${g.color}"></span>${esc(g.name)}</button>`).join("")}`;menu.style.left="auto";menu.style.right="14px";menu.style.top="auto";menu.style.bottom="64px";menu.classList.add("open")}
-async function action(name,records=[...selected.values()]){if(name==="cancel"){clearSelection();return}if(name==="edit"&&records.length===1){const r=records[0],el=$(`.uw-item[data-uw-kind="${r.kind}"][data-id="${CSS.escape(r.id)}"]`);clearSelection();if(el)openInline(el,{kind:r.kind,date:r.date,editId:r.id,withTime:r.kind==="event"&&calendarView==="day"});return}if(name==="group"){showGroupPicker(records);return}else if(name==="duplicate"){await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)arr.push({...x,id:uid(),title:`${x.title} 복사`,done:false,completedAt:null})}))}else if(name==="convert"){await write(s=>records.forEach(r=>{if(r.kind==="task"){const t=s.tasks.find(x=>x.id===r.id);if(!t)return;const d=t.date||todayKey();s.events.push({id:uid(),title:t.title,type:"schedule",groupId:t.groupId,allDay:!t.notionStart,start:t.notionStart||new Date(`${d}T12:00:00`).toISOString(),end:t.notionEnd||new Date(`${d}T12:00:00`).toISOString()});s.tasks=s.tasks.filter(x=>x.id!==r.id);s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==r.id)}else if(r.kind==="event"){const e=s.events.find(x=>x.id===r.id);if(!e)return;s.tasks.push({id:uid(),title:e.title,date:key(new Date(e.start)),done:false,groupId:e.groupId,...(!e.allDay?{notionStart:e.start,notionEnd:e.end}:{})});s.events=s.events.filter(x=>x.id!==r.id)}}))}else if(name==="delete"){await write(s=>records.forEach(r=>{if(r.kind==="event")s.events=s.events.filter(x=>x.id!==r.id);if(r.kind==="task"){s.tasks=s.tasks.filter(x=>x.id!==r.id);s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==r.id)}if(r.kind==="habit"){s.habitTemplates=s.habitTemplates.filter(x=>x.id!==r.id);Object.values(s.habitDays).forEach(day=>delete day[r.id])}}))}clearSelection()}
+async function action(name,records=[...selected.values()]){if(name==="cancel"){clearSelection();return}if(name==="edit"&&records.length===1){const r=records[0],el=$(`.uw-item[data-uw-kind="${r.kind}"][data-id="${CSS.escape(r.id)}"]`);clearSelection();if(el)openInline(el,{kind:r.kind,date:r.date,editId:r.id,withTime:r.kind==="event"&&calendarView==="day"});return}if(name==="group"){showGroupPicker(records);return}else if(name==="duplicate"){await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)arr.push({...x,id:uid(),title:`${x.title} 복사`,done:false,completedAt:null})}))}else if(name==="convert"){await write(s=>records.forEach(r=>{if(r.kind==="task"){const t=s.tasks.find(x=>x.id===r.id);if(!t)return;const d=t.date||todayKey();s.events.push({id:uid(),title:t.title,type:"schedule",groupId:t.groupId,allDay:!t.notionStart,start:t.notionStart||new Date(`${d}T12:00:00`).toISOString(),end:t.notionEnd||new Date(`${d}T12:00:00`).toISOString(),...(t.recurrence?{recurrence:{...t.recurrence}}:{})});s.tasks=s.tasks.filter(x=>x.id!==r.id);s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==r.id)}else if(r.kind==="event"){const e=s.events.find(x=>x.id===r.id);if(!e)return;s.tasks.push({id:uid(),title:e.title,date:key(new Date(e.start)),done:false,groupId:e.groupId,...(!e.allDay?{notionStart:e.start,notionEnd:e.end}:{}),...(e.recurrence?{recurrence:{...e.recurrence}}:{})});s.events=s.events.filter(x=>x.id!==r.id)}}))}else if(name==="delete"){await write(s=>records.forEach(r=>{if(r.kind==="event")s.events=s.events.filter(x=>x.id!==r.id);if(r.kind==="task"){s.tasks=s.tasks.filter(x=>x.id!==r.id);s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==r.id)}if(r.kind==="habit"){s.habitTemplates=s.habitTemplates.filter(x=>x.id!==r.id);Object.values(s.habitDays).forEach(day=>delete day[r.id])}}))}clearSelection()}
 
 function setSomedayOpen(open){homeSideTab=open?"someday":"upcoming";renderSideTab()}
 
 function wireClicks(){installActionUI();document.addEventListener("click",async e=>{if(Date.now()<suppressItemClickUntil){e.preventDefault();e.stopImmediatePropagation();return}const somedayToggle=e.target.closest("[data-uw-someday-toggle]");if(somedayToggle){setSomedayOpen(!document.body.classList.contains("uw-someday-open"));return}if(e.target.closest("[data-uw-someday-close]")){setSomedayOpen(false);return}$$(".uw-all-day.open").forEach(x=>{if(!e.target.closest(".uw-all-day"))x.classList.remove("open")});const more=e.target.closest("[data-uw-all-day-more]");if(more){const panel=more.closest(".uw-all-day"),open=!panel.classList.contains("open");$$(".uw-all-day.open").forEach(x=>x.classList.remove("open"));panel.classList.toggle("open",open);more.setAttribute("aria-expanded",String(open));return}const groupButton=e.target.closest("[data-uw-group-id]");if(groupButton){const records=[...pendingGroupRecords],groupId=groupButton.dataset.uwGroupId;pendingGroupRecords=[];$("#uwContext")?.classList.remove("open");await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)x.groupId=groupId}));clearSelection();return}const tab=e.target.closest("#taskPageTabs [data-task-tab]");if(tab){e.stopImmediatePropagation();taskListTab=tab.dataset.taskTab;$('#taskPageTabs [data-task-tab]').forEach(x=>x.classList.toggle("active",x===tab));renderTasks();return}const a=e.target.closest("[data-uw-action]");if(a){await action(a.dataset.uwAction);return}const homeModeButton=e.target.closest("[data-uw-home-mode]");if(homeModeButton){homeMode=homeModeButton.dataset.uwHomeMode;renderPlanner();return}if(e.target.closest("[data-uw-home-prev]")){homeCursor=addDays(homeCursor,-homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-next]")){homeCursor=addDays(homeCursor,homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-today]")){homeCursor=fromKey(todayKey());renderPlanner();return}const cv=e.target.closest("[data-uw-cal-view]");if(cv){e.stopImmediatePropagation();calendarView=cv.dataset.uwCalView;renderCalendar();return}if(e.target.closest("[data-uw-habit-prev]")){habitCursor=addDays(habitCursor,-7);renderHabits();return}
 if(e.target.closest("[data-uw-habit-next]")){habitCursor=addDays(habitCursor,7);renderHabits();return}
 if(e.target.closest("[data-uw-habit-today]")){habitCursor=fromKey(todayKey());renderHabits();return}
-const hc=e.target.closest("[data-uw-habit-check]");if(hc){await write(s=>{s.habitDays[hc.dataset.date]||={};s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]=!s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]});return}const check=e.target.closest("[data-uw-check]");if(check){e.stopPropagation();await write(s=>{if(check.dataset.uwCheck==="task"){const t=s.tasks.find(x=>x.id===check.dataset.id);if(t){t.done=!t.done;t.completedAt=t.done?new Date().toISOString():null}}else{s.habitDays[check.dataset.date]||={};s.habitDays[check.dataset.date][check.dataset.id]=!s.habitDays[check.dataset.date][check.dataset.id]}});return}const del=e.target.closest("[data-uw-delete-habit]");if(del){await action("delete",[{kind:"habit",id:del.dataset.uwDeleteHabit,date:todayKey()}]);return}const dup=e.target.closest("[data-uw-duplicate-habit]");if(dup){await action("duplicate",[{kind:"habit",id:dup.dataset.uwDuplicateHabit,date:todayKey()}]);return}const item=e.target.closest(".uw-item[data-uw-kind]");if(item){if(Date.now()<suppressItemClickUntil)return;if(coarse()){toggleSelection(item);return}openInline(item,{kind:item.dataset.uwKind,date:item.dataset.date,editId:item.dataset.id,withTime:item.dataset.uwKind==="event"&&calendarView==="day"});return}const add=e.target.closest("[data-uw-add-kind]");if(add&&!e.target.closest(".uw-item,.uw-inline-form")){const kind=add.dataset.uwAddKind,date=add.dataset.date||null,time=add.dataset.time?+add.dataset.time:null;const empty=e.target.closest(".uw-empty-hit"),target=empty||(add.matches(".uw-list,.uw-all-day-list,.uw-time-hit,.uw-month-cell")?add:findAddHost(kind,date,time)||add.parentElement);openInline(target,{kind,date,time,withTime:add.dataset.withTime==="1"||target.dataset.withTime==="1"})}},true);
+const hc=e.target.closest("[data-uw-habit-check]");if(hc){await write(s=>{s.habitDays[hc.dataset.date]||={};s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]=!s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]});return}const check=e.target.closest("[data-uw-check]");if(check){e.stopPropagation();await write(s=>{if(check.dataset.uwCheck==="task"){const t=s.tasks.find(x=>x.id===check.dataset.id);if(t){if(t.recurrence?.frequency){t.recurrenceDone||={};t.recurrenceDone[check.dataset.date]=!t.recurrenceDone[check.dataset.date]}else{t.done=!t.done;t.completedAt=t.done?new Date().toISOString():null}}}else{s.habitDays[check.dataset.date]||={};s.habitDays[check.dataset.date][check.dataset.id]=!s.habitDays[check.dataset.date][check.dataset.id]}});return}const del=e.target.closest("[data-uw-delete-habit]");if(del){await action("delete",[{kind:"habit",id:del.dataset.uwDeleteHabit,date:todayKey()}]);return}const dup=e.target.closest("[data-uw-duplicate-habit]");if(dup){await action("duplicate",[{kind:"habit",id:dup.dataset.uwDuplicateHabit,date:todayKey()}]);return}const item=e.target.closest(".uw-item[data-uw-kind]");if(item){if(Date.now()<suppressItemClickUntil)return;if(coarse()){toggleSelection(item);return}openInline(item,{kind:item.dataset.uwKind,date:item.dataset.date,editId:item.dataset.id,withTime:item.dataset.uwKind==="event"&&calendarView==="day"});return}const add=e.target.closest("[data-uw-add-kind]");if(add&&!e.target.closest(".uw-item,.uw-inline-form")){const kind=add.dataset.uwAddKind,date=add.dataset.date||null,time=add.dataset.time?+add.dataset.time:null;const empty=e.target.closest(".uw-empty-hit"),target=empty||(add.matches(".uw-list,.uw-all-day-list,.uw-time-hit,.uw-month-cell")?add:findAddHost(kind,date,time)||add.parentElement);openInline(target,{kind,date,time,withTime:add.dataset.withTime==="1"||target.dataset.withTime==="1"})}},true);
 document.addEventListener("contextmenu",e=>{const item=e.target.closest(".uw-item[data-uw-kind]");if(!item)return;e.preventDefault();const menu=$("#uwContext");menu.innerHTML='<button data-c="duplicate">복제</button><button data-c="group">그룹</button>'+(item.dataset.uwKind!=="habit"?'<button data-c="convert">할일·일정 전환</button>':'')+'<button class="danger" data-c="delete">삭제</button>';menu.style.left=`${Math.min(innerWidth-170,e.clientX)}px`;menu.style.top=`${Math.min(innerHeight-190,e.clientY)}px`;menu.classList.add("open");menu.onclick=async ev=>{const b=ev.target.closest("[data-c]");if(!b)return;menu.classList.remove("open");await action(b.dataset.c,[{kind:item.dataset.uwKind,id:item.dataset.id,date:item.dataset.date}])}});document.addEventListener("pointerdown",e=>{if(!e.target.closest("#uwContext"))$("#uwContext")?.classList.remove("open")})
 }
 
@@ -491,5 +678,5 @@ function wireControlsV2(){
 }
 
 async function renderAll(){if(rendering)return;rendering=true;try{await read();if(!state)return;applyColors();renderHome();renderSchedulePage();renderTasks();renderHabits()}catch(e){console.error("통합 화면 렌더링 실패",e)}finally{rendering=false}}
-async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();await renderAll();updateCurrentTimeLines();setInterval(updateCurrentTimeLines,60000)}
+async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();document.addEventListener("onekan:state-changed",event=>{if(event.detail?.source!=="unified")scheduleRender(40)});await renderAll();updateCurrentTimeLines();setInterval(updateCurrentTimeLines,60000)}
 supabase.auth.onAuthStateChange((_e,session)=>{user=session?.user||null;if(user)setTimeout(init,300)});const {data:{session}}=await supabase.auth.getSession();if(session?.user){user=session.user;setTimeout(init,300)}

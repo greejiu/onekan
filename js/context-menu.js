@@ -170,7 +170,7 @@ function hideMenu() {
 }
 
 function groupable(kind) {
-  return kind === "task" || kind === "event";
+  return kind === "task" || kind === "event" || kind === "project";
 }
 
 function renderGroupChoices(state, target) {
@@ -336,7 +336,10 @@ async function deleteTarget() {
         state.habitTemplates = state.habitTemplates.filter((item) => item.id !== target.id);
         for (const day of Object.values(state.habitDays)) if (day && typeof day === "object") delete day[target.id];
       } else if (target.kind === "project") {
+        const removed = state.projects.find((item) => item.id === target.id);
         state.projects = state.projects.filter((item) => item.id !== target.id);
+        state.tasks.forEach((task) => { if (task.projectId === target.id) delete task.projectId; if (task.goalId === target.id) delete task.goalId; });
+        if (removed?.kind === "goal") state.projects.forEach((item) => { if (item.goalId === target.id) item.goalId = null; });
       } else if (target.kind === "session") {
         state.sessions = state.sessions.filter((item) => item.id !== target.id);
       }

@@ -24,6 +24,32 @@ function appDayKey(now = new Date()) {
   return localDateKey(appDayDate(now));
 }
 
+function recurringOnDate(item, targetKey) {
+  if (!item?.date) return false;
+  const recurrence = item.recurrence;
+  if (!recurrence?.frequency) return item.date === targetKey;
+  if (targetKey < item.date || (recurrence.until && targetKey > recurrence.until)) return false;
+  const first = new Date(`${item.date}T12:00:00`);
+  const target = new Date(`${targetKey}T12:00:00`);
+  const diff = Math.round((Date.UTC(target.getFullYear(), target.getMonth(), target.getDate()) - Date.UTC(first.getFullYear(), first.getMonth(), first.getDate())) / 86400000);
+  const interval = Math.max(1, Number(recurrence.interval || 1));
+  if (recurrence.frequency === "daily") return diff % interval === 0;
+  if (recurrence.frequency === "weekly") {
+    const weekdays = Array.isArray(recurrence.weekdays) && recurrence.weekdays.length ? recurrence.weekdays : [first.getDay()];
+    return Math.floor(diff / 7) % interval === 0 && weekdays.includes(target.getDay());
+  }
+  if (recurrence.frequency === "monthly") {
+    const months = (target.getFullYear() - first.getFullYear()) * 12 + target.getMonth() - first.getMonth();
+    const wanted = Math.min(Number(recurrence.dayOfMonth || first.getDate()), new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate());
+    return months >= 0 && months % interval === 0 && target.getDate() === wanted;
+  }
+  return item.date === targetKey;
+}
+
+function taskCompletedOn(task, dateKey) {
+  return task.recurrence?.frequency ? Boolean(task.recurrenceDone?.[dateKey]) : Boolean(task.done);
+}
+
 function fmtDate(date) {
   return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" }).format(date);
 }
@@ -185,6 +211,7 @@ function save() {
     const { error } = await supabase.from("onekan_state").upsert({ user_id: userId, data: snapshot }, { onConflict: "user_id" });
     if (error) throw error;
     setSyncStatus("저장됨");
+    document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "app" } }));
   }).catch((error) => {
     console.error(error);
     setSyncStatus("저장 실패", true);
@@ -209,9 +236,9 @@ function goPage(name) {
   $$(".page").forEach((page) => page.classList.toggle("active", page.id === `page-${name}`));
   $$(".nav-item[data-page]").forEach((button) => button.classList.toggle("active", button.dataset.page === name));
   $("#app-section").classList.remove("mobile-nav-open");
-  if (name === "calendar") renderCalendar();
+  if (name === "calendar" && !document.querySelector('script[src*="unified-workspace.js"]')) renderCalendar();
   if (name === "tracking") renderTracking();
-  if (name === "projects") renderProjects();
+  if (name === "projects" && !document.querySelector('script[src*="work-management.js"]')) renderProjects();
   if (name === "settings") renderSettings();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -645,8 +672,8 @@ function todayFocusMs() {
 
 function renderDashboard() {
   const dayKey = appDayKey();
-  const tasks = state.tasks.filter((task) => task.date === dayKey);
-  const completedTasks = tasks.filter((task) => task.done).length;
+  const tasks = state.tasks.filter((task) => recurringOnDate(task, dayKey));
+  const completedTasks = tasks.filter((task) => taskCompletedOn(task, dayKey)).length;
   const taskProgress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
   ensureHabitDay();
   const checks = state.habitDays[dayKey];
@@ -663,6 +690,10 @@ function renderDashboard() {
 
 function renderHome() {
   $("#todayLabel").textContent = fmtDate(appDayDate());
+  if (document.querySelector('script[src*="unified-workspace.js"]')) {
+    renderDashboard();
+    return;
+  }
   renderTasks();
   renderTimeGrid();
   renderHabits();
@@ -987,6 +1018,7 @@ function renderMultiDayTimeline(startDate, count) {
 }
 
 function renderCalendar() {
+  if (document.querySelector('script[src*="unified-workspace.js"]')) return;
   const body = $("#calendarBody");
   const now = new Date();
   const timelineColors = state.ui?.timelineColors || defaultState().ui.timelineColors;
@@ -1161,7 +1193,7 @@ function renderTracking() {
   const select = $("#timerTaskSelect");
   const previous = select.value;
   const dayKey = appDayKey();
-  const activeTasks = state.tasks.filter((task) => !task.done && task.date === dayKey);
+  const activeTasks = state.tasks.filter((task) => recurringOnDate(task, dayKey) && !taskCompletedOn(task, dayKey));
   select.innerHTML = '<option value="">오늘 할일 선택</option>' + activeTasks.map((task) => `<option value="${task.id}">${esc(task.title)}</option>`).join("");
   if (activeTasks.some((task) => task.id === previous)) select.value = previous;
   if (state.timer.taskId) select.value = state.timer.taskId;
@@ -1172,6 +1204,7 @@ function renderTracking() {
 }
 
 function renderProjects() {
+  if (document.querySelector('script[src*="work-management.js"]')) return;
   const statuses = ["목표", "작업", "보류", "완료"];
   $("#projectSections").innerHTML = statuses.map((status) => {
     const projects = state.projects.filter((project) => project.status === status);
@@ -1217,6 +1250,7 @@ function renderSettings() {
       if (!id || id === state.eventGroups[0]?.id) return;
       state.events.forEach((event) => { if (event.groupId === id) event.groupId = state.eventGroups[0].id; });
       state.tasks.forEach((task) => { if (task.groupId === id) task.groupId = state.eventGroups[0].id; });
+      state.projects.forEach((project) => { if (project.groupId === id) project.groupId = state.eventGroups[0].id; });
       state.eventGroups = state.eventGroups.filter((group) => group.id !== id);
       save();
       renderSettings();
@@ -1246,6 +1280,7 @@ function renderAll() {
   renderTracking();
   renderProjects();
   renderSettings();
+  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "app-render" } }));
 }
 
 async function initializeForUser(user) {
@@ -1452,33 +1487,6 @@ function bindUI() {
     if (!currentUser) return;
     await loadStateFromCloud(currentUser);
     renderAll();
-  });
-
-  const projectDialog = $("#projectDialog");
-  $("#addProjectBtn").addEventListener("click", () => {
-    $("#projectTitle").value = "";
-    $("#projectStatus").value = "작업";
-    $("#projectCategory").value = "";
-    $("#projectProgress").value = "0";
-    $("#projectDeadline").value = "";
-    projectDialog.showModal();
-  });
-  $("#cancelProjectBtn").addEventListener("click", () => projectDialog.close());
-  $("#projectForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const title = $("#projectTitle").value.trim();
-    if (!title) return;
-    state.projects.push({
-      id: uid(),
-      title,
-      status: $("#projectStatus").value,
-      category: $("#projectCategory").value.trim(),
-      progress: Math.max(0, Math.min(100, Number($("#projectProgress").value || 0))),
-      deadline: $("#projectDeadline").value || null,
-    });
-    save();
-    projectDialog.close();
-    renderProjects();
   });
 
   document.addEventListener("visibilitychange", async () => {

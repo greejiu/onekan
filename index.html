@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=12" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=13" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -38,9 +38,9 @@
         <button class="nav-item" data-page="calendar" type="button"><span class="nav-icon">□</span><span class="nav-label">일정</span></button>
         <button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>
         <button class="nav-item" data-page="habits" type="button"><span class="nav-icon">♡</span><span class="nav-label">습관</span></button>
-        <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>
+        <button class="nav-item" data-page="goals" type="button"><span class="nav-icon">◎</span><span class="nav-label">목표</span></button>
         <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▥</span><span class="nav-label">작업현황</span></button>
-        <button class="nav-item" data-page="records" type="button"><span class="nav-icon">▤</span><span class="nav-label">활동기록</span></button>
+        <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>
       </nav>
       <div class="sidebar-bottom">
         <div class="sync-status" id="syncStatus">저장됨</div>
@@ -114,14 +114,6 @@
         <div class="habit-history" id="habitHistory"></div>
       </section>
 
-      <section class="page" id="page-records">
-        <div class="page-head">
-          <div><h1 class="page-title">활동기록</h1></div>
-        </div>
-        <div class="activity-summary" id="activitySummary"></div>
-        <div class="activity-grid"><article class="card"><div class="card-header"><div class="card-title">완료한 할일</div></div><div class="card-body" id="completedTaskHistory"></div></article><article class="card"><div class="card-header"><div class="card-title">작업 진행률</div></div><div class="card-body" id="projectProgressHistory"></div></article></div>
-      </section>
-
       <section class="page" id="page-tracking">
         <div class="page-head"><div><h1 class="page-title">시간추적</h1></div></div>
         <div class="timer-panel">
@@ -151,9 +143,24 @@
         <article class="card"><div class="card-header"><div class="card-title">지나간 시간들</div></div><div class="card-body" id="allSessions"></div></article>
       </section>
 
-      <section class="page" id="page-projects">
-        <div class="page-head"><div><h1 class="page-title">작업현황</h1></div><button class="soft-btn" id="addProjectBtn" type="button">+ 작업</button></div>
-        <div id="projectSections"></div>
+      <section class="page uw-work-page" id="page-goals">
+        <div class="page-head"><div><h1 class="page-title">목표</h1></div><div class="uw-work-head-actions"><span class="uw-view-label">목록</span><button class="soft-btn" id="addGoalBtn" type="button">+ 목표</button></div></div>
+        <div class="seg uw-work-status-tabs" id="goalStatusTabs" aria-label="목표 상태">
+          <button class="active" data-work-kind="goal" data-work-status="active" type="button">진행중</button>
+          <button data-work-kind="goal" data-work-status="paused" type="button">보류</button>
+          <button data-work-kind="goal" data-work-status="done" type="button">완료</button>
+        </div>
+        <div class="uw-work-sections" id="goalSections"></div>
+      </section>
+
+      <section class="page uw-work-page" id="page-projects">
+        <div class="page-head"><div><h1 class="page-title">작업현황</h1></div><div class="uw-work-head-actions"><span class="uw-view-label">목록</span><button class="soft-btn" id="addProjectBtn" type="button">+ 작업</button></div></div>
+        <div class="seg uw-work-status-tabs" id="projectStatusTabs" aria-label="작업 상태">
+          <button class="active" data-work-kind="project" data-work-status="active" type="button">진행중</button>
+          <button data-work-kind="project" data-work-status="paused" type="button">보류</button>
+          <button data-work-kind="project" data-work-status="done" type="button">완료</button>
+        </div>
+        <div class="uw-work-sections" id="projectSections"></div>
       </section>
 
       <section class="page" id="page-settings">
@@ -175,7 +182,7 @@
             </div>
           </section>
           <section class="setting-section">
-            <h3>그룹</h3><div class="setting-desc">할일과 일정에 공통으로 사용하는 그룹입니다.</div>
+            <h3>그룹</h3><div class="setting-desc">일정·할일·습관·목표·작업현황에서 공통으로 사용하는 그룹입니다.</div>
             <div id="eventGroupList"></div>
             <div class="event-group-add"><input id="newEventGroupName" placeholder="새 그룹 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 그룹 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
           </section>
@@ -211,26 +218,27 @@
     <div class="pop-actions"><button class="ghost-btn danger-text" id="deleteBlockBtn" type="button">삭제</button><button class="primary-btn" id="saveBlockBtn" type="button">저장</button></div>
   </div>
 
-  <dialog id="projectDialog" class="app-dialog">
+  <dialog id="projectDialog" class="app-dialog uw-work-dialog">
     <form method="dialog" id="projectForm">
-      <h3>작업 추가</h3>
+      <h3 id="projectDialogTitle">작업 추가</h3>
+      <input id="projectId" type="hidden" />
+      <input id="projectKind" type="hidden" value="project" />
       <div class="field"><label>제목</label><input id="projectTitle" required /></div>
-      <div class="field"><label>구분</label><select id="projectStatus"><option>목표</option><option selected>작업</option><option>보류</option><option>완료</option></select></div>
-      <div class="field"><label>카테고리</label><input id="projectCategory" placeholder="공부, 취업, 창작..." /></div>
-      <div class="field"><label>진행률</label><input id="projectProgress" type="number" min="0" max="100" value="0" /></div>
-      <div class="field"><label>마감일</label><input id="projectDeadline" type="date" /></div>
-      <div class="dialog-actions"><button class="soft-btn" value="cancel" type="button" id="cancelProjectBtn">취소</button><button class="primary-btn" value="default" type="submit">추가</button></div>
+      <div class="field"><label>상태</label><select id="projectStatus"><option value="active">진행중</option><option value="paused">보류</option><option value="done">완료</option></select></div>
+      <div class="field"><label>그룹</label><select id="projectGroup"></select></div>
+      <div class="field"><label>시작일</label><input id="projectStartDate" type="date" /></div>
+      <div class="field"><label>마감기한</label><input id="projectDeadline" type="date" /></div>
+      <div class="field" id="projectGoalField"><label>연결 목표</label><select id="projectGoal"><option value="">연결 안 함</option></select></div>
+      <div class="field"><label>수동 진행률</label><input id="projectProgress" type="number" min="0" max="100" value="0" /><small>연결된 할일이 있으면 완료율이 자동 적용됩니다.</small></div>
+      <div class="dialog-actions"><button class="soft-btn" value="cancel" type="button" id="cancelProjectBtn">취소</button><button class="primary-btn" value="default" type="submit">저장</button></div>
     </form>
   </dialog>
 
-  <script type="module" src="./js/app.js?v=25"></script>
-  <script type="module" src="./js/features.js?v=13"></script>
-  <script type="module" src="./js/calendar-additions.js?v=7"></script>
-  <script type="module" src="./js/interaction-upgrades.js?v=9"></script>
-  <script type="module" src="./js/context-menu.js?v=15"></script>
-  <script type="module" src="./js/manual-time-entry.js?v=4"></script>
-  <script type="module" src="./js/workspace-pages.js?v=10"></script>
+  <script type="module" src="./js/app.js?v=26"></script>
+  <script type="module" src="./js/context-menu.js?v=16"></script>
+  <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
-  <script type="module" src="./js/unified-workspace.js?v=14"></script>
+  <script type="module" src="./js/unified-workspace.js?v=15"></script>
+  <script type="module" src="./js/work-management.js?v=1"></script>
 </body>
 </html>

@@ -118,7 +118,6 @@ async function renderAll() {
     renderTasksPage();
     renderHabitsPage();
   }
-  renderActivity();
   wireDynamicDragSources();
 }
 
