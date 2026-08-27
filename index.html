@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=19" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=15" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=16" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -61,6 +61,8 @@
         <div class="page-head">
           <div class="home-heading"><div class="home-progress" id="homeProgress" aria-label="오늘 할일 진행률"><svg viewBox="0 0 52 52" aria-hidden="true"><circle class="home-progress-track" cx="26" cy="26" r="21"></circle><circle class="home-progress-value" cx="26" cy="26" r="21"></circle></svg><span id="homeProgressLabel">0%</span></div><div><h1 class="page-title">집</h1><div class="page-sub" id="todayLabel"></div></div></div>
         </div>
+
+        <section class="uw-overdue-banner" id="overdueTaskBanner" hidden aria-live="polite"></section>
 
         <div class="home-columns home-columns-3 uw-home-layout">
           <div class="home-column" id="homeLeftColumn">
@@ -201,9 +203,6 @@
             <h3>동기화</h3><div class="setting-desc">로그인한 계정 기준으로 Supabase에 저장됩니다. PC와 모바일에서 같은 계정으로 로그인하면 같은 데이터를 봅니다.</div>
             <button class="soft-btn" id="reloadCloudBtn" type="button">서버 데이터 다시 불러오기</button>
           </section>
-          <section class="setting-section">
-            <h3>하루 기준</h3><div class="setting-desc">오늘 습관과 오늘 할일은 새벽 3시에 다음 날로 넘어갑니다.</div>
-          </section>
         </div>
       </section>
     </main>
@@ -238,7 +237,7 @@
   <script type="module" src="./js/context-menu.js?v=16"></script>
   <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
-  <script type="module" src="./js/unified-workspace.js?v=18"></script>
+  <script type="module" src="./js/unified-workspace.js?v=19"></script>
   <script type="module" src="./js/work-management.js?v=1"></script>
 </body>
 </html>

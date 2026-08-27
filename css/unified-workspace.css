@@ -190,3 +190,13 @@
 .uw-month-cell.uw-range-editing::after{content:"";position:absolute;inset:3px;z-index:0;border-radius:8px;background:color-mix(in srgb,var(--uw-theme,var(--accent)) 7%,transparent);pointer-events:none}
 .uw-month-cell .uw-date-range-inline{position:relative;z-index:2}
 @media(max-width:600px){.manual-session-dialog form{padding:13px}.manual-session-times{grid-template-columns:1fr}.uw-session-toggle{min-height:32px;padding-inline:8px}}
+
+.uw-overdue-banner{margin:0 0 14px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--uw-theme,#8fa9c4) 42%,#ddd);border-radius:14px;background:color-mix(in srgb,var(--uw-theme,#8fa9c4) 10%,#fff);color:#3e4650}
+.uw-overdue-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.uw-overdue-actions{display:flex;gap:8px;flex:none}
+.uw-overdue-details{margin-top:10px;padding-top:10px;border-top:1px solid color-mix(in srgb,var(--uw-theme,#8fa9c4) 24%,#ddd);display:grid;gap:8px}
+.uw-overdue-details[hidden]{display:none}
+.uw-overdue-date{display:grid;grid-template-columns:auto auto 1fr;align-items:start;gap:8px 10px;font-size:13px}
+.uw-overdue-date>span{color:#737b83}
+.uw-overdue-date ul{grid-column:1/-1;margin:0;padding-left:20px;color:#59616a}
+@media(max-width:700px){.uw-overdue-row{align-items:flex-start;flex-direction:column}.uw-overdue-actions{align-self:flex-end}}
