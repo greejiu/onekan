@@ -58,10 +58,11 @@ function migrate(current) {
     item.startDate ||= item.createdAt ? String(item.createdAt).slice(0, 10) : "";
     if (item.status === "done" && !item.completedAt) item.completedAt = new Date().toISOString();
   }
-  for (const task of current.tasks) {
-    if (task.projectId && !current.projects.some((item) => item.id === task.projectId && item.kind === "project")) delete task.projectId;
-    if (task.goalId && !current.projects.some((item) => item.id === task.goalId && item.kind === "goal")) delete task.goalId;
-  }
+  for (const item of current.projects) delete item.goalId;
+for (const task of current.tasks) {
+  delete task.projectId;
+  delete task.goalId;
+}
   return current;
 }
 
@@ -91,18 +92,8 @@ function groupOf(item) {
   return state.eventGroups.find((group) => group.id === item.groupId) || state.eventGroups[0];
 }
 
-function workTasks(item) {
-  const direct = state.tasks.filter((task) => item.kind === "goal" ? task.goalId === item.id : task.projectId === item.id);
-  if (item.kind !== "goal") return direct;
-  const childIds = new Set(state.projects.filter((project) => project.kind === "project" && project.goalId === item.id).map((project) => project.id));
-  const inherited = state.tasks.filter((task) => task.projectId && childIds.has(task.projectId));
-  return [...new Map([...direct, ...inherited].map((task) => [task.id, task])).values()];
-}
-
 function progressOf(item) {
-  const tasks = workTasks(item);
-  if (!tasks.length) return Math.max(0, Math.min(100, Number(item.progress || 0)));
-  return Math.round(tasks.filter((task) => task.done).length / tasks.length * 100);
+  return Math.max(0, Math.min(100, Number(item.progress || 0)));
 }
 
 function dateMeta(item) {
@@ -113,19 +104,9 @@ function dateMeta(item) {
   return parts.join(" · ") || "날짜 없음";
 }
 
-function linkMarkup(item) {
-  const linked = workTasks(item);
-  const directKey = item.kind === "goal" ? "goalId" : "projectId";
-  const available = state.tasks.filter((task) => !task.done && !task[directKey]);
-  return `<details class="uw-work-links"><summary>연결 할일 <span>${linked.length}</span></summary><div class="uw-work-linked-list">${linked.map((task) => {
-    const inherited = item.kind === "goal" && task.goalId !== item.id;
-    return `<div class="uw-work-task-chip"><span>${esc(task.title)}</span>${inherited ? '<small>연결 작업에서 포함</small>' : `<button data-work-unlink-task="${task.id}" data-work-id="${item.id}" data-work-kind="${item.kind}" type="button" aria-label="연결 해제">×</button>`}</div>`;
-  }).join("") || '<div class="empty">연결된 할일이 없어요.</div>'}<label class="uw-work-link-picker"><span>할일 연결</span><select data-work-link-task data-work-id="${item.id}" data-work-kind="${item.kind}"><option value="">할일 선택</option>${available.map((task) => `<option value="${task.id}">${esc(task.title)}</option>`).join("")}</select></label></div></details>`;
-}
-
 function workRow(item) {
   const progress = progressOf(item);
-  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${esc(groupOf(item).name)} · ${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div><div class="uw-work-progress"><div class="progress"><i style="width:${progress}%"></i></div><span>${progress}%</span></div>${linkMarkup(item)}</article>`;
+  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${esc(groupOf(item).name)} · ${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div><div class="uw-work-progress"><div class="progress"><i style="width:${progress}%"></i></div><span>${progress}%</span></div></article>`;
 }
 
 function sorted(items) {
@@ -152,10 +133,8 @@ function renderKind(kind) {
   root.innerHTML = `<div class="uw-work-filtered-drop" data-work-kind="${kind}" data-work-drop-status="${status}">${grouped.length ? grouped.map(({ group, items: rows }) => `<section class="uw-work-group" style="--uw-group:${group.color}"><div class="uw-work-group-head"><span></span><strong>${esc(group.name)}</strong><small>${rows.length}</small></div><div class="uw-work-list">${sorted(rows).map(workRow).join("")}</div></section>`).join("") : `<div class="empty uw-work-empty">${definition?.label || "이 상태"} 항목이 없어요.</div>`}</div>`;
 }
 
-function fillDialogOptions(kind, item = null) {
+function fillDialogOptions() {
   $("#projectGroup").innerHTML = state.eventGroups.map((group) => `<option value="${group.id}">${esc(group.name)}</option>`).join("");
-  $("#projectGoal").innerHTML = '<option value="">연결 안 함</option>' + state.projects.filter((entry) => entry.kind === "goal" && entry.status !== "done" && entry.id !== item?.id).map((goal) => `<option value="${goal.id}">${esc(goal.title)}</option>`).join("");
-  $("#projectGoalField").hidden = kind === "goal";
 }
 
 function openDialog(kind, item = null) {
@@ -169,7 +148,6 @@ function openDialog(kind, item = null) {
   $("#projectGroup").value = item?.groupId || state.eventGroups[0]?.id || "default";
   $("#projectStartDate").value = item?.startDate || todayKey();
   $("#projectDeadline").value = item?.deadline || "";
-  $("#projectGoal").value = item?.goalId || "";
   $("#projectProgress").value = String(Math.max(0, Math.min(100, Number(item?.progress || 0))));
   const convertButton = $("#convertProjectBtn");
   convertButton.hidden = !item;
@@ -355,8 +333,7 @@ function wireUI() {
       item.startDate = $("#projectStartDate").value || "";
       item.deadline = $("#projectDeadline").value || "";
       item.progress = Math.max(0, Math.min(100, Number($("#projectProgress").value || 0)));
-      if (kind === "project") item.goalId = $("#projectGoal").value || null;
-      else delete item.goalId;
+      delete item.goalId;
       if (item.status === "done") item.completedAt ||= new Date().toISOString();
       else item.completedAt = null;
     });
