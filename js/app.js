@@ -75,7 +75,7 @@ function defaultState() {
     dailyNotes: [],
     expenses: [],
     sessions: [],
-    timer: { mode: "pomodoro", running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0, durationMs: 25 * 60 * 1000 },
+    timer: { mode: "pomodoro", running: false, paused: false, taskId: null, title: null, startedAt: null, accumulatedMs: 0, durationMs: 25 * 60 * 1000 },
     projects: [],
     ui: {
       sidebarCollapsed: false,
@@ -1135,10 +1135,10 @@ function finishTimer(automatic = false) {
   const duration = mode === "pomodoro" ? Math.min(currentTimerElapsed(), timerDurationMs()) : currentTimerElapsed();
   const task = state.tasks.find((item) => item.id === timer.taskId);
   if (duration >= 1000) {
-    state.sessions.push({ id: uid(), taskId: timer.taskId, title: task?.title || "집중 기록", start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), durationMs: duration, timerMode: mode });
+    state.sessions.push({ id: uid(), taskId: timer.taskId || null, title: task?.title || timer.title || "집중 기록", start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), durationMs: duration, timerMode: mode });
   }
   const durationMs = timerDurationMs();
-  state.timer = { mode, running: false, paused: false, taskId: null, startedAt: null, accumulatedMs: 0, durationMs };
+  state.timer = { mode, running: false, paused: false, taskId: null, title: null, startedAt: null, accumulatedMs: 0, durationMs };
   save();
   renderTracking();
   renderDashboard();
@@ -1164,6 +1164,8 @@ function updateTimerUI() {
   $("#timerStop").disabled = !timer.running;
   $("#timerMinusMinute").disabled = timer.running;
   $("#timerPlusMinute").disabled = timer.running;
+  $("#timerTaskSelect").disabled = timer.running;
+  if ($("#timerCustomTitle")) $("#timerCustomTitle").disabled = timer.running;
   $("#timerTaskSelect").disabled = timer.running;
   $$('[data-timer-mode]').forEach((button) => {
     const active = button.dataset.timerMode === mode;
@@ -1209,7 +1211,6 @@ function ensureManualSessionDialog() {
     <form id="manualSessionForm">
       <div class="manual-session-head"><strong>시간 기록 추가</strong><button class="uw-icon-btn" data-close-session type="button" aria-label="닫기">×</button></div>
       <label><span>기록 이름</span><input id="manualSessionTitle" type="text" required maxlength="80" placeholder="무엇을 했나요?"></label>
-      <label><span>할일 연결</span><select id="manualSessionTask"><option value="">연결 안 함</option></select></label>
       <label><span>날짜</span><input id="manualSessionDate" type="date" required></label>
       <div class="manual-session-times">
         <label><span>시작</span><input id="manualSessionStart" type="time" required></label>
@@ -1221,11 +1222,6 @@ function ensureManualSessionDialog() {
   document.body.appendChild(dialog);
   dialog.querySelectorAll("[data-close-session]").forEach((button) => button.addEventListener("click", () => dialog.close()));
   dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
-  $("#manualSessionTask", dialog).addEventListener("change", (event) => {
-    const task = state.tasks.find((item) => item.id === event.target.value);
-    const title = $("#manualSessionTitle", dialog);
-    if (task && !title.value.trim()) title.value = task.title;
-  });
   $("#manualSessionForm", dialog).addEventListener("submit", async (event) => {
     event.preventDefault();
     const title = $("#manualSessionTitle", dialog).value.trim();
@@ -1245,7 +1241,7 @@ function ensureManualSessionDialog() {
     }
     state.sessions.push({
       id: uid(),
-      taskId: $("#manualSessionTask", dialog).value || null,
+      taskId: null,
       title,
       start: start.toISOString(),
       end: end.toISOString(),
@@ -1274,21 +1270,24 @@ function openManualSession(defaultOffset = 0) {
   $("#manualSessionStart", dialog).value = timeValue(startMinute);
   $("#manualSessionEnd", dialog).value = timeValue(endMinute);
   $("#manualSessionError", dialog).textContent = "";
-  $("#manualSessionTask", dialog).innerHTML = '<option value="">연결 안 함</option>' + state.tasks.map((task) => `<option value="${task.id}">${esc(task.title)}</option>`).join("");
   dialog.showModal();
   requestAnimationFrame(() => $("#manualSessionTitle", dialog).focus());
 }
 
 function renderTracking() {
   const select = $("#timerTaskSelect");
+  const custom = $("#timerCustomTitle");
   const previous = select.value;
+  const previousCustom = custom?.value || "";
   const dayKey = appDayKey();
   const activeTasks = state.tasks.filter((task) => recurringOnDate(task, dayKey) && !taskCompletedOn(task, dayKey));
-  select.innerHTML = '<option value="">오늘 할일 선택</option>' + activeTasks.map((task) => `<option value="${task.id}">${esc(task.title)}</option>`).join("");
+  select.innerHTML = '<option value="">오늘 할일 선택 (선택 안 해도 됨)</option>' + activeTasks.map((task) => `<option value="${task.id}">${esc(task.title)}</option>`).join("");
   if (activeTasks.some((task) => task.id === previous)) select.value = previous;
   if (state.timer.taskId) select.value = state.timer.taskId;
+  if (custom) custom.value = state.timer.running ? (state.timer.taskId ? "" : (state.timer.title || "")) : previousCustom;
   const task = state.tasks.find((item) => item.id === state.timer.taskId);
-  $("#timerTaskLabel").textContent = task ? task.title : "할일을 고르고 시작하세요.";
+  const directTitle = custom?.value.trim() || "";
+  $("#timerTaskLabel").textContent = task?.title || state.timer.title || directTitle || "할일을 선택하거나 직접 기록 이름을 써도 돼요.";
   updateTimerUI();
   renderSessions();
 }
@@ -1524,9 +1523,12 @@ function bindUI() {
   });
 
   $("#timerStart").addEventListener("click", () => {
-    const taskId = $("#timerTaskSelect").value;
-    if (!taskId) return window.alert("먼저 할일을 골라 주세요.");
-    state.timer = { mode: timerMode(), running: true, paused: false, taskId, startedAt: Date.now(), accumulatedMs: 0, durationMs: timerDurationMs() };
+    const taskId = $("#timerTaskSelect").value || null;
+    const task = taskId ? state.tasks.find((item) => item.id === taskId) : null;
+    const customTitle = $("#timerCustomTitle")?.value.trim() || "";
+    const title = task?.title || customTitle;
+    if (!title) return window.alert("할일을 선택하거나 기록 이름을 입력해 주세요.");
+    state.timer = { mode: timerMode(), running: true, paused: false, taskId, title, startedAt: Date.now(), accumulatedMs: 0, durationMs: timerDurationMs() };
     save();
     renderTracking();
     startTicker();
@@ -1554,7 +1556,12 @@ function bindUI() {
   $$('[data-timer-mode]').forEach((button) => button.addEventListener("click", () => setTimerMode(button.dataset.timerMode)));
   $("#timerTaskSelect").addEventListener("change", () => {
     const task = state.tasks.find((item) => item.id === $("#timerTaskSelect").value);
-    $("#timerTaskLabel").textContent = task ? task.title : "할일을 고르고 시작하세요.";
+    if (task && $("#timerCustomTitle")) $("#timerCustomTitle").value = "";
+    $("#timerTaskLabel").textContent = task?.title || $("#timerCustomTitle")?.value.trim() || "할일을 선택하거나 직접 기록 이름을 써도 돼요.";
+  });
+  $("#timerCustomTitle")?.addEventListener("input", (event) => {
+    if (event.target.value.trim()) $("#timerTaskSelect").value = "";
+    $("#timerTaskLabel").textContent = event.target.value.trim() || "할일을 선택하거나 직접 기록 이름을 써도 돼요.";
   });
 
   for (const [selector, key] of [["#timelineTaskColor", "task"], ["#timelineHabitColor", "habit"]]) {

@@ -134,7 +134,7 @@
                   <button class="soft-btn" id="timerPlusMinute" type="button">+1분</button>
                 </div>
               </div>
-              <div class="field timer-select"><label>집중할 오늘 할일</label><select id="timerTaskSelect"></select></div>
+              <div class="field timer-select"><label>기록할 내용</label><select id="timerTaskSelect"></select><input id="timerCustomTitle" type="text" maxlength="80" placeholder="또는 직접 기록 이름 입력" autocomplete="off" /></div>
               <div class="timer-task" id="timerTaskLabel">할일을 고르고 시작하세요.</div>
               <div class="timer-controls"><button class="primary-btn timer-start-wide" id="timerStart" type="button">집중 시작</button><button class="soft-btn" id="timerPause" type="button" disabled>일시정지</button><button class="soft-btn" id="timerStop" type="button" disabled>종료</button></div>
             </div>
@@ -234,7 +234,7 @@
   </dialog>
 
   <script type="module" src="./js/interaction-fixes.js?v=6"></script>
-  <script type="module" src="./js/app.js?v=29"></script>
+  <script type="module" src="./js/app.js?v=30"></script>
   <script type="module" src="./js/context-menu.js?v=16"></script>
   <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
