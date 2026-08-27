@@ -148,14 +148,15 @@ function renderTasksV2(){
   renderTaskSubnav();
   if(taskPageMode==="list"){
     const rows=visibleTasks(taskListTab);
-    if(taskListTab==="all"){
-      const grouped=state.eventGroups.map((groupInfo,index)=>({groupInfo,index,rows:rows.filter(task=>group(task).id===groupInfo.id)})).filter(entry=>entry.rows.length||entry.index===0);
-      root.innerHTML=`<div class="uw-task-grouped-list">${grouped.map(({groupInfo,index,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:${groupInfo.color}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>${esc(groupInfo.name)}</strong><span>${groupRows.length}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="">${taskListMarkup(groupRows,"")}${index===0?taskListInput(""):""}</div></section>`).join("")}</div>`;
+    const groupedTabs=["all","today","upcoming","someday"];
+    if(groupedTabs.includes(taskListTab)){
+      const date=taskListTab==="today"?todayKey():"";
+      const canAdd=["all","today","someday"].includes(taskListTab);
+      const grouped=state.eventGroups.map((groupInfo,index)=>({groupInfo,index,rows:rows.filter(task=>group(task).id===groupInfo.id)})).filter(entry=>entry.rows.length||(canAdd&&entry.index===0));
+      root.innerHTML=grouped.length?`<div class="uw-task-grouped-list">${grouped.map(({groupInfo,index,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:${groupInfo.color}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>${esc(groupInfo.name)}</strong><span>${groupRows.length}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="${date}"${taskListTab==="someday"?" data-uw-someday-drop":""}>${taskListMarkup(groupRows,date)}${canAdd&&index===0?taskListInput(date):""}</div></section>`).join("")}</div>`:'<div class="empty">표시할 할일이 없어요.</div>';
       return
     }
-    const date=taskListTab==="today"?todayKey():taskListTab==="someday"?"":"";
-    const canAdd=taskListTab==="today"||taskListTab==="someday";
-    root.innerHTML=`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="${date}"${taskListTab==="someday"?" data-uw-someday-drop":""}>${taskListMarkup(rows,date)}${canAdd?taskListInput(date):""}${!rows.length&&!canAdd?'<div class="empty">표시할 할일이 없어요.</div>':""}</div>`;
+    root.innerHTML=`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="">${taskListMarkup(rows,"")}${!rows.length?'<div class="empty">완료한 할일이 없어요.</div>':""}</div>`;
     return
   }
   const layout=taskCalendarView==="month"?"board":taskCalendarLayout;
