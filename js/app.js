@@ -162,6 +162,7 @@ let saveChain = Promise.resolve();
 let tickHandle = null;
 let timerFinishing = false;
 let editingBlockId = null;
+let editingSessionId = null;
 let calView = "month";
 let calDayMode = "list";
 let calCursor = new Date();
@@ -1195,9 +1196,24 @@ function renderSessions() {
   const dayKey = appDayKey();
   const today = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) === dayKey).sort((a, b) => new Date(b.end) - new Date(a.end));
   const past = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) < dayKey).sort((a, b) => new Date(b.end) - new Date(a.end)).slice(0, 50);
-  const make = (items) => items.length ? items.map((session) => `<div class="history-row editable-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta">${sessionPeriod(session)}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`).join("") : '<div class="empty">아직 기록이 없어요.</div>';
+  const rowMarkup = (session) => `<div class="history-row editable-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta">${sessionPeriod(session)}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`;
+  const make = (items) => items.length ? items.map(rowMarkup).join("") : '<div class="empty">아직 기록이 없어요.</div>';
+  const makePast = (items) => {
+    if (!items.length) return '<div class="empty">아직 기록이 없어요.</div>';
+    const groups = new Map();
+    for (const session of items) {
+      const key = localDateKey(appDayDate(new Date(session.end || session.start)));
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(session);
+    }
+    return [...groups.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([key, sessions]) => {
+      const date = new Date(`${key}T12:00:00`);
+      const label = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(date);
+      return `<section class="tracking-date-group" data-tracking-date="${key}"><div class="tracking-date-heading"><strong>${label}</strong></div><div class="tracking-date-records">${sessions.map(rowMarkup).join("")}</div></section>`;
+    }).join("");
+  };
   $("#todaySessions").innerHTML = make(today);
-  $("#allSessions").innerHTML = make(past);
+  $("#allSessions").innerHTML = makePast(past);
   $("#trackingTodayTotal").textContent = `오늘 ${fmtDuration(todayFocusMs())}`;
 }
 
@@ -1209,7 +1225,7 @@ function ensureManualSessionDialog() {
   dialog.className = "manual-session-dialog";
   dialog.innerHTML = `
     <form id="manualSessionForm">
-      <div class="manual-session-head"><strong>시간 기록 추가</strong><button class="uw-icon-btn" data-close-session type="button" aria-label="닫기">×</button></div>
+      <div class="manual-session-head"><strong id="manualSessionDialogTitle">시간 기록 추가</strong><button class="uw-icon-btn" data-close-session type="button" aria-label="닫기">×</button></div>
       <label><span>기록 이름</span><input id="manualSessionTitle" type="text" required maxlength="80" placeholder="무엇을 했나요?"></label>
       <label><span>날짜</span><input id="manualSessionDate" type="date" required></label>
       <div class="manual-session-times">
@@ -1239,15 +1255,28 @@ function ensureManualSessionDialog() {
       error.textContent = "종료 시간은 시작 시간보다 뒤여야 해요.";
       return;
     }
-    state.sessions.push({
-      id: uid(),
-      taskId: null,
-      title,
-      start: start.toISOString(),
-      end: end.toISOString(),
-      durationMs: end - start,
-      timerMode: "manual"
-    });
+    if (editingSessionId) {
+      const session = state.sessions.find((item) => item.id === editingSessionId);
+      if (!session) {
+        error.textContent = "수정할 기록을 찾지 못했어요.";
+        return;
+      }
+      session.title = title;
+      session.start = start.toISOString();
+      session.end = end.toISOString();
+      session.durationMs = end - start;
+    } else {
+      state.sessions.push({
+        id: uid(),
+        taskId: null,
+        title,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        durationMs: end - start,
+        timerMode: "manual"
+      });
+    }
+    editingSessionId = null;
     await save();
     dialog.close();
     renderTracking();
@@ -1257,7 +1286,9 @@ function ensureManualSessionDialog() {
 }
 
 function openManualSession(defaultOffset = 0) {
+  editingSessionId = null;
   const dialog = ensureManualSessionDialog();
+  $("#manualSessionDialogTitle", dialog).textContent = "시간 기록 추가";
   const date = appDayDate();
   date.setDate(date.getDate() + defaultOffset);
   const now = new Date();
@@ -1272,6 +1303,24 @@ function openManualSession(defaultOffset = 0) {
   $("#manualSessionError", dialog).textContent = "";
   dialog.showModal();
   requestAnimationFrame(() => $("#manualSessionTitle", dialog).focus());
+}
+
+function openSessionEditor(sessionId) {
+  const session = state.sessions.find((item) => item.id === sessionId);
+  if (!session) return window.alert("수정할 기록을 찾지 못했어요.");
+  editingSessionId = sessionId;
+  const dialog = ensureManualSessionDialog();
+  const start = new Date(session.start || session.end);
+  const end = new Date(session.end || session.start);
+  const timeValue = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  $("#manualSessionDialogTitle", dialog).textContent = "시간 기록 변경";
+  $("#manualSessionTitle", dialog).value = session.title || "";
+  $("#manualSessionDate", dialog).value = localDateKey(start);
+  $("#manualSessionStart", dialog).value = timeValue(start);
+  $("#manualSessionEnd", dialog).value = timeValue(end);
+  $("#manualSessionError", dialog).textContent = "";
+  dialog.showModal();
+  requestAnimationFrame(() => $("#manualSessionStart", dialog).focus());
 }
 
 function renderTracking() {
@@ -1551,6 +1600,7 @@ function bindUI() {
     finishTimer(false);
   });
   $$("[data-add-session]").forEach((button) => button.addEventListener("click", () => openManualSession(Number(button.dataset.defaultOffset || 0))));
+  document.addEventListener("onekan:edit-session", (event) => openSessionEditor(event.detail?.id));
   $("#timerMinusMinute").addEventListener("click", () => adjustTimerMinutes(-1));
   $("#timerPlusMinute").addEventListener("click", () => adjustTimerMinutes(1));
   $$('[data-timer-mode]').forEach((button) => button.addEventListener("click", () => setTimerMode(button.dataset.timerMode)));

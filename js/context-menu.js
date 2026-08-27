@@ -194,6 +194,7 @@ function showMenu(x, y, target, state) {
   const menu = $("#globalContextMenu");
   $$('[data-context-schedule]', menu).forEach((element) => element.classList.toggle("hidden", !schedulable(target.kind)));
   menu.querySelector('[data-context-action="duplicate"]')?.classList.toggle("hidden", !duplicable(target.kind));
+  menu.querySelector('[data-context-action="session-time"]')?.classList.toggle("hidden", target.kind !== "session");
   renderGroupChoices(state, target);
   menu.classList.add("open");
   menu.style.left = "0px";
@@ -415,6 +416,7 @@ function ensureUI() {
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
     <button type="button" role="menuitem" data-context-action="groups">그룹 <span class="context-menu-arrow">›</span></button>
     <div class="context-group-list hidden" id="contextGroupList" role="group"></div>
+    <button type="button" role="menuitem" class="hidden" data-context-action="session-time">시간 변경</button>
     <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;
   document.body.appendChild(menu);
 
@@ -448,6 +450,7 @@ function ensureUI() {
     if (action === "today") moveTarget(0);
     else if (action === "tomorrow") moveTarget(1);
     else if (action === "duplicate") duplicateTarget();
+    else if (action === "session-time") { const target = currentTarget; hideMenu(); if (target?.kind === "session") document.dispatchEvent(new CustomEvent("onekan:edit-session", { detail: { id: target.id } })); }
     else if (action === "groups") {
       $("#contextGroupList")?.classList.toggle("hidden");
       const rect = menu.getBoundingClientRect();

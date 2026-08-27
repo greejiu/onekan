@@ -295,6 +295,11 @@ button:disabled { opacity: .5; cursor: default; }
 .history-name { font-size: 13px; }
 .history-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .history-time { font-variant-numeric: tabular-nums; font-size: 13px; }
+.tracking-date-group { margin-bottom: 12px; }
+.tracking-date-group:last-child { margin-bottom: 0; }
+.tracking-date-heading { min-height: 34px; display: flex; align-items: center; padding: 4px 7px; border-bottom: 1px solid var(--line); }
+.tracking-date-heading strong { font-size: 12px; }
+.tracking-date-records .history-row:last-child { border-bottom: 0; }
 .editable-row { cursor: text; }
 
 .records-tabs { margin-bottom: 14px; }
