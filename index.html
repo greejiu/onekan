@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=20" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=25" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=26" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -39,7 +39,7 @@
         <button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>
         <button class="nav-item" data-page="habits" type="button"><span class="nav-icon">♡</span><span class="nav-label">습관</span></button>
         <button class="nav-item" data-page="goals" type="button"><span class="nav-icon">◎</span><span class="nav-label">목표 현황</span></button>
-        <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▥</span><span class="nav-label">작업 현황</span></button>
+        <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▥</span><span class="nav-label">프로젝트 현황</span></button>
         <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>
       </nav>
       <div class="sidebar-bottom">
@@ -164,8 +164,8 @@
         <div class="uw-work-sections" id="goalSections"></div>
       </section>
       <section class="page uw-work-page" id="page-projects">
-        <div class="page-head"><div><h1 class="page-title">작업 현황</h1></div><div class="uw-work-head-actions"><span class="uw-view-label">목록</span></div></div>
-        <div class="seg uw-work-status-tabs" id="projectStatusTabs" aria-label="작업 상태">
+        <div class="page-head"><div><h1 class="page-title">프로젝트 현황</h1></div><div class="uw-work-head-actions"><span class="uw-view-label">목록</span></div></div>
+        <div class="seg uw-work-status-tabs" id="projectStatusTabs" aria-label="프로젝트 상태">
           <button class="active" data-work-kind="project" data-work-status="all" type="button">전체</button>
           <button data-work-kind="project" data-work-status="before" type="button">시작 전</button>
           <button data-work-kind="project" data-work-status="doing" type="button">하는 중</button>
@@ -205,7 +205,7 @@
             </div>
           </section>
           <section class="setting-section">
-            <h3>그룹</h3><div class="setting-desc">일정·할일·습관·목표·작업현황에서 공통으로 사용하는 그룹입니다.</div>
+            <h3>그룹</h3><div class="setting-desc">일정·할일·습관·목표·프로젝트현황에서 공통으로 사용하는 그룹입니다.</div>
             <div id="eventGroupList"></div>
             <div class="event-group-add"><input id="newEventGroupName" placeholder="새 그룹 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 그룹 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
           </section>
@@ -228,12 +228,13 @@
 
   <dialog id="projectDialog" class="app-dialog uw-work-dialog">
     <form method="dialog" id="projectForm">
-      <h3 id="projectDialogTitle">작업 추가</h3>
+      <h3 id="projectDialogTitle">프로젝트 추가</h3>
       <input id="projectId" type="hidden" />
       <input id="projectKind" type="hidden" value="project" />
       <div class="field"><label>제목</label><input id="projectTitle" required /></div>
       <div class="field"><label>상태</label><select id="projectStatus"><option value="before">시작 전</option><option value="doing">하는 중</option><option value="done">완료</option><option value="stopped">중단</option></select></div>
       <div class="field"><label>그룹</label><select id="projectGroup"></select></div>
+      <div class="field" id="projectGoalField"><label>상위 목표</label><select id="projectGoal"><option value="">연결 안 함</option></select></div>
       <div class="field"><label>시작일</label><input id="projectStartDate" type="date" /></div>
       <div class="field"><label>마감기한</label><input id="projectDeadline" type="date" /></div>
       <div class="dialog-actions"><button class="soft-btn" type="button" id="convertProjectBtn" hidden>목표로 전환</button><span class="dialog-action-spacer"></span><button class="soft-btn" value="cancel" type="button" id="cancelProjectBtn">취소</button><button class="primary-btn" value="default" type="submit">저장</button></div>
@@ -246,8 +247,9 @@
   <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
   <script type="module" src="./js/unified-workspace.js?v=28"></script>
-  <script type="module" src="./js/work-management.js?v=8"></script>
-  <script type="module" src="./js/work-status-inline-add.js?v=2"></script>
+  <script type="module" src="./js/work-management.js?v=9"></script>
+  <script type="module" src="./js/project-planning.js?v=1"></script>
+  <script type="module" src="./js/work-status-inline-add.js?v=3"></script>
   <script type="module" src="./js/task-completed-groups.js?v=2"></script>
 </body>
 </html>

@@ -30,7 +30,7 @@ function installStyle() {
 }
 
 function buttonMarkup(kind, status, groupName = "") {
-  const label = kind === "goal" ? "목표" : "작업";
+  const label = kind === "goal" ? "목표" : "프로젝트";
   const button = document.createElement("button");
   button.className = "uw-work-inline-add";
   button.type = "button";
@@ -109,7 +109,7 @@ function openQuickInput(button) {
   const groupName = button.dataset.fastWorkGroupName || "";
   const form = document.createElement("form");
   form.className = "uw-work-quick-form";
-  form.innerHTML = `<input type="text" maxlength="120" autocomplete="off" placeholder="${kind === "goal" ? "새 목표" : "새 작업"}" aria-label="${kind === "goal" ? "새 목표" : "새 작업"}" /><button class="uw-work-quick-submit" type="submit" aria-label="추가">↵</button>`;
+  form.innerHTML = `<input type="text" maxlength="120" autocomplete="off" placeholder="${kind === "goal" ? "새 목표" : "새 프로젝트"}" aria-label="${kind === "goal" ? "새 목표" : "새 프로젝트"}" /><button class="uw-work-quick-submit" type="submit" aria-label="추가">↵</button>`;
   list.prepend(form);
   const input = $("input", form);
   input?.focus({ preventScroll: true });
@@ -130,7 +130,7 @@ function openQuickInput(button) {
     try {
       await saveQuickItem({ kind, status, groupName, title });
     } catch (error) {
-      console.error("목표·작업 빠른 추가 실패", error);
+      console.error("목표·프로젝트 빠른 추가 실패", error);
       if (submit) submit.disabled = false;
       if (input) {
         input.disabled = false;

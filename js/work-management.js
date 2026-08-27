@@ -59,11 +59,19 @@ function migrate(current) {
     if (item.status === "done" && !item.completedAt) item.completedAt = new Date().toISOString();
     delete item.progress;
   }
-  for (const item of current.projects) delete item.goalId;
-for (const task of current.tasks) {
-  delete task.projectId;
-  delete task.goalId;
-}
+  const validGoalIds = new Set(current.projects.filter((item) => item.kind === "goal").map((item) => item.id));
+  const validProjectIds = new Set(current.projects.filter((item) => item.kind === "project").map((item) => item.id));
+  for (const item of current.projects) {
+    if (item.kind === "goal") delete item.goalId;
+    else if (item.goalId && !validGoalIds.has(item.goalId)) delete item.goalId;
+  }
+  for (const task of current.tasks) {
+    if (task.projectId && !validProjectIds.has(task.projectId)) {
+      delete task.projectId;
+      if (task.projectPlan) delete task.projectPlan;
+    }
+    delete task.goalId;
+  }
   return current;
 }
 
@@ -134,22 +142,28 @@ function renderKind(kind) {
 
 function fillDialogOptions() {
   $("#projectGroup").innerHTML = state.eventGroups.map((group) => `<option value="${group.id}">${esc(group.name)}</option>`).join("");
+  const goalSelect = $("#projectGoal");
+  if (goalSelect) goalSelect.innerHTML = '<option value="">연결 안 함</option>' + state.projects.filter((item) => item.kind === "goal").map((goal) => `<option value="${goal.id}">${esc(goal.title)}</option>`).join("");
 }
 
 function openDialog(kind, item = null) {
   const dialog = $("#projectDialog");
   fillDialogOptions(kind, item);
-  $("#projectDialogTitle").textContent = item ? `${kind === "goal" ? "목표" : "작업"} 수정` : `${kind === "goal" ? "목표" : "작업"} 추가`;
+  $("#projectDialogTitle").textContent = item ? `${kind === "goal" ? "목표" : "프로젝트"} 수정` : `${kind === "goal" ? "목표" : "프로젝트"} 추가`;
   $("#projectId").value = item?.id || "";
   $("#projectKind").value = kind;
   $("#projectTitle").value = item?.title || "";
   $("#projectStatus").value = item?.status || "before";
   $("#projectGroup").value = item?.groupId || state.eventGroups[0]?.id || "default";
+  const goalField = $("#projectGoalField");
+  const goalSelect = $("#projectGoal");
+  if (goalField) goalField.hidden = kind !== "project";
+  if (goalSelect) goalSelect.value = kind === "project" ? (item?.goalId || "") : "";
   $("#projectStartDate").value = item?.startDate || todayKey();
   $("#projectDeadline").value = item?.deadline || "";
   const convertButton = $("#convertProjectBtn");
   convertButton.hidden = !item;
-  convertButton.textContent = kind === "goal" ? "작업으로 전환" : "목표로 전환";
+  convertButton.textContent = kind === "goal" ? "프로젝트으로 전환" : "목표로 전환";
   convertButton.dataset.workConvertId = item?.id || "";
   convertButton.dataset.workConvertKind = kind === "goal" ? "project" : "goal";
   dialog.showModal();
@@ -271,7 +285,7 @@ async function renderAll() {
     renderKind("goal");
     renderKind("project");
   } catch (error) {
-    console.error("목표·작업현황 렌더링 실패", error);
+    console.error("목표·프로젝트현황 렌더링 실패", error);
   } finally {
     rendering = false;
   }
@@ -293,19 +307,17 @@ function wireUI() {
       if (!item) return;
       const oldKind = item.kind;
       item.kind = nextKind;
-      delete item.goalId;
-      if (oldKind === "project" && nextKind === "goal") {
+      if (nextKind === "goal") {
+        delete item.goalId;
         current.tasks.forEach((task) => {
           if (task.projectId !== id) return;
           delete task.projectId;
-          task.goalId = id;
+          if (task.projectPlan) delete task.projectPlan;
         });
-      } else if (oldKind === "goal" && nextKind === "project") {
-        current.tasks.forEach((task) => {
-          if (task.goalId !== id) return;
-          delete task.goalId;
-          task.projectId = id;
-        });
+      } else {
+        delete item.goalId;
+      }
+      if (oldKind === "goal" && nextKind === "project") {
         current.projects.forEach((project) => { if (project.goalId === id) delete project.goalId; });
       }
     });
@@ -329,7 +341,9 @@ function wireUI() {
       item.groupId = $("#projectGroup").value || current.eventGroups[0]?.id;
       item.startDate = $("#projectStartDate").value || "";
       item.deadline = $("#projectDeadline").value || "";
-      delete item.goalId;
+      const selectedGoalId = $("#projectGoal")?.value || "";
+      if (kind === "project" && selectedGoalId) item.goalId = selectedGoalId;
+      else delete item.goalId;
       if (item.status === "done") item.completedAt ||= new Date().toISOString();
       else item.completedAt = null;
     });
