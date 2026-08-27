@@ -13,8 +13,8 @@ const palette = ["#8fa9c4", "#9fbf9f", "#c4a58f", "#ad9fc4", "#c49fae", "#8fbfc1
 const statusDefs = [
   { id: "before", label: "시작 전", color: "#8fa9c4" },
   { id: "doing", label: "하는 중", color: "#88b49a" },
-  { id: "paused", label: "보류", color: "#d0aa72" },
   { id: "done", label: "완료", color: "#a69ab8" },
+  { id: "stopped", label: "중단", color: "#b89a91" },
 ];
 
 let user = null;
@@ -52,7 +52,7 @@ function migrate(current) {
     if (item.status === "active" || item.status === "진행중" || item.status === "진행 중") item.status = "doing";
     if (item.status === "시작 전") item.status = "before";
     if (item.status === "하는 중") item.status = "doing";
-    if (item.status === "보류") item.status = "paused";
+    if (item.status === "paused" || item.status === "보류" || item.status === "중단") item.status = "stopped";
     if (item.status === "완료") item.status = "done";
     if (!statusDefs.some((status) => status.id === item.status)) item.status = "before";
     item.startDate ||= item.createdAt ? String(item.createdAt).slice(0, 10) : "";

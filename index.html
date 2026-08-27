@@ -38,8 +38,8 @@
         <button class="nav-item" data-page="calendar" type="button"><span class="nav-icon">□</span><span class="nav-label">일정</span></button>
         <button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>
         <button class="nav-item" data-page="habits" type="button"><span class="nav-icon">♡</span><span class="nav-label">습관</span></button>
-        <button class="nav-item" data-page="goals" type="button"><span class="nav-icon">◎</span><span class="nav-label">목표</span></button>
-        <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▥</span><span class="nav-label">작업현황</span></button>
+        <button class="nav-item" data-page="goals" type="button"><span class="nav-icon">◎</span><span class="nav-label">목표 현황</span></button>
+        <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▥</span><span class="nav-label">작업 현황</span></button>
         <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>
       </nav>
       <div class="sidebar-bottom">
@@ -146,7 +146,7 @@
       </section>
 
       <section class="page uw-work-page" id="page-goals">
-        <div class="page-head"><div><h1 class="page-title">목표</h1></div><div class="uw-work-head-actions"><span class="uw-view-label">목록</span><button class="soft-btn" id="addGoalBtn" type="button">+ 목표</button></div></div>
+        <div class="page-head"><div><h1 class="page-title">목표 현황</h1></div><div class="uw-work-head-actions"><span class="uw-view-label">목록</span><button class="soft-btn" id="addGoalBtn" type="button">+ 목표</button></div></div>
         <div class="seg uw-work-status-tabs" id="goalStatusTabs" aria-label="목표 상태">
           <button class="active" data-work-kind="goal" data-work-status="all" type="button">전체</button>
           <button data-work-kind="goal" data-work-status="before" type="button">시작 전</button>
@@ -158,7 +158,7 @@
       </section>
 
       <section class="page uw-work-page" id="page-projects">
-        <div class="page-head"><div><h1 class="page-title">작업현황</h1></div><div class="uw-work-head-actions"><span class="uw-view-label">목록</span><button class="soft-btn" id="addProjectBtn" type="button">+ 작업</button></div></div>
+        <div class="page-head"><div><h1 class="page-title">작업 현황</h1></div><div class="uw-work-head-actions"><span class="uw-view-label">목록</span><button class="soft-btn" id="addProjectBtn" type="button">+ 작업</button></div></div>
         <div class="seg uw-work-status-tabs" id="projectStatusTabs" aria-label="작업 상태">
           <button class="active" data-work-kind="project" data-work-status="all" type="button">전체</button>
           <button data-work-kind="project" data-work-status="before" type="button">시작 전</button>
@@ -226,7 +226,7 @@
       <input id="projectId" type="hidden" />
       <input id="projectKind" type="hidden" value="project" />
       <div class="field"><label>제목</label><input id="projectTitle" required /></div>
-      <div class="field"><label>상태</label><select id="projectStatus"><option value="before">시작 전</option><option value="doing">하는 중</option><option value="paused">보류</option><option value="done">완료</option></select></div>
+      <div class="field"><label>상태</label><select id="projectStatus"><option value="before">시작 전</option><option value="doing">하는 중</option><option value="done">완료</option><option value="stopped">중단</option></select></div>
       <div class="field"><label>그룹</label><select id="projectGroup"></select></div>
       <div class="field"><label>시작일</label><input id="projectStartDate" type="date" /></div>
       <div class="field"><label>마감기한</label><input id="projectDeadline" type="date" /></div>
@@ -240,6 +240,6 @@
   <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
   <script type="module" src="./js/unified-workspace.js?v=24"></script>
-  <script type="module" src="./js/work-management.js?v=5"></script>
+  <script type="module" src="./js/work-management.js?v=6"></script>
 </body>
 </html>
