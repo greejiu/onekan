@@ -17,6 +17,7 @@ function normalize(s){
   s.habitTemplates=Array.isArray(s.habitTemplates)?s.habitTemplates:[];
   s.habitDays=s.habitDays&&typeof s.habitDays==="object"?s.habitDays:{};
   s.habitOverrides=s.habitOverrides&&typeof s.habitOverrides==="object"?s.habitOverrides:{};
+  s.taskOverrides=s.taskOverrides&&typeof s.taskOverrides==="object"?s.taskOverrides:{};
   s.timeBlocks=Array.isArray(s.timeBlocks)?s.timeBlocks:[];
   s.sessions=Array.isArray(s.sessions)?s.sessions:[];
   s.eventGroups=Array.isArray(s.eventGroups)&&s.eventGroups.length?s.eventGroups:[{id:"default",name:"기본",color:"#8fa9c4"}];
@@ -157,19 +158,27 @@ function eventOnDate(eventItem,date){
 }
 function habitOverride(source,date,id,create=false){if(!source||!date||!id)return null;if(create){source.habitOverrides||={};source.habitOverrides[date]||={};source.habitOverrides[date][id]||={}}return source.habitOverrides?.[date]?.[id]||null}
 function cleanHabitOverride(source,date,id){const value=source.habitOverrides?.[date]?.[id];if(value&&Object.keys(value).length===0)delete source.habitOverrides[date][id];if(source.habitOverrides?.[date]&&Object.keys(source.habitOverrides[date]).length===0)delete source.habitOverrides[date]}
+function taskOverride(source,date,id,create=false){if(!source||!date||!id)return null;if(create){source.taskOverrides||={};source.taskOverrides[date]||={};source.taskOverrides[date][id]||={}}return source.taskOverrides?.[date]?.[id]||null}
+function cleanTaskOverride(source,date,id){const value=source.taskOverrides?.[date]?.[id];if(value&&Object.keys(value).length===0)delete source.taskOverrides[date][id];if(source.taskOverrides?.[date]&&Object.keys(source.taskOverrides[date]).length===0)delete source.taskOverrides[date]}
+function clearTaskTimingOverrides(source,id){Object.keys(source.taskOverrides||{}).forEach(date=>{const value=source.taskOverrides?.[date]?.[id];if(!value)return;delete value.startMinute;delete value.duration;cleanTaskOverride(source,date,id)})}
 function itemsForDay(k){
   const events=state.events.filter(event=>eventOnDate(event,k)).map(event=>({kind:"event",item:event,timed:!event.allDay,time:event.allDay?null:new Date(event.start).getHours()*60+new Date(event.start).getMinutes(),duration:event.allDay?null:Math.max(SLOT,Math.round((new Date(event.end||event.start)-new Date(event.start))/60000/SLOT)*SLOT)}));
   const tasks=state.tasks.filter(task=>task.date&&recurrenceOn(task,task.date,k)).map(task=>{
+    const override=taskOverride(state,k,task.id)||{};
     let start=null,duration=null;
-    if(task.notionStart&&task.notionEnd){
+    if(Object.prototype.hasOwnProperty.call(override,"startMinute")){
+      start=override.startMinute;
+      duration=+override.duration||SLOT
+    }else if(task.notionStart&&task.notionEnd){
       const date=new Date(task.notionStart);
       start=date.getHours()*60+date.getMinutes();
       duration=Math.max(SLOT,Math.round((new Date(task.notionEnd)-date)/60000/SLOT)*SLOT)
     }else{
-      const block=state.timeBlocks.find(block=>block.taskId===task.id&&(block.date===k||task.recurrence&&block.date===task.date));
+      const block=state.timeBlocks.find(block=>block.taskId===task.id&&block.date===k);
       if(block){start=+block.startMinute;duration=+block.duration||SLOT}
     }
-    return{kind:"task",item:task,timed:start!==null,time:start,duration}
+    const timed=start!==null&&start!==undefined&&Number.isFinite(Number(start));
+    return{kind:"task",item:task,timed,time:timed?Number(start):null,duration:timed?(+duration||SLOT):null}
   });
   const habits=state.habitTemplates.flatMap(habit=>{const override=habitOverride(state,k,habit.id)||{};if(override.hidden)return[];const start=Object.prototype.hasOwnProperty.call(override,"startMinute")?override.startMinute:habit.startMinute;const duration=Object.prototype.hasOwnProperty.call(override,"duration")?override.duration:habit.duration;const item=Object.prototype.hasOwnProperty.call(override,"title")?{...habit,title:override.title}:habit;const timed=start!==null&&start!==undefined&&Number.isFinite(Number(start));return[{kind:"habit",item,timed,time:timed?Number(start):null,duration:+duration||SLOT}]});
   return[...events,...tasks,...habits]
@@ -511,6 +520,7 @@ function renderHabits(){
 }
 function installActionUI(){if($("#uwSelectionBar"))return;document.body.insertAdjacentHTML("beforeend",'<div class="uw-selection-bar" id="uwSelectionBar"><button data-uw-action="edit">수정</button><button data-uw-action="duplicate">복제</button><button data-uw-action="group">그룹</button><button data-uw-action="convert">전환</button><button class="danger" data-uw-action="delete">삭제</button><button data-uw-action="cancel">취소</button></div><div class="uw-context" id="uwContext"></div><dialog class="app-dialog uw-habit-scope-dialog" id="uwHabitScopeDialog"><div class="uw-scope-body"><h3 id="uwHabitScopeTitle">습관 변경</h3><p id="uwHabitScopeMessage"></p><div class="dialog-actions"><button class="soft-btn" data-uw-habit-scope="cancel" type="button">취소</button><button class="soft-btn" data-uw-habit-scope="day" type="button">이 날만</button><button class="primary-btn" data-uw-habit-scope="all" type="button">전체 반복</button></div></div></dialog>')}
 function askHabitScope(mode,habit,date){const dialog=$("#uwHabitScopeDialog");if(!dialog)return Promise.resolve(null);$("#uwHabitScopeTitle").textContent=mode==="delete"?"습관 삭제":"습관 변경";$("#uwHabitScopeMessage").textContent=mode==="delete"?`${dayLabel(fromKey(date),true)}의 ‘${habit?.title||"습관"}’을 어떻게 삭제할까요?`:`${dayLabel(fromKey(date),true)}의 ‘${habit?.title||"습관"}’ 변경 범위를 선택해 주세요.`;const dayButton=dialog.querySelector('[data-uw-habit-scope="day"]'),allButton=dialog.querySelector('[data-uw-habit-scope="all"]');dayButton.textContent=mode==="delete"?"이 날만 숨기기":"이 날만 변경";allButton.textContent=mode==="delete"?"습관 전체 삭제":"전체 반복 변경";dialog.showModal();return new Promise(resolve=>{habitScopeResolve=resolve})}
+function askTaskScope(task,date){const dialog=$("#uwHabitScopeDialog");if(!dialog)return Promise.resolve(null);$("#uwHabitScopeTitle").textContent="반복 할일 변경";$("#uwHabitScopeMessage").textContent=`${dayLabel(fromKey(date),true)}의 ‘${task?.title||"할일"}’ 시간을 어떻게 변경할까요?`;const dayButton=dialog.querySelector('[data-uw-habit-scope="day"]'),allButton=dialog.querySelector('[data-uw-habit-scope="all"]');dayButton.textContent="이 할일만 변경";allButton.textContent="전체 반복 변경";dialog.showModal();return new Promise(resolve=>{habitScopeResolve=resolve})}
 function wireHabitScopeDialog(){const dialog=$("#uwHabitScopeDialog");if(!dialog||dialog.dataset.uwBound)return;dialog.dataset.uwBound="1";dialog.addEventListener("click",event=>{const button=event.target.closest("[data-uw-habit-scope]");if(!button)return;const value=button.dataset.uwHabitScope;dialog.close();const resolve=habitScopeResolve;habitScopeResolve=null;resolve?.(value==="cancel"?null:value)});dialog.addEventListener("cancel",event=>{event.preventDefault();dialog.close();const resolve=habitScopeResolve;habitScopeResolve=null;resolve?.(null)})}
 function coarse(){return matchMedia("(hover:none),(pointer:coarse)").matches}
 function toggleSelection(item){const token=`${item.dataset.uwKind}:${item.dataset.id}:${item.dataset.date||""}`;if(selected.has(token)){selected.delete(token);item.classList.remove("selected")}else{selected.set(token,{kind:item.dataset.uwKind,id:item.dataset.id,date:item.dataset.date||null});item.classList.add("selected")}document.body.classList.toggle("uw-selection-active",selected.size>0);$("#uwSelectionBar")?.classList.toggle("open",selected.size>0)}
@@ -529,7 +539,7 @@ async function action(name,records=[...selected.values()]){
   }
   if(name==="duplicate"){await write(current=>records.forEach(record=>{const list=record.kind==="event"?current.events:record.kind==="habit"?current.habitTemplates:current.tasks;const item=list.find(value=>value.id===record.id);if(item)list.push({...item,id:uid(),title:`${item.title} 복사`,done:false,completedAt:null})}))}
   else if(name==="convert"){await write(current=>records.forEach(record=>{if(record.kind==="task"){const task=current.tasks.find(item=>item.id===record.id);if(!task)return;const date=task.date||todayKey();current.events.push({id:uid(),title:task.title,type:"schedule",groupId:task.groupId,allDay:!task.notionStart,start:task.notionStart||new Date(`${date}T12:00:00`).toISOString(),end:task.notionEnd||new Date(`${date}T12:00:00`).toISOString(),...(task.recurrence?{recurrence:{...task.recurrence}}:{})});current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id)}else if(record.kind==="event"){const event=current.events.find(item=>item.id===record.id);if(!event)return;current.tasks.push({id:uid(),title:event.title,date:key(new Date(event.start)),done:false,groupId:event.groupId,...(!event.allDay?{notionStart:event.start,notionEnd:event.end}:{}),...(event.recurrence?{recurrence:{...event.recurrence}}:{})});current.events=current.events.filter(item=>item.id!==record.id)}}))}
-  else if(name==="delete"){await write(current=>records.forEach(record=>{if(record.kind==="event")current.events=current.events.filter(item=>item.id!==record.id);if(record.kind==="task"){current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id)}}))}
+  else if(name==="delete"){await write(current=>records.forEach(record=>{if(record.kind==="event")current.events=current.events.filter(item=>item.id!==record.id);if(record.kind==="task"){current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id);Object.values(current.taskOverrides||{}).forEach(day=>delete day[record.id])}}))}
   clearSelection()
 }
 
@@ -551,7 +561,37 @@ async function saveTimedChange(kind,id,date,startMinute,duration){
     await write(current=>{const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=startMinute;override.duration=duration}else{target.startMinute=startMinute;target.duration=duration;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
     return
   }
-  await write(current=>{const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);if(kind==="event"){const event=current.events.find(item=>item.id===id);if(!event)return;event.start=start.toISOString();event.end=new Date(start.getTime()+duration*60000).toISOString();event.allDay=false;return}const task=current.tasks.find(item=>item.id===id);if(!task)return;task.date=date;task.notionStart=start.toISOString();task.notionEnd=new Date(start.getTime()+duration*60000).toISOString();current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:task.title,detail:task.title,date,startMinute,duration})})
+  if(kind==="task"){
+    const task=state?.tasks.find(item=>item.id===id);
+    if(!task)return;
+    if(task.recurrence?.frequency){
+      const scope=await askTaskScope(task,date);
+      if(!scope)return;
+      await write(current=>{
+        const target=current.tasks.find(item=>item.id===id);
+        if(!target)return;
+        if(scope==="day"){
+          const override=taskOverride(current,date,id,true);
+          override.startMinute=startMinute;
+          override.duration=duration;
+          current.timeBlocks=current.timeBlocks.filter(item=>!(item.taskId===id&&item.date===date));
+          current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:target.title,detail:target.title,date,startMinute,duration});
+          return
+        }
+        const baseDate=target.date||date;
+        const start=new Date(`${baseDate}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);
+        target.notionStart=start.toISOString();
+        target.notionEnd=new Date(start.getTime()+duration*60000).toISOString();
+        current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);
+        current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:target.title,detail:target.title,date:baseDate,startMinute,duration});
+        clearTaskTimingOverrides(current,id)
+      });
+      return
+    }
+    await write(current=>{const target=current.tasks.find(item=>item.id===id);if(!target)return;const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);target.date=date;target.notionStart=start.toISOString();target.notionEnd=new Date(start.getTime()+duration*60000).toISOString();current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:target.title,detail:target.title,date,startMinute,duration})});
+    return
+  }
+  await write(current=>{const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);const event=current.events.find(item=>item.id===id);if(!event)return;event.start=start.toISOString();event.end=new Date(start.getTime()+duration*60000).toISOString();event.allDay=false})
 }
 async function saveDateMove(kind,id,date){await write(s=>{if(kind==="habit")return;if(kind==="task"){const t=s.tasks.find(x=>x.id===id);if(!t)return;t.date=date||null;delete t.notionStart;delete t.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);return}const e=s.events.find(x=>x.id===id);if(!e)return;const oldStart=new Date(e.start),oldEnd=new Date(e.end||e.start),duration=Math.max(0,oldEnd-oldStart),clock=e.allDay?"12:00:00":`${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`;const start=new Date(`${date}T${clock}`);e.start=start.toISOString();e.end=new Date(start.getTime()+duration).toISOString()})}
 function wireSideTabs(){document.addEventListener("click",event=>{const button=event.target.closest("[data-uw-side-tab]");if(!button)return;homeSideTab=button.dataset.uwSideTab;renderSideTab()})}
@@ -585,25 +625,34 @@ async function saveUntimedChange(kind,id,date){
     await write(current=>{const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=null;delete override.duration}else{delete target.startMinute;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
     return
   }
-  await write(s=>{
-    if(kind==="task"){
-      const task=s.tasks.find(x=>x.id===id);
-      if(!task)return;
-      task.date=date||null;
-      delete task.notionStart;
-      delete task.notionEnd;
-      s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);
-      return;
+  if(kind==="task"){
+    const task=state?.tasks.find(item=>item.id===id);
+    if(!task)return;
+    if(task.recurrence?.frequency){
+      const scope=await askTaskScope(task,date||task.date);
+      if(!scope)return;
+      await write(current=>{
+        const target=current.tasks.find(item=>item.id===id);
+        if(!target)return;
+        if(scope==="day"){
+          const override=taskOverride(current,date||target.date,id,true);
+          override.startMinute=null;
+          delete override.duration;
+          current.timeBlocks=current.timeBlocks.filter(item=>!(item.taskId===id&&item.date===(date||target.date)));
+          return
+        }
+        delete target.notionStart;
+        delete target.notionEnd;
+        current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);
+        clearTaskTimingOverrides(current,id)
+      });
+      return
     }
-    const event=s.events.find(x=>x.id===id);
-    if(!event)return;
-    const noon=new Date(`${date}T12:00:00`);
-    event.start=noon.toISOString();
-    event.end=noon.toISOString();
-    event.allDay=true;
-  });
+    await write(s=>{const target=s.tasks.find(x=>x.id===id);if(!target)return;target.date=date||null;delete target.notionStart;delete target.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id)});
+    return
+  }
+  await write(s=>{const event=s.events.find(x=>x.id===id);if(!event)return;const noon=new Date(`${date}T12:00:00`);event.start=noon.toISOString();event.end=noon.toISOString();event.allDay=true})
 }
-
 async function saveDateOnlyChange(kind,id,date){
   await write(s=>{
     if(kind==="habit")return;
