@@ -115,7 +115,7 @@
         <div class="page-head"><div><h1 class="page-title">습관</h1></div></div>
         <form class="habit-page-add uw-habit-add-form" id="habitPageForm">
           <input id="habitPageTitle" placeholder="새 습관" aria-label="새 습관" required />
-          <label class="uw-habit-icon-field" title="그룹"><span aria-hidden="true">◉</span><select id="habitPageGroup" aria-label="습관 그룹"></select></label>
+          <label class="uw-habit-icon-field" title="영역"><span aria-hidden="true">◉</span><select id="habitPageGroup" aria-label="습관 영역"></select></label>
           <div class="uw-habit-period-control" id="habitPagePeriodControl">
             <button class="uw-habit-period-button" id="habitPagePeriodButton" type="button" aria-expanded="false" title="습관 기간 설정"><span aria-hidden="true">▦</span><span id="habitPagePeriodLabel">오늘부터</span></button>
             <div class="uw-habit-period-pop" id="habitPagePeriodPanel" hidden>
@@ -213,9 +213,9 @@
             </div>
           </section>
           <section class="setting-section">
-            <h3>그룹</h3><div class="setting-desc">일정·할일·습관·목표·프로젝트현황에서 공통으로 사용하는 그룹입니다.</div>
+            <h3>영역</h3><div class="setting-desc">일정·할일·습관·목표·프로젝트현황에서 공통으로 사용하는 영역입니다.</div>
             <div id="eventGroupList"></div>
-            <div class="event-group-add"><input id="newEventGroupName" placeholder="새 그룹 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 그룹 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
+            <div class="event-group-add"><input id="newEventGroupName" placeholder="새 영역 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 영역 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
           </section>
           <section class="setting-section">
             <h3>동기화</h3><div class="setting-desc">로그인한 계정 기준으로 Supabase에 저장됩니다. PC와 모바일에서 같은 계정으로 로그인하면 같은 데이터를 봅니다.</div>
@@ -242,7 +242,7 @@
       <div class="field"><label>제목</label><input id="projectTitle" required /></div>
       <div class="field" id="workStatusField"><label id="workStatusLabel">상태</label><select id="projectStatus"><option value="before">시작 전</option><option value="doing">하는 중</option><option value="done">완료</option><option value="stopped">중단</option></select></div>
       <div class="field" id="goalTermField" hidden><label>목표 기간</label><select id="goalTerm"><option value="short">단기 목표</option><option value="long">장기 목표</option></select></div>
-      <div class="field"><label>그룹</label><select id="projectGroup"></select></div>
+      <div class="field"><label>영역</label><select id="projectGroup"></select></div>
       <div class="field" id="projectGoalField"><label>상위 목표</label><select id="projectGoal"><option value="">연결 안 함</option></select></div>
       <div class="field"><label>시작일</label><input id="projectStartDate" type="date" /></div>
       <div class="field"><label>마감기한</label><input id="projectDeadline" type="date" /></div>
@@ -268,14 +268,14 @@
   </dialog>
 
   <script type="module" src="./js/interaction-fixes.js?v=6"></script>
-  <script type="module" src="./js/app.js?v=32"></script>
-  <script type="module" src="./js/context-menu.js?v=19"></script>
+  <script type="module" src="./js/app.js?v=33"></script>
+  <script type="module" src="./js/context-menu.js?v=20"></script>
   <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
-  <script type="module" src="./js/unified-workspace.js?v=32"></script>
+  <script type="module" src="./js/unified-workspace.js?v=33"></script>
   <script type="module" src="./js/work-management.js?v=12"></script>
   <script type="module" src="./js/project-planning.js?v=4"></script>
   <script type="module" src="./js/work-status-inline-add.js?v=5"></script>
-  <script type="module" src="./js/task-completed-groups.js?v=4"></script>
+  <script type="module" src="./js/task-completed-groups.js?v=5"></script>
 </body>
 </html>

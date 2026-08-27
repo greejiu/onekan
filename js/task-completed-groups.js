@@ -91,7 +91,7 @@ async function decorateCompletedTasks() {
   try {
     tasks = await readTasks();
   } catch (error) {
-    console.error("완료 할일 날짜 그룹화 실패", error);
+    console.error("완료 할일 날짜 영역화 실패", error);
     return;
   }
   if (token !== requestToken || !$("#taskPageTabs [data-task-tab=\"done\"].active")) return;

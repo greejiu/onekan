@@ -401,7 +401,7 @@ async function changeTargetGroup(groupId) {
     });
   } catch (error) {
     console.error(error);
-    window.alert("그룹을 변경하지 못했어요.");
+    window.alert("영역을 변경하지 못했어요.");
   }
 }
 
@@ -414,7 +414,7 @@ function ensureUI() {
   menu.setAttribute("role", "menu");
   menu.innerHTML = `
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
-    <button type="button" role="menuitem" data-context-action="groups">그룹 <span class="context-menu-arrow">›</span></button>
+    <button type="button" role="menuitem" data-context-action="groups">영역 <span class="context-menu-arrow">›</span></button>
     <div class="context-group-list hidden" id="contextGroupList" role="group"></div>
     <button type="button" role="menuitem" class="hidden" data-context-action="session-time">기록 변경</button>
     <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;

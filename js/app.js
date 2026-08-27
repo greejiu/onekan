@@ -1231,7 +1231,7 @@ function ensureManualSessionDialog() {
     <form id="manualSessionForm">
       <div class="manual-session-head"><strong id="manualSessionDialogTitle">시간 기록 추가</strong><button class="uw-icon-btn" data-close-session type="button" aria-label="닫기">×</button></div>
       <label><span>기록 이름</span><input id="manualSessionTitle" type="text" required maxlength="80" placeholder="무엇을 했나요?"></label>
-      <label><span>그룹</span><select id="manualSessionGroup" required></select></label>
+      <label><span>영역</span><select id="manualSessionGroup" required></select></label>
       <label><span>날짜</span><input id="manualSessionDate" type="date" required></label>
       <div class="manual-session-times">
         <label><span>시작</span><input id="manualSessionStart" type="time" required></label>
@@ -1382,7 +1382,7 @@ function renderSettings() {
   if (groupList) {
     groupList.innerHTML = state.eventGroups.map((group, index) => `<div class="event-group-row" data-event-group-id="${esc(group.id)}">
       <input type="color" value="${safeColor(group.color)}" aria-label="${esc(group.name)} 색" data-event-group-color />
-      <input value="${esc(group.name)}" aria-label="그룹 이름" data-event-group-name />
+      <input value="${esc(group.name)}" aria-label="영역 이름" data-event-group-name />
       <button class="ghost-btn danger-text" type="button" data-event-group-delete${index === 0 ? " disabled" : ""}>삭제</button>
     </div>`).join("");
     groupList.querySelectorAll("[data-event-group-name], [data-event-group-color]").forEach((input) => input.addEventListener("change", () => {
