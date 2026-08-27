@@ -57,6 +57,7 @@ function migrate(current) {
     if (!statusDefs.some((status) => status.id === item.status)) item.status = "before";
     item.startDate ||= item.createdAt ? String(item.createdAt).slice(0, 10) : "";
     if (item.status === "done" && !item.completedAt) item.completedAt = new Date().toISOString();
+    delete item.progress;
   }
   for (const item of current.projects) delete item.goalId;
 for (const task of current.tasks) {
@@ -92,9 +93,6 @@ function groupOf(item) {
   return state.eventGroups.find((group) => group.id === item.groupId) || state.eventGroups[0];
 }
 
-function progressOf(item) {
-  return Math.max(0, Math.min(100, Number(item.progress || 0)));
-}
 
 function dateMeta(item) {
   const parts = [];
@@ -105,8 +103,7 @@ function dateMeta(item) {
 }
 
 function workRow(item) {
-  const progress = progressOf(item);
-  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${esc(groupOf(item).name)} · ${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div><div class="uw-work-progress"><div class="progress"><i style="width:${progress}%"></i></div><span>${progress}%</span></div></article>`;
+  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${esc(groupOf(item).name)} · ${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div></article>`;
 }
 
 function sorted(items) {
@@ -148,7 +145,6 @@ function openDialog(kind, item = null) {
   $("#projectGroup").value = item?.groupId || state.eventGroups[0]?.id || "default";
   $("#projectStartDate").value = item?.startDate || todayKey();
   $("#projectDeadline").value = item?.deadline || "";
-  $("#projectProgress").value = String(Math.max(0, Math.min(100, Number(item?.progress || 0))));
   const convertButton = $("#convertProjectBtn");
   convertButton.hidden = !item;
   convertButton.textContent = kind === "goal" ? "작업으로 전환" : "목표로 전환";
@@ -171,7 +167,6 @@ async function moveWorkItem(id, status) {
     item.status = status;
     if (status === "done") {
       item.completedAt ||= new Date().toISOString();
-      item.progress = 100;
     } else {
       item.completedAt = null;
     }
@@ -332,7 +327,6 @@ function wireUI() {
       item.groupId = $("#projectGroup").value || current.eventGroups[0]?.id;
       item.startDate = $("#projectStartDate").value || "";
       item.deadline = $("#projectDeadline").value || "";
-      item.progress = Math.max(0, Math.min(100, Number($("#projectProgress").value || 0)));
       delete item.goalId;
       if (item.status === "done") item.completedAt ||= new Date().toISOString();
       else item.completedAt = null;
