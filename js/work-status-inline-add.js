@@ -15,8 +15,8 @@ function installStyle() {
   style.id = "workStatusInlineStyle";
   style.textContent = `
     .uw-work-status-board{align-items:stretch!important}
-    .uw-work-status-section{height:100%;display:flex;flex-direction:column}
-    .uw-work-status-section>.uw-work-list{min-height:0;flex:1}
+    .uw-work-status-section{height:100%}
+    .uw-work-status-section>.uw-work-list{min-height:0}
     .uw-work-status-head strong,.uw-work-group-head strong{min-width:0;flex:1}
     .uw-work-status-head small,.uw-work-group-head small{display:none!important}
     .uw-work-inline-add{display:inline-grid;place-items:center;width:28px;height:28px;flex:0 0 28px;padding:0;border:1px solid color-mix(in srgb,var(--uw-status,var(--uw-group,#8fa9c4)) 38%,var(--line));border-radius:8px;background:#fff;color:var(--text);font-size:17px;line-height:1;cursor:pointer;transition:.15s ease}
