@@ -157,6 +157,7 @@ function eventOnDate(eventItem,date){
   }
   return false
 }
+function habitActiveOn(habit,date){if(!habit||!date)return false;if(habit.startDate&&date<habit.startDate)return false;if(habit.endDate&&date>habit.endDate)return false;return true}
 function habitOverride(source,date,id,create=false){if(!source||!date||!id)return null;if(create){source.habitOverrides||={};source.habitOverrides[date]||={};source.habitOverrides[date][id]||={}}return source.habitOverrides?.[date]?.[id]||null}
 function cleanHabitOverride(source,date,id){const value=source.habitOverrides?.[date]?.[id];if(value&&Object.keys(value).length===0)delete source.habitOverrides[date][id];if(source.habitOverrides?.[date]&&Object.keys(source.habitOverrides[date]).length===0)delete source.habitOverrides[date]}
 function taskOverride(source,date,id,create=false){if(!source||!date||!id)return null;if(create){source.taskOverrides||={};source.taskOverrides[date]||={};source.taskOverrides[date][id]||={detached:true}}return source.taskOverrides?.[date]?.[id]||null}
@@ -186,7 +187,7 @@ function itemsForDay(k){
     const timed=start!==null&&start!==undefined&&Number.isFinite(Number(start));
     return{kind:"task",item:task,timed,time:timed?Number(start):null,duration:timed?(+duration||SLOT):null}
   });
-  const habits=state.habitTemplates.flatMap(habit=>{const override=habitOverride(state,k,habit.id)||{};if(override.hidden)return[];const start=Object.prototype.hasOwnProperty.call(override,"startMinute")?override.startMinute:habit.startMinute;const duration=Object.prototype.hasOwnProperty.call(override,"duration")?override.duration:habit.duration;const item=Object.prototype.hasOwnProperty.call(override,"title")?{...habit,title:override.title}:habit;const timed=start!==null&&start!==undefined&&Number.isFinite(Number(start));return[{kind:"habit",item,timed,time:timed?Number(start):null,duration:+duration||SLOT}]});
+  const habits=state.habitTemplates.flatMap(habit=>{if(!habitActiveOn(habit,k))return[];const override=habitOverride(state,k,habit.id)||{};if(override.hidden)return[];const start=Object.prototype.hasOwnProperty.call(override,"startMinute")?override.startMinute:habit.startMinute;const duration=Object.prototype.hasOwnProperty.call(override,"duration")?override.duration:habit.duration;const item=Object.prototype.hasOwnProperty.call(override,"title")?{...habit,title:override.title}:habit;const timed=start!==null&&start!==undefined&&Number.isFinite(Number(start));return[{kind:"habit",item,timed,time:timed?Number(start):null,duration:+duration||SLOT}]});
   return[...events,...tasks,...habits]
 }
 function sessionItemsForDay(k){
@@ -250,7 +251,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
   const form=document.createElement("form");
   form.className="uw-inline-form";
   form.dataset.uwEntrySelectedDate=date||"";
-  form.innerHTML=`${withTime?`<input type="time" value="${old&&kind==="event"&&!old.allDay?timeOf(old.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(displayTitle||"")}" placeholder="${kind==="event"?"일정":kind==="habit"?"습관":"할일"} 입력" autocomplete="off">${canRepeat?recurrenceEditorMarkup(old,frequency):""}`;
+  form.innerHTML=`${withTime?`<input type="time" value="${old&&kind==="event"&&!old.allDay?timeOf(old.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(displayTitle||"")}" placeholder="${kind==="event"?"일정":kind==="habit"?"습관":"할일"} 입력" autocomplete="off">${old&&kind==="habit"?`<div class="uw-habit-range-inline" title="모든 습관에 적용되는 기간"><label><span>시작</span><input class="uw-habit-start-date" type="date" value="${esc(old.startDate||"")}" aria-label="습관 시작일"></label><label><span>종료</span><input class="uw-habit-end-date" type="date" value="${esc(old.endDate||"")}" aria-label="습관 종료일"></label></div>`:""}${canRepeat?recurrenceEditorMarkup(old,frequency):""}`;
   const scroll={x:scrollX,y:scrollY},editTarget=editId?host.closest(".uw-item"):null;
   const rangeFirst=date&&endDate&&endDate<date?endDate:date;
   const rangeLast=date&&endDate&&endDate<date?date:endDate;
@@ -300,6 +301,9 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
     const selectedDate=form.dataset.uwEntrySelectedDate||null;
     const dateChanged=form.dataset.uwEntryDateChanged==="1";
     const habitEditDate=date||todayKey();
+    const habitStartDate=$(".uw-habit-start-date",form)?.value||"";
+    const habitEndDate=$(".uw-habit-end-date",form)?.value||"";
+    if(old&&kind==="habit"&&habitStartDate&&habitEndDate&&habitEndDate<habitStartDate){const endInput=$(".uw-habit-end-date",form);endInput?.setCustomValidity("종료일은 시작일과 같거나 이후여야 해요.");endInput?.reportValidity();saving=false;return}
     const existingHabitOverride=old&&kind==="habit"?habitOverride(state,habitEditDate,old.id):null;
     const habitScope=old&&kind==="habit"?(existingHabitOverride?"day":await askHabitScope("change",old,habitEditDate)):null;
     if(old&&kind==="habit"&&!habitScope){saving=false;scheduleRender(0);return}
@@ -314,7 +318,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
         if(kind==="habit"){
           const editDate=habitEditDate;
           if(habitScope==="day")habitOverride(current,editDate,target.id,true).title=value;
-          else{target.title=value;const override=habitOverride(current,editDate,target.id);if(override){delete override.title;cleanHabitOverride(current,editDate,target.id)}}
+          else{target.title=value;if(habitStartDate)target.startDate=habitStartDate;else delete target.startDate;if(habitEndDate)target.endDate=habitEndDate;else delete target.endDate;const override=habitOverride(current,editDate,target.id);if(override){delete override.title;cleanHabitOverride(current,editDate,target.id)}}
           return
         }
         if(kind==="task"&&target.recurrence?.frequency&&taskScope==="day"){
@@ -366,7 +370,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
         if(recurrence)item.recurrence=recurrence;
         current.events.push(item)
       }else if(kind==="habit"){
-        current.habitTemplates.push({id:uid(),title:value,groupId:defaultGroup})
+        current.habitTemplates.push({id:uid(),title:value,groupId:defaultGroup,startDate:date||todayKey()})
       }else{
         const taskDate=selectedDate;
         const task={id:uid(),title:value,date:taskDate,done:false,groupId:defaultGroup,createdAt:new Date().toISOString()};
@@ -547,9 +551,9 @@ function renderHabits(){
     const bt=Number.isFinite(+b.startMinute)?+b.startMinute:Infinity;
     return at-bt||String(a.title).localeCompare(String(b.title),"ko")
   });
-  const byGroup=state.eventGroups.map(group=>({group,items:ordered.filter(h=>(h.groupId||state.eventGroups[0].id)===group.id)})).filter(x=>x.items.length);
+  const byGroup=state.eventGroups.map(group=>({group,items:ordered.filter(h=>(h.groupId||state.eventGroups[0].id)===group.id&&days.some(day=>habitActiveOn(h,key(day))))})).filter(x=>x.items.length);
   const options=state.eventGroups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join("");
-  const groupRows=byGroup.map(({group,items})=>`<div class="uw-habit-group-title" style="--uw-group:${group.color}"><span class="uw-habit-group-dot"></span><strong>${esc(group.name)}</strong></div>${items.map(h=>`<div class="uw-habit-week-row"><div class="uw-habit-name uw-item" data-uw-kind="habit" data-id="${h.id}" data-date="${todayKey()}"><span class="uw-habit-title">${esc(h.title)}</span><small>${Number.isFinite(+h.startMinute)?`${pad(Math.floor(+h.startMinute/60))}:${pad(+h.startMinute%60)}`:"시간 없음"}</small></div>${days.map(day=>{const date=key(day),done=!!state.habitDays[date]?.[h.id];return`<button class="uw-habit-day-check${done?" checked":""}" data-uw-habit-check="${h.id}" data-date="${date}" type="button" aria-label="${dayLabel(day)} ${done?"완료 취소":"완료"}">${done?"✓":""}</button>`}).join("")}</div>`).join("")}`).join("");
+  const groupRows=byGroup.map(({group,items})=>`<div class="uw-habit-group-title" style="--uw-group:${group.color}"><span class="uw-habit-group-dot"></span><strong>${esc(group.name)}</strong></div>${items.map(h=>`<div class="uw-habit-week-row"><div class="uw-habit-name uw-item" data-uw-kind="habit" data-id="${h.id}" data-date="${todayKey()}"><span class="uw-habit-title">${esc(h.title)}</span><small>${Number.isFinite(+h.startMinute)?`${pad(Math.floor(+h.startMinute/60))}:${pad(+h.startMinute%60)}`:"시간 없음"}</small></div>${days.map(day=>{const date=key(day),active=habitActiveOn(h,date),done=active&&!!state.habitDays[date]?.[h.id];if(!active)return`<span class="uw-habit-day-check inactive" aria-hidden="true"></span>`;return`<button class="uw-habit-day-check${done?" checked":""}" data-uw-habit-check="${h.id}" data-date="${date}" type="button" aria-label="${dayLabel(day)} ${done?"완료 취소":"완료"}">${done?"✓":""}</button>`}).join("")}</div>`).join("")}`).join("");
   root.innerHTML=`<section class="uw-habit-week"><div class="uw-habit-week-toolbar"><div><h3>습관</h3><small>${dayLabel(start)} – ${dayLabel(addDays(start,6))}</small></div><div><button class="uw-icon-btn" data-uw-habit-prev type="button" aria-label="이전 주">‹</button><button class="uw-icon-btn" data-uw-habit-today type="button">오늘</button><button class="uw-icon-btn" data-uw-habit-next type="button" aria-label="다음 주">›</button></div></div><div class="uw-scroll"><div class="uw-habit-week-grid"><div class="uw-habit-grid-head">습관</div>${days.map(day=>`<div class="uw-habit-grid-day${key(day)===todayKey()?" today":""}"><strong>${["일","월","화","수","목","금","토"][day.getDay()]}</strong><small>${day.getMonth()+1}/${day.getDate()}</small></div>`).join("")}${groupRows||'<div class="empty uw-habit-empty">아직 습관이 없어요. 위에서 새 습관을 추가해 보세요.</div>'}</div></div></section>`;
   const select=$("#habitPageGroup");
   if(select){
@@ -924,7 +928,7 @@ function wireControlsV2(){
   document.addEventListener("contextmenu",e=>{if(gesture?.active){e.preventDefault();e.stopImmediatePropagation()}},true);
 }
 
-function wireHabitForm(){const form=$("#habitPageForm");if(!form||form.dataset.uwBound)return;form.dataset.uwBound="1";form.addEventListener("submit",async event=>{event.preventDefault();const title=$("#habitPageTitle")?.value.trim(),time=$("#habitPageTime")?.value||"",duration=Math.max(SLOT,+$("#habitPageDuration")?.value||SLOT),groupId=$("#habitPageGroup")?.value||state?.eventGroups?.[0]?.id||"default",button=form.querySelector('button[type="submit"]');if(!title)return;const original=button.dataset.defaultLabel||button.textContent;button.dataset.defaultLabel=original;button.disabled=true;button.textContent="추가 중…";try{await write(current=>{const habit={id:uid(),title,duration,groupId};if(time){const[hour,minute]=time.split(":").map(Number);habit.startMinute=hour*60+minute}current.habitTemplates.push(habit);const today=todayKey();current.habitDays[today]||={};current.habitDays[today][habit.id]=false});form.reset();$("#habitPageGroup").value=groupId}catch(error){console.error("습관 추가 실패",error);button.textContent="다시 시도"}finally{button.disabled=false;if(button.textContent!=="다시 시도")button.textContent=original}})}
+function wireHabitForm(){const form=$("#habitPageForm");if(!form||form.dataset.uwBound)return;form.dataset.uwBound="1";const startInput=$("#habitPageStartDate"),endInput=$("#habitPageEndDate");if(startInput&&!startInput.value)startInput.value=todayKey();endInput?.addEventListener("input",()=>endInput.setCustomValidity(""));form.addEventListener("submit",async event=>{event.preventDefault();const title=$("#habitPageTitle")?.value.trim(),time=$("#habitPageTime")?.value||"",duration=Math.max(SLOT,+$("#habitPageDuration")?.value||SLOT),groupId=$("#habitPageGroup")?.value||state?.eventGroups?.[0]?.id||"default",startDate=startInput?.value||todayKey(),endDate=endInput?.value||"",button=form.querySelector('button[type="submit"]');if(!title)return;if(endDate&&endDate<startDate){endInput?.setCustomValidity("종료일은 시작일과 같거나 이후여야 해요.");endInput?.reportValidity();return}const original=button.dataset.defaultLabel||button.textContent;button.dataset.defaultLabel=original;button.disabled=true;button.textContent="추가 중…";try{await write(current=>{const habit={id:uid(),title,duration,groupId,startDate};if(endDate)habit.endDate=endDate;if(time){const[hour,minute]=time.split(":").map(Number);habit.startMinute=hour*60+minute}current.habitTemplates.push(habit)});form.reset();$("#habitPageGroup").value=groupId;if(startInput)startInput.value=todayKey();if(endInput)endInput.value=""}catch(error){console.error("습관 추가 실패",error);button.textContent="다시 시도"}finally{button.disabled=false;if(button.textContent!=="다시 시도")button.textContent=original}})}
 function wireOverdueActions(){document.addEventListener("click",async event=>{const view=event.target.closest("[data-uw-overdue-view]"),move=event.target.closest("[data-uw-overdue-move]");if(!view&&!move)return;event.preventDefault();event.stopImmediatePropagation();if(view){overdueExpanded=!overdueExpanded;renderOverdue();return}move.disabled=true;move.textContent="이동 중…";await write(current=>{const today=todayKey(),ids=new Set();current.tasks.forEach(task=>{if(!task.done&&task.date&&task.date<today&&!task.recurrence?.frequency){ids.add(task.id);task.date=today}});(current.timeBlocks||[]).forEach(block=>{if(ids.has(block.taskId)&&block.date<today)block.date=today})});overdueExpanded=false},true)}
 async function renderAll(){if(rendering)return;rendering=true;try{await read();if(!state)return;applyColors();renderHome();renderSchedulePage();renderTasks();renderHabits()}catch(e){console.error("통합 화면 렌더링 실패",e)}finally{rendering=false}}
 async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireHabitForm();wireOverdueActions();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();document.addEventListener("onekan:state-changed",event=>{if(event.detail?.source!=="unified")scheduleRender(40)});await renderAll();updateCurrentTimeLines();setInterval(updateCurrentTimeLines,60000)}
