@@ -10,13 +10,21 @@ const todayKey = () => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 const palette = ["#8fa9c4", "#9fbf9f", "#c4a58f", "#ad9fc4", "#c49fae", "#8fbfc1"];
+const statusDefs = [
+  { id: "before", label: "시작 전", color: "#8fa9c4" },
+  { id: "doing", label: "하는 중", color: "#88b49a" },
+  { id: "paused", label: "보류", color: "#d0aa72" },
+  { id: "done", label: "완료", color: "#a69ab8" },
+];
 
 let user = null;
 let state = null;
-let goalStatus = "active";
-let projectStatus = "active";
+let goalStatus = "all";
+let projectStatus = "all";
 let rendering = false;
 let renderTimer = null;
+let touchDrag = null;
+let suppressWorkClickUntil = 0;
 
 function legacyGroupId(name) {
   let hash = 0;
@@ -41,9 +49,12 @@ function migrate(current) {
     item.groupId ||= current.eventGroups[0].id;
     if (!item.kind) item.kind = item.status === "목표" ? "goal" : "project";
     if (!["goal", "project"].includes(item.kind)) item.kind = "project";
-    if (!["active", "paused", "done"].includes(item.status)) {
-      item.status = item.status === "보류" ? "paused" : item.status === "완료" ? "done" : "active";
-    }
+    if (item.status === "active" || item.status === "진행중" || item.status === "진행 중") item.status = "doing";
+    if (item.status === "시작 전") item.status = "before";
+    if (item.status === "하는 중") item.status = "doing";
+    if (item.status === "보류") item.status = "paused";
+    if (item.status === "완료") item.status = "done";
+    if (!statusDefs.some((status) => status.id === item.status)) item.status = "before";
     item.startDate ||= item.createdAt ? String(item.createdAt).slice(0, 10) : "";
     if (item.status === "done" && !item.completedAt) item.completedAt = new Date().toISOString();
   }
@@ -114,17 +125,31 @@ function linkMarkup(item) {
 
 function workRow(item) {
   const progress = progressOf(item);
-  return `<article class="uw-work-row" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div><div class="uw-work-progress"><div class="progress"><i style="width:${progress}%"></i></div><span>${progress}%</span></div>${linkMarkup(item)}</article>`;
+  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${esc(groupOf(item).name)} · ${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div><div class="uw-work-progress"><div class="progress"><i style="width:${progress}%"></i></div><span>${progress}%</span></div>${linkMarkup(item)}</article>`;
+}
+
+function sorted(items) {
+  return [...items].sort((a, b) => String(a.deadline || "9999").localeCompare(String(b.deadline || "9999")) || String(a.title).localeCompare(String(b.title), "ko"));
+}
+
+function statusSection(kind, definition, items) {
+  return `<section class="uw-work-status-section" style="--uw-status:${definition.color}" data-work-kind="${kind}" data-work-drop-status="${definition.id}"><div class="uw-work-status-head"><span></span><strong>${definition.label}</strong><small>${items.length}</small></div><div class="uw-work-list">${items.length ? sorted(items).map(workRow).join("") : '<div class="uw-work-status-empty">여기로 옮길 수 있어요.</div>'}</div></section>`;
 }
 
 function renderKind(kind) {
   const root = $(kind === "goal" ? "#goalSections" : "#projectSections");
   if (!root || !state) return;
   const status = kind === "goal" ? goalStatus : projectStatus;
-  const items = state.projects.filter((item) => item.kind === kind && item.status === status);
+  const allItems = state.projects.filter((item) => item.kind === kind);
   $$('[data-work-kind="' + kind + '"][data-work-status]').forEach((button) => button.classList.toggle("active", button.dataset.workStatus === status));
+  if (status === "all") {
+    root.innerHTML = `<div class="uw-work-status-board">${statusDefs.map((definition) => statusSection(kind, definition, allItems.filter((item) => item.status === definition.id))).join("")}</div>`;
+    return;
+  }
+  const items = allItems.filter((item) => item.status === status);
   const grouped = state.eventGroups.map((group) => ({ group, items: items.filter((item) => groupOf(item).id === group.id) })).filter((entry) => entry.items.length);
-  root.innerHTML = grouped.length ? grouped.map(({ group, items: rows }) => `<section class="uw-work-group" style="--uw-group:${group.color}"><div class="uw-work-group-head"><span></span><strong>${esc(group.name)}</strong><small>${rows.length}</small></div><div class="uw-work-list">${rows.sort((a, b) => String(a.deadline || "9999").localeCompare(String(b.deadline || "9999")) || String(a.title).localeCompare(String(b.title), "ko")).map(workRow).join("")}</div></section>`).join("") : '<div class="empty uw-work-empty">표시할 항목이 없어요.</div>';
+  const definition = statusDefs.find((entry) => entry.id === status);
+  root.innerHTML = `<div class="uw-work-filtered-drop" data-work-kind="${kind}" data-work-drop-status="${status}">${grouped.length ? grouped.map(({ group, items: rows }) => `<section class="uw-work-group" style="--uw-group:${group.color}"><div class="uw-work-group-head"><span></span><strong>${esc(group.name)}</strong><small>${rows.length}</small></div><div class="uw-work-list">${sorted(rows).map(workRow).join("")}</div></section>`).join("") : `<div class="empty uw-work-empty">${definition?.label || "이 상태"} 항목이 없어요.</div>`}</div>`;
 }
 
 function fillDialogOptions(kind, item = null) {
@@ -140,7 +165,7 @@ function openDialog(kind, item = null) {
   $("#projectId").value = item?.id || "";
   $("#projectKind").value = kind;
   $("#projectTitle").value = item?.title || "";
-  $("#projectStatus").value = item?.status || "active";
+  $("#projectStatus").value = item?.status || "before";
   $("#projectGroup").value = item?.groupId || state.eventGroups[0]?.id || "default";
   $("#projectStartDate").value = item?.startDate || todayKey();
   $("#projectDeadline").value = item?.deadline || "";
@@ -153,6 +178,108 @@ function openDialog(kind, item = null) {
 function scheduleRender(delay = 60) {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(renderAll, delay);
+}
+
+async function moveWorkItem(id, status) {
+  if (!id || !statusDefs.some((entry) => entry.id === status)) return;
+  await writeState((current) => {
+    const item = current.projects.find((entry) => entry.id === id);
+    if (!item || item.status === status) return;
+    item.status = status;
+    if (status === "done") {
+      item.completedAt ||= new Date().toISOString();
+      item.progress = 100;
+    } else {
+      item.completedAt = null;
+    }
+  });
+}
+
+function clearWorkDrop() {
+  $$(".uw-work-drop-active").forEach((element) => element.classList.remove("uw-work-drop-active"));
+}
+
+function wireWorkDrag() {
+  document.addEventListener("dragstart", (event) => {
+    const row = event.target.closest?.(".uw-work-row[data-work-id]");
+    if (!row || event.target.closest("button,select,details,a,input")) { event.preventDefault(); return; }
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/onekan-work-id", row.dataset.workId);
+    row.classList.add("uw-work-dragging");
+  });
+  document.addEventListener("dragend", (event) => {
+    event.target.closest?.(".uw-work-row")?.classList.remove("uw-work-dragging");
+    clearWorkDrop();
+  });
+  document.addEventListener("dragover", (event) => {
+    const zone = event.target.closest?.("[data-work-drop-status]");
+    if (!zone || !Array.from(event.dataTransfer.types).includes("text/onekan-work-id")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    clearWorkDrop();
+    zone.classList.add("uw-work-drop-active");
+  });
+  document.addEventListener("drop", async (event) => {
+    const zone = event.target.closest?.("[data-work-drop-status]");
+    if (!zone) return;
+    const id = event.dataTransfer.getData("text/onekan-work-id");
+    if (!id) return;
+    event.preventDefault();
+    clearWorkDrop();
+    await moveWorkItem(id, zone.dataset.workDropStatus);
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" || event.button > 0 || event.target.closest("button,select,details,a,input")) return;
+    const row = event.target.closest(".uw-work-row[data-work-id]");
+    if (!row) return;
+    const drag = touchDrag = { row, id: row.dataset.workId, pointerId: event.pointerId, x: event.clientX, y: event.clientY, active: false, zone: null };
+    drag.timer = setTimeout(() => {
+      if (touchDrag !== drag) return;
+      drag.active = true;
+      row.classList.add("uw-work-dragging");
+      drag.ghost = row.cloneNode(true);
+      drag.ghost.className = "uw-work-drag-ghost";
+      document.body.appendChild(drag.ghost);
+      navigator.vibrate?.(18);
+    }, 450);
+  }, true);
+  document.addEventListener("pointermove", (event) => {
+    const drag = touchDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const distance = Math.hypot(event.clientX - drag.x, event.clientY - drag.y);
+    if (!drag.active) {
+      if (distance > 10) { clearTimeout(drag.timer); touchDrag = null; }
+      return;
+    }
+    event.preventDefault();
+    drag.ghost.style.left = `${event.clientX}px`;
+    drag.ghost.style.top = `${event.clientY}px`;
+    clearWorkDrop();
+    drag.zone = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-work-drop-status]") || null;
+    drag.zone?.classList.add("uw-work-drop-active");
+  }, { passive: false, capture: true });
+  document.addEventListener("pointerup", async (event) => {
+    const drag = touchDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    clearTimeout(drag.timer);
+    touchDrag = null;
+    if (!drag.active) return;
+    event.preventDefault();
+    suppressWorkClickUntil = Date.now() + 650;
+    drag.row.classList.remove("uw-work-dragging");
+    drag.ghost?.remove();
+    clearWorkDrop();
+    if (drag.zone) await moveWorkItem(drag.id, drag.zone.dataset.workDropStatus);
+  }, true);
+  document.addEventListener("pointercancel", () => {
+    if (!touchDrag) return;
+    clearTimeout(touchDrag.timer);
+    touchDrag.ghost?.remove();
+    touchDrag.row?.classList.remove("uw-work-dragging");
+    touchDrag = null;
+    clearWorkDrop();
+  });
 }
 
 async function renderAll() {
@@ -173,6 +300,7 @@ async function renderAll() {
 function wireUI() {
   if (document.documentElement.dataset.workManagementWired) return;
   document.documentElement.dataset.workManagementWired = "1";
+  wireWorkDrag();
   $("#addGoalBtn")?.addEventListener("click", () => openDialog("goal"));
   $("#addProjectBtn")?.addEventListener("click", () => openDialog("project"));
   $("#cancelProjectBtn")?.addEventListener("click", () => $("#projectDialog")?.close());
@@ -203,6 +331,11 @@ function wireUI() {
     $("#projectDialog").close();
   });
   document.addEventListener("click", async (event) => {
+    if (Date.now() < suppressWorkClickUntil && event.target.closest(".uw-work-row")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     const status = event.target.closest("[data-work-kind][data-work-status]");
     if (status) {
       if (status.dataset.workKind === "goal") goalStatus = status.dataset.workStatus;
