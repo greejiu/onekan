@@ -1,3 +1,4 @@
+import "./interaction-fixes.js";
 import { supabase } from "./supabase.js";
 
 const authSection = document.querySelector("#auth-section");
@@ -44,9 +45,36 @@ function showLoggedIn(user) {
 }
 
 export function setupAuth({ onLogin, onLogout }) {
+  let activationPromise = null;
+  let activatingUserId = null;
+  let visibleUserId = null;
+
   async function activate(user) {
-    showLoggedIn(user);
-    await onLogin(user);
+    if (!user) return false;
+    if (visibleUserId === user.id && !appSection.classList.contains("hidden")) return true;
+    if (activationPromise && activatingUserId === user.id) return activationPromise;
+
+    activatingUserId = user.id;
+    activationPromise = (async () => {
+      try {
+        showMessage("데이터 불러오는 중...");
+        await onLogin(user);
+        visibleUserId = user.id;
+        showLoggedIn(user);
+        return true;
+      } catch (error) {
+        console.error("로그인 후 데이터 초기화 실패", error);
+        visibleUserId = null;
+        showLoggedOut();
+        showMessage("로그인은 되었지만 데이터를 불러오지 못했어요. 새로고침 후 다시 시도해 주세요.");
+        return false;
+      } finally {
+        activationPromise = null;
+        activatingUserId = null;
+      }
+    })();
+
+    return activationPromise;
   }
 
   authForm.addEventListener("submit", async (event) => {
@@ -54,12 +82,19 @@ export function setupAuth({ onLogin, onLogout }) {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
     if (!email || !password) return showMessage("이메일과 비밀번호를 모두 입력해 주세요.");
+
     setLoading(true);
     showMessage("로그인 중...");
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) return showMessage(friendlyAuthError(error, "로그인"));
-    await activate(data.user);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return showMessage(friendlyAuthError(error, "로그인"));
+      await activate(data.user);
+    } catch (error) {
+      console.error("로그인 요청 실패", error);
+      showMessage("로그인 요청 중 문제가 생겼어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.");
+    } finally {
+      setLoading(false);
+    }
   });
 
   signupButton.addEventListener("click", async () => {
@@ -67,40 +102,65 @@ export function setupAuth({ onLogin, onLogout }) {
     const password = passwordInput.value;
     if (!email || !password) return showMessage("이메일과 비밀번호를 모두 입력해 주세요.");
     if (password.length < 6) return showMessage("비밀번호는 6자 이상으로 입력해 주세요.");
+
     setLoading(true);
     showMessage("계정을 만드는 중...");
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: "https://greejiu.github.io/onekan/" },
-    });
-    setLoading(false);
-    if (error) return showMessage(friendlyAuthError(error, "회원가입"));
-    if (data.session?.user) return activate(data.user);
-    showMessage("회원가입 요청 완료! 받은 이메일의 인증 링크를 한 번만 눌러 주세요.");
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: "https://greejiu.github.io/onekan/" },
+      });
+      if (error) return showMessage(friendlyAuthError(error, "회원가입"));
+      if (data.session?.user) {
+        await activate(data.user);
+        return;
+      }
+      showMessage("회원가입 요청 완료! 받은 이메일의 인증 링크를 한 번만 눌러 주세요.");
+    } catch (error) {
+      console.error("회원가입 요청 실패", error);
+      showMessage("회원가입 요청 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setLoading(false);
+    }
   });
 
   logoutButton.addEventListener("click", async () => {
     setLoading(true);
-    await supabase.auth.signOut();
-    setLoading(false);
-    showLoggedOut();
-    await onLogout();
+    try {
+      await supabase.auth.signOut();
+      visibleUserId = null;
+      showLoggedOut();
+      await onLogout();
+    } finally {
+      setLoading(false);
+    }
   });
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((authEvent, session) => {
     setTimeout(async () => {
-      if (session?.user) await activate(session.user);
-      else {
-        showLoggedOut();
-        await onLogout();
+      if (authEvent === "TOKEN_REFRESHED") return;
+      if (session?.user) {
+        await activate(session.user);
+        return;
       }
+      visibleUserId = null;
+      showLoggedOut();
+      await onLogout();
     }, 0);
   });
 
   (async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) await activate(session.user);
-    else showLoggedOut();
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (session?.user) await activate(session.user);
+      else showLoggedOut();
+    } catch (error) {
+      console.error("저장된 로그인 확인 실패", error);
+      visibleUserId = null;
+      showLoggedOut();
+      showMessage("로그인 상태를 확인하지 못했어요. 새로고침 후 다시 시도해 주세요.");
+    }
   })();
 }
