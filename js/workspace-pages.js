@@ -248,9 +248,10 @@ function wireUI() {
     const startMinute = minuteFromTime($("#habitPageTime")?.value);
     const duration = Number($("#habitPageDuration")?.value || 30);
     await writeState((current) => {
-      const habit = { id: crypto.randomUUID(), title };
+      const range = current.ui?.timelineRange || { start: 360, end: 1320 };
+      const habit = { id: crypto.randomUUID(), title, groupId: $("#habitPageGroup")?.value || current.eventGroups?.[0]?.id || "default" };
       if (startMinute !== null) {
-        habit.startMinute = Math.max(360, Math.min(1320 - duration, Math.round(startMinute / 30) * 30));
+        habit.startMinute = Math.max(Number(range.start), Math.min(Number(range.end) - duration, Math.round(startMinute / 30) * 30));
         habit.duration = duration;
       }
       current.habitTemplates.push(habit);

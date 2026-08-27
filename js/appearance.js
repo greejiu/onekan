@@ -2,9 +2,18 @@ import { supabase } from "./supabase.js";
 
 const $ = (selector) => document.querySelector(selector);
 const BUCKET = "onekan-user-assets";
+const DEFAULT_THEME = "#8fa9c4";
 
 let user = null;
 let state = null;
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const validColor = (value) => /^#[0-9a-f]{6}$/i.test(value || "") ? value : DEFAULT_THEME;
+const timeValue = (minute) => `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
+const minuteValue = (value) => {
+  const [hour, minute] = String(value || "").split(":").map(Number);
+  return Number.isFinite(hour) && Number.isFinite(minute) ? clamp(Math.round((hour * 60 + minute) / 30) * 30, 0, 1440) : null;
+};
 
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -15,13 +24,19 @@ async function readState() {
   state = data?.data && typeof data.data === "object" ? data.data : {};
   state.ui = state.ui && typeof state.ui === "object" ? state.ui : {};
   state.ui.homeAppearance = { position: "center", overlay: 28, ...(state.ui.homeAppearance || {}) };
+  state.ui.themeColor = validColor(state.ui.themeColor);
+  const range = state.ui.timelineRange && typeof state.ui.timelineRange === "object" ? state.ui.timelineRange : {};
+  const start = clamp(Math.round((Number(range.start) || 360) / 30) * 30, 0, 1350);
+  const end = clamp(Math.round((Number(range.end) || 1320) / 30) * 30, start + 30, 1440);
+  state.ui.timelineRange = { start, end };
   return state;
 }
 
-async function writeAppearance(changes) {
+async function writeAppearance(appearanceChanges = {}, uiChanges = {}) {
   const current = await readState();
   if (!current || !user) return;
-  current.ui.homeAppearance = { ...current.ui.homeAppearance, ...changes };
+  current.ui.homeAppearance = { ...current.ui.homeAppearance, ...appearanceChanges };
+  current.ui = { ...current.ui, ...uiChanges, homeAppearance: current.ui.homeAppearance };
   const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: current }, { onConflict: "user_id" });
   if (error) throw error;
   state = current;
@@ -30,17 +45,29 @@ async function writeAppearance(changes) {
 }
 
 async function applyAppearance() {
+  if (!state) return;
+  const root = document.documentElement;
+  const theme = validColor(state.ui.themeColor);
+  root.style.setProperty("--uw-theme", theme);
+  root.style.setProperty("--accent", theme);
+  root.style.setProperty("--accent-dark", theme);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme);
+  if ($("#themeColor")) $("#themeColor").value = theme;
+  if ($("#homeThemeColor")) $("#homeThemeColor").value = theme;
+  if ($("#timelineStart")) $("#timelineStart").value = timeValue(state.ui.timelineRange.start);
+  if ($("#timelineEnd")) $("#timelineEnd").value = timeValue(state.ui.timelineRange.end);
+
   const head = $("#page-home .page-head");
-  if (!head || !state) return;
+  if (!head) return;
   const appearance = state.ui.homeAppearance || {};
-  $("#homeBackgroundPosition").value = appearance.position || "center";
-  $("#homeBackgroundOverlay").value = String(Number(appearance.overlay ?? 28));
+  if ($("#homeBackgroundPosition")) $("#homeBackgroundPosition").value = appearance.position || "center";
+  if ($("#homeBackgroundOverlay")) $("#homeBackgroundOverlay").value = String(Number(appearance.overlay ?? 28));
   head.style.setProperty("--home-background-position", appearance.position || "center");
-  head.style.setProperty("--home-overlay", String(Math.max(0, Math.min(80, Number(appearance.overlay ?? 28))) / 100));
+  head.style.setProperty("--home-overlay", String(clamp(Number(appearance.overlay ?? 28), 0, 80) / 100));
   if (!appearance.backgroundPath) {
     head.classList.remove("has-custom-background");
     head.style.removeProperty("--home-background-image");
-    $("#homeBackgroundStatus").textContent = "사진을 선택하면 자동으로 저장됩니다.";
+    if ($("#homeBackgroundStatus")) $("#homeBackgroundStatus").textContent = "사진을 선택하면 자동으로 저장됩니다.";
     return;
   }
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(appearance.backgroundPath, 3600);
@@ -48,7 +75,31 @@ async function applyAppearance() {
   const safeUrl = String(data.signedUrl).replace(/["\\]/g, "\\$&");
   head.style.setProperty("--home-background-image", `url("${safeUrl}")`);
   head.classList.add("has-custom-background");
-  $("#homeBackgroundStatus").textContent = "집 배경 사진이 적용되어 있어요.";
+  if ($("#homeBackgroundStatus")) $("#homeBackgroundStatus").textContent = "집 배경 사진이 적용되어 있어요.";
+}
+
+async function extractThemeColor(file) {
+  const bitmap = await createImageBitmap(file);
+  const size = 48;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(bitmap, 0, 0, size, size);
+  bitmap.close?.();
+  const pixels = context.getImageData(0, 0, size, size).data;
+  let r = 0, g = 0, b = 0, weight = 0;
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index + 3] < 180) continue;
+    const red = pixels[index], green = pixels[index + 1], blue = pixels[index + 2];
+    const spread = Math.max(red, green, blue) - Math.min(red, green, blue);
+    const light = (red + green + blue) / 3;
+    if (light < 35 || light > 230) continue;
+    const amount = 1 + spread / 48;
+    r += red * amount; g += green * amount; b += blue * amount; weight += amount;
+  }
+  if (!weight) return DEFAULT_THEME;
+  const hex = (value) => clamp(Math.round(value / weight), 0, 255).toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
 async function uploadBackground(file) {
@@ -56,25 +107,49 @@ async function uploadBackground(file) {
   if (!file.type.startsWith("image/")) return window.alert("이미지 파일만 선택할 수 있어요.");
   if (file.size > 5 * 1024 * 1024) return window.alert("사진은 5MB 이하로 골라 주세요.");
   const status = $("#homeBackgroundStatus");
-  status.textContent = "사진 저장 중...";
+  if (status) status.textContent = "사진 저장 중...";
+  const autoTheme = !!$("#homeAutoTheme")?.checked;
+  const themeColor = autoTheme ? await extractThemeColor(file).catch(() => null) : null;
   const path = `${user.id}/home-background`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
   if (error) throw error;
-  await writeAppearance({ backgroundPath: path });
-  status.textContent = "집 배경 사진이 저장되었어요.";
+  await writeAppearance({ backgroundPath: path }, themeColor ? { themeColor } : {});
+  if (status) status.textContent = themeColor ? "사진과 테마 색상이 함께 적용되었어요." : "집 배경 사진이 저장되었어요.";
+}
+
+async function saveTimelineRange() {
+  const start = minuteValue($("#timelineStart")?.value);
+  const end = minuteValue($("#timelineEnd")?.value);
+  if (start === null || end === null || end - start < 60) {
+    window.alert("종료 시간은 시작 시간보다 최소 1시간 뒤여야 해요.");
+    await applyAppearance();
+    return;
+  }
+  await writeAppearance({}, { timelineRange: { start, end } });
 }
 
 function wireUI() {
   if (document.documentElement.dataset.appearanceWired) return;
   document.documentElement.dataset.appearanceWired = "1";
-  $("#homeBackgroundFile").addEventListener("change", async (event) => {
+  $("#homeBackgroundFile")?.addEventListener("change", async (event) => {
     try { await uploadBackground(event.target.files?.[0]); }
-    catch (error) { console.error("배경 업로드 실패", error); $("#homeBackgroundStatus").textContent = "사진을 저장하지 못했어요."; }
+    catch (error) {
+      console.error("배경 업로드 실패", error);
+      if ($("#homeBackgroundStatus")) $("#homeBackgroundStatus").textContent = "사진을 저장하지 못했어요.";
+    }
     event.target.value = "";
   });
-  $("#homeBackgroundPosition").addEventListener("change", (event) => writeAppearance({ position: event.target.value }).catch(console.error));
-  $("#homeBackgroundOverlay").addEventListener("change", (event) => writeAppearance({ overlay: Number(event.target.value) }).catch(console.error));
-  $("#removeHomeBackground").addEventListener("click", async () => {
+  $("#homeBackgroundPosition")?.addEventListener("change", (event) => writeAppearance({ position: event.target.value }).catch(console.error));
+  $("#homeBackgroundOverlay")?.addEventListener("change", (event) => writeAppearance({ overlay: Number(event.target.value) }).catch(console.error));
+  ["#themeColor", "#homeThemeColor"].forEach(selector => $(selector)?.addEventListener("change", event => writeAppearance({}, { themeColor: validColor(event.target.value) }).catch(console.error)));
+  $("#timelineStart")?.addEventListener("change", () => saveTimelineRange().catch(console.error));
+  $("#timelineEnd")?.addEventListener("change", () => saveTimelineRange().catch(console.error));
+  $("#page-home .page-head")?.addEventListener("contextmenu", event => {
+    if (event.target.closest(".uw-item,button,input,select,textarea")) return;
+    event.preventDefault();
+    $("#homeBackgroundFile")?.click();
+  });
+  $("#removeHomeBackground")?.addEventListener("click", async () => {
     try {
       const path = state?.ui?.homeAppearance?.backgroundPath;
       if (path) {

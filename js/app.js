@@ -8,11 +8,6 @@ const pad = (n) => String(n).padStart(2, "0");
 const esc = (value) => String(value ?? "").replace(/[&<>'\"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '\"': "&quot;" }[c]));
 const DEFAULT_EVENT_GROUPS = [
   { id: "default", name: "기본", color: "#8fa9c4" },
-  { id: "notion-clover", name: "♣", color: "#8eb69b" },
-  { id: "notion-star", name: "⭐", color: "#d9aa69" },
-  { id: "notion-life", name: "할일", color: "#c594a8" },
-  { id: "notion-design", name: "디자인", color: "#a38cc1" },
-  { id: "notion-study", name: "공부", color: "#789bc2" },
 ];
 
 function localDateKey(date) {
@@ -58,6 +53,8 @@ function defaultState() {
     projects: [],
     ui: {
       sidebarCollapsed: false,
+      themeColor: "#8fa9c4",
+      timelineRange: { start: 360, end: 1320 },
       timelineColors: { task: "#d8d8d5", habit: "#b9d9c3" },
       calendarFilters: {
         month: { schedule: true, task: false },
@@ -95,6 +92,8 @@ function normalizeState(raw) {
     ui: {
       ...base.ui,
       ...(state.ui || {}),
+      themeColor: state.ui?.themeColor || base.ui.themeColor,
+      timelineRange: { ...base.ui.timelineRange, ...(state.ui?.timelineRange || {}) },
       timelineColors: { ...base.ui.timelineColors, ...(state.ui?.timelineColors || {}) },
       calendarFilters: {
         month: { ...base.ui.calendarFilters.month, ...(savedCalendarFilters.month || {}) },
