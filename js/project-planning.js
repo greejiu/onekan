@@ -9,6 +9,7 @@ let state = null;
 let userId = null;
 let renderTimer = null;
 let reading = false;
+const openProjects = new Set();
 
 async function readState() {
   if (reading) return state;
@@ -82,7 +83,8 @@ function decorateProjectRow(row, project) {
   details.className = "uw-project-plans";
   details.dataset.projectId = project.id;
   details.dataset.planSignature = signature;
-  details.open = wasOpen;
+  details.open = wasOpen || openProjects.has(project.id);
+  details.addEventListener("toggle", () => { if (details.open) openProjects.add(project.id); else openProjects.delete(project.id); });
   details.innerHTML = `
     <summary><span>${plans.length ? "계획" : "계획 세우기"}</span><small>${plans.length ? `${complete}/${plans.length}` : ""}</small><span class="uw-project-plan-chevron" aria-hidden="true">⌄</span></summary>
     <div class="uw-project-plan-body">

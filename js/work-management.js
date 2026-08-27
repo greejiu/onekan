@@ -163,7 +163,7 @@ function openDialog(kind, item = null) {
   $("#projectDeadline").value = item?.deadline || "";
   const convertButton = $("#convertProjectBtn");
   convertButton.hidden = !item;
-  convertButton.textContent = kind === "goal" ? "프로젝트으로 전환" : "목표로 전환";
+  convertButton.textContent = kind === "goal" ? "프로젝트로 전환" : "목표로 전환";
   convertButton.dataset.workConvertId = item?.id || "";
   convertButton.dataset.workConvertKind = kind === "goal" ? "project" : "goal";
   dialog.showModal();
