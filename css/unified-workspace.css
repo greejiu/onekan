@@ -82,3 +82,18 @@
 .uw-auto-theme{display:flex!important;grid-column:1/-1;grid-template-columns:auto 1fr!important;align-items:center;justify-content:start}
 .uw-auto-theme input{width:auto}
 @media(max-width:700px){.uw-preference-grid{grid-template-columns:1fr}.appearance-settings{grid-template-columns:1fr}}
+
+
+/* Task list tabs and grouped all view */
+.uw-task-list-tabs{display:flex;align-items:center;justify-content:flex-start;overflow-x:auto}
+.uw-task-list-tabs>.seg{flex:none}
+.uw-task-list-tabs>.seg button{min-width:58px}
+.uw-task-grouped-list{display:grid;gap:12px}
+.uw-task-group-section{overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#fff}
+.uw-task-group-heading{display:flex;align-items:center;gap:8px;min-height:40px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11px}
+.uw-task-group-heading strong{flex:1}
+.uw-task-group-heading>span:last-child{display:inline-grid;place-items:center;min-width:23px;height:21px;padding:0 6px;border-radius:99px;background:var(--soft);color:var(--muted);font-size:9px}
+.uw-task-group-dot{width:9px;height:9px;border-radius:50%;background:var(--uw-group)}
+.uw-task-group-section>.uw-task-main-list{border:0;border-radius:0}
+.uw-home-background-menu button{font-weight:600}
+@media(max-width:700px){.uw-task-list-tabs{padding-bottom:2px}.uw-task-list-tabs>.seg button{min-width:54px}}

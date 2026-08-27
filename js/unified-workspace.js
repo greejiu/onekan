@@ -133,7 +133,10 @@ function taskTimeline(){const count=taskCalendarView==="week"?7:1,start=taskCale
 function renderTaskSubnav(){
   const nav=$("#taskPageTabs");
   if(!nav)return;
-  if(taskPageMode==="list"){nav.innerHTML="";return}
+  if(taskPageMode==="list"){
+    nav.innerHTML=`<div class="uw-task-list-tabs"><div class="seg">${[["all","전체"],["today","오늘"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>`<button class="${taskListTab===id?"active":""}" data-task-tab="${id}" type="button">${label}</button>`).join("")}</div></div>`;
+    return
+  }
   const month=taskCalendarView==="month";
   const label=month?"월은 보드 보기":taskCalendarLayout==="board"?"타임라인으로 보기":"보드로 보기";
   nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,text])=>`<button class="${taskCalendarView===id?"active":""}" data-task-cal-view="${id}" type="button">${text}</button>`).join("")}</div><button class="uw-layout-toggle" data-task-cal-layout-toggle type="button"${month?' disabled title="월 보기는 보드로 고정돼요"':""}>${label}</button></div>`
@@ -144,11 +147,15 @@ function renderTasksV2(){
   $$('[data-uw-task-mode]').forEach(button=>button.classList.toggle("active",button.dataset.uwTaskMode===taskPageMode));
   renderTaskSubnav();
   if(taskPageMode==="list"){
-    const groups=[["all","전체"],["today","오늘"],["upcoming","예정"],["someday","언젠가"],["done","완료"]];
-    root.innerHTML=`<div class="uw-task-sections">${groups.map(([id,label],index)=>{
-      const rows=visibleTasks(id),date=id==="today"?todayKey():id==="someday"?"":"";
-      return `<details class="uw-task-section" data-task-section="${id}"${id==="today"||(!index&&rows.length)?" open":""}><summary><span>${label}</span><span class="uw-task-section-count">${rows.length}</span></summary><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="${date}"${id==="someday"?" data-uw-someday-drop":""}>${taskListMarkup(rows,date)}${id==="done"?"":taskListInput(date)}</div></details>`
-    }).join("")}</div>`;
+    const rows=visibleTasks(taskListTab);
+    if(taskListTab==="all"){
+      const grouped=state.eventGroups.map((groupInfo,index)=>({groupInfo,index,rows:rows.filter(task=>group(task).id===groupInfo.id)})).filter(entry=>entry.rows.length||entry.index===0);
+      root.innerHTML=`<div class="uw-task-grouped-list">${grouped.map(({groupInfo,index,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:${groupInfo.color}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>${esc(groupInfo.name)}</strong><span>${groupRows.length}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="">${taskListMarkup(groupRows,"")}${index===0?taskListInput(""):""}</div></section>`).join("")}</div>`;
+      return
+    }
+    const date=taskListTab==="today"?todayKey():taskListTab==="someday"?"":"";
+    const canAdd=taskListTab==="today"||taskListTab==="someday";
+    root.innerHTML=`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="${date}"${taskListTab==="someday"?" data-uw-someday-drop":""}>${taskListMarkup(rows,date)}${canAdd?taskListInput(date):""}${!rows.length&&!canAdd?'<div class="empty">표시할 할일이 없어요.</div>':""}</div>`;
     return
   }
   const layout=taskCalendarView==="month"?"board":taskCalendarLayout;
@@ -157,14 +164,16 @@ function renderTasksV2(){
 function wireTaskViewControls(){
   document.addEventListener("click",e=>{
     const mode=e.target.closest("[data-uw-task-mode]");
+    const tab=e.target.closest("#taskPageTabs [data-task-tab]");
     const view=e.target.closest("[data-task-cal-view]");
     const layout=e.target.closest("[data-task-cal-layout-toggle]");
     const prev=e.target.closest("[data-task-cal-prev]");
     const today=e.target.closest("[data-task-cal-today]");
     const next=e.target.closest("[data-task-cal-next]");
-    if(!mode&&!view&&!layout&&!prev&&!today&&!next)return;
+    if(!mode&&!tab&&!view&&!layout&&!prev&&!today&&!next)return;
     e.preventDefault();e.stopImmediatePropagation();
     if(mode)taskPageMode=mode.dataset.uwTaskMode;
+    if(tab)taskListTab=tab.dataset.taskTab;
     if(view)taskCalendarView=view.dataset.taskCalView;
     if(layout&&!layout.disabled)taskCalendarLayout=taskCalendarLayout==="board"?"timeline":"board";
     if(prev)taskCalendarCursor=taskCalendarView==="month"?new Date(taskCalendarCursor.getFullYear(),taskCalendarCursor.getMonth()-1,1):addDays(taskCalendarCursor,taskCalendarView==="week"?-7:-1);
@@ -173,7 +182,6 @@ function wireTaskViewControls(){
     renderTasksV2()
   },true)
 }
-
 function renderHabits(){
   const root=$("#habitHistory");
   if(!root)return;
@@ -204,7 +212,7 @@ async function action(name,records=[...selected.values()]){if(name==="cancel"){c
 
 function setSomedayOpen(open){homeSideTab=open?"someday":"upcoming";renderSideTab()}
 
-function wireClicks(){installActionUI();document.addEventListener("click",async e=>{if(Date.now()<suppressItemClickUntil){e.preventDefault();e.stopImmediatePropagation();return}const somedayToggle=e.target.closest("[data-uw-someday-toggle]");if(somedayToggle){setSomedayOpen(!document.body.classList.contains("uw-someday-open"));return}if(e.target.closest("[data-uw-someday-close]")){setSomedayOpen(false);return}$$(".uw-all-day.open").forEach(x=>{if(!e.target.closest(".uw-all-day"))x.classList.remove("open")});const more=e.target.closest("[data-uw-all-day-more]");if(more){const panel=more.closest(".uw-all-day"),open=!panel.classList.contains("open");$$(".uw-all-day.open").forEach(x=>x.classList.remove("open"));panel.classList.toggle("open",open);more.setAttribute("aria-expanded",String(open));return}const groupButton=e.target.closest("[data-uw-group-id]");if(groupButton){const records=[...pendingGroupRecords],groupId=groupButton.dataset.uwGroupId;pendingGroupRecords=[];$("#uwContext")?.classList.remove("open");await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)x.groupId=groupId}));clearSelection();return}const tab=e.target.closest("#taskPageTabs [data-task-tab]");if(tab){e.stopImmediatePropagation();$$('#taskPageTabs [data-task-tab]').forEach(x=>x.classList.toggle("active",x===tab));renderTasks();return}const a=e.target.closest("[data-uw-action]");if(a){await action(a.dataset.uwAction);return}const homeModeButton=e.target.closest("[data-uw-home-mode]");if(homeModeButton){homeMode=homeModeButton.dataset.uwHomeMode;renderPlanner();return}if(e.target.closest("[data-uw-home-prev]")){homeCursor=addDays(homeCursor,-homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-next]")){homeCursor=addDays(homeCursor,homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-today]")){homeCursor=fromKey(todayKey());renderPlanner();return}const cv=e.target.closest("[data-uw-cal-view]");if(cv){e.stopImmediatePropagation();calendarView=cv.dataset.uwCalView;renderCalendar();return}if(e.target.closest("[data-uw-habit-prev]")){habitCursor=addDays(habitCursor,-7);renderHabits();return}
+function wireClicks(){installActionUI();document.addEventListener("click",async e=>{if(Date.now()<suppressItemClickUntil){e.preventDefault();e.stopImmediatePropagation();return}const somedayToggle=e.target.closest("[data-uw-someday-toggle]");if(somedayToggle){setSomedayOpen(!document.body.classList.contains("uw-someday-open"));return}if(e.target.closest("[data-uw-someday-close]")){setSomedayOpen(false);return}$$(".uw-all-day.open").forEach(x=>{if(!e.target.closest(".uw-all-day"))x.classList.remove("open")});const more=e.target.closest("[data-uw-all-day-more]");if(more){const panel=more.closest(".uw-all-day"),open=!panel.classList.contains("open");$$(".uw-all-day.open").forEach(x=>x.classList.remove("open"));panel.classList.toggle("open",open);more.setAttribute("aria-expanded",String(open));return}const groupButton=e.target.closest("[data-uw-group-id]");if(groupButton){const records=[...pendingGroupRecords],groupId=groupButton.dataset.uwGroupId;pendingGroupRecords=[];$("#uwContext")?.classList.remove("open");await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)x.groupId=groupId}));clearSelection();return}const tab=e.target.closest("#taskPageTabs [data-task-tab]");if(tab){e.stopImmediatePropagation();taskListTab=tab.dataset.taskTab;$('#taskPageTabs [data-task-tab]').forEach(x=>x.classList.toggle("active",x===tab));renderTasks();return}const a=e.target.closest("[data-uw-action]");if(a){await action(a.dataset.uwAction);return}const homeModeButton=e.target.closest("[data-uw-home-mode]");if(homeModeButton){homeMode=homeModeButton.dataset.uwHomeMode;renderPlanner();return}if(e.target.closest("[data-uw-home-prev]")){homeCursor=addDays(homeCursor,-homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-next]")){homeCursor=addDays(homeCursor,homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-today]")){homeCursor=fromKey(todayKey());renderPlanner();return}const cv=e.target.closest("[data-uw-cal-view]");if(cv){e.stopImmediatePropagation();calendarView=cv.dataset.uwCalView;renderCalendar();return}if(e.target.closest("[data-uw-habit-prev]")){habitCursor=addDays(habitCursor,-7);renderHabits();return}
 if(e.target.closest("[data-uw-habit-next]")){habitCursor=addDays(habitCursor,7);renderHabits();return}
 if(e.target.closest("[data-uw-habit-today]")){habitCursor=fromKey(todayKey());renderHabits();return}
 const hc=e.target.closest("[data-uw-habit-check]");if(hc){await write(s=>{s.habitDays[hc.dataset.date]||={};s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]=!s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]});return}const check=e.target.closest("[data-uw-check]");if(check){e.stopPropagation();await write(s=>{if(check.dataset.uwCheck==="task"){const t=s.tasks.find(x=>x.id===check.dataset.id);if(t){t.done=!t.done;t.completedAt=t.done?new Date().toISOString():null}}else{s.habitDays[check.dataset.date]||={};s.habitDays[check.dataset.date][check.dataset.id]=!s.habitDays[check.dataset.date][check.dataset.id]}});return}const del=e.target.closest("[data-uw-delete-habit]");if(del){await action("delete",[{kind:"habit",id:del.dataset.uwDeleteHabit,date:todayKey()}]);return}const dup=e.target.closest("[data-uw-duplicate-habit]");if(dup){await action("duplicate",[{kind:"habit",id:dup.dataset.uwDuplicateHabit,date:todayKey()}]);return}const item=e.target.closest(".uw-item[data-uw-kind]");if(item){if(Date.now()<suppressItemClickUntil)return;if(coarse()){toggleSelection(item);return}openInline(item,{kind:item.dataset.uwKind,date:item.dataset.date,editId:item.dataset.id,withTime:item.dataset.uwKind==="event"&&calendarView==="day"});return}const add=e.target.closest("[data-uw-add-kind]");if(add&&!e.target.closest(".uw-item,.uw-inline-form")){const kind=add.dataset.uwAddKind,date=add.dataset.date||null,time=add.dataset.time?+add.dataset.time:null;const empty=e.target.closest(".uw-empty-hit"),target=empty||(add.matches(".uw-list,.uw-all-day-list,.uw-time-hit,.uw-month-cell")?add:findAddHost(kind,date,time)||add.parentElement);openInline(target,{kind,date,time,withTime:add.dataset.withTime==="1"||target.dataset.withTime==="1"})}},true);

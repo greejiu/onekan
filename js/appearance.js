@@ -131,6 +131,9 @@ async function saveTimelineRange() {
 function wireUI() {
   if (document.documentElement.dataset.appearanceWired) return;
   document.documentElement.dataset.appearanceWired = "1";
+  if (!$("#homeBackgroundMenu")) {
+    document.body.insertAdjacentHTML("beforeend", '<div class="uw-context uw-home-background-menu" id="homeBackgroundMenu" role="menu"><button data-home-background-change type="button">배경 바꾸기</button></div>');
+  }
   $("#homeBackgroundFile")?.addEventListener("change", async (event) => {
     try { await uploadBackground(event.target.files?.[0]); }
     catch (error) {
@@ -147,7 +150,19 @@ function wireUI() {
   $("#page-home .page-head")?.addEventListener("contextmenu", event => {
     if (event.target.closest(".uw-item,button,input,select,textarea")) return;
     event.preventDefault();
+    const menu = $("#homeBackgroundMenu");
+    if (!menu) return;
+    menu.style.left = `${Math.min(window.innerWidth - 170, Math.max(8, event.clientX))}px`;
+    menu.style.top = `${Math.min(window.innerHeight - 54, Math.max(8, event.clientY))}px`;
+    menu.classList.add("open");
+  });
+  $("#homeBackgroundMenu")?.addEventListener("click", event => {
+    if (!event.target.closest("[data-home-background-change]")) return;
+    $("#homeBackgroundMenu")?.classList.remove("open");
     $("#homeBackgroundFile")?.click();
+  });
+  document.addEventListener("pointerdown", event => {
+    if (!event.target.closest("#homeBackgroundMenu")) $("#homeBackgroundMenu")?.classList.remove("open");
   });
   $("#removeHomeBackground")?.addEventListener("click", async () => {
     try {
