@@ -430,7 +430,7 @@ function ensureUI() {
     .global-context-menu button.danger{color:var(--danger,#c84a4a)}
     .global-context-menu [data-context-action="groups"]{display:flex;align-items:center;justify-content:space-between}
     .context-menu-arrow{font-size:18px;line-height:1}
-    .context-group-list{margin:3px 0;padding:3px;border-top:1px solid var(--line,#d2d7df);border-bottom:1px solid var(--line,#d2d7df);max-height:210px;overflow:auto}
+    .context-group-list{margin:3px 0;padding:3px;border-top:1px solid var(--line,#d2d7df);border-bottom:1px solid var(--line,#d2d7df);max-height:min(260px,55vh);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-gutter:stable}
     .context-group-list button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
     .context-group-dot{width:9px;height:9px;border-radius:3px;background:var(--group-color,#8fa9c4)}
     .context-group-check{text-align:right;color:var(--accent,#7666a8)}
@@ -572,7 +572,11 @@ function installListeners() {
   };
   document.addEventListener("pointerup", cancelLongPress, true);
   document.addEventListener("pointercancel", cancelLongPress, true);
-  document.addEventListener("scroll", hideMenu, true);
+  document.addEventListener("scroll", (event) => {
+    const target = event.target;
+    if (target instanceof Element && target.closest("#globalContextMenu")) return;
+    hideMenu();
+  }, true);
   window.addEventListener("resize", hideMenu);
   window.addEventListener("blur", hideMenu);
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") hideMenu(); });
