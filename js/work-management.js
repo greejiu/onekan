@@ -103,7 +103,7 @@ function dateMeta(item) {
 }
 
 function workRow(item) {
-  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${esc(groupOf(item).name)} · ${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div></article>`;
+  return `<article class="uw-work-row" draggable="true" style="--uw-group:${groupOf(item).color}" data-context-kind="project" data-context-id="${item.id}" data-work-id="${item.id}" data-project-id="${item.id}"><div class="uw-work-row-main"><span class="uw-work-dot"></span><div><strong>${esc(item.title)}</strong><small>${dateMeta(item)}</small></div><button class="uw-icon-btn" data-work-edit="${item.id}" type="button" aria-label="수정">···</button></div></article>`;
 }
 
 function sorted(items) {
@@ -111,7 +111,11 @@ function sorted(items) {
 }
 
 function statusSection(kind, definition, items) {
-  return `<section class="uw-work-status-section" style="--uw-status:${definition.color}" data-work-kind="${kind}" data-work-drop-status="${definition.id}"><div class="uw-work-status-head"><span></span><strong>${definition.label}</strong><small>${items.length}</small></div><div class="uw-work-list">${items.length ? sorted(items).map(workRow).join("") : '<div class="uw-work-status-empty">여기로 옮길 수 있어요.</div>'}</div></section>`;
+  const grouped = state.eventGroups
+    .map((groupInfo) => ({ groupInfo, rows: items.filter((item) => groupOf(item).id === groupInfo.id) }))
+    .filter((entry) => entry.rows.length);
+  const body = grouped.map(({ groupInfo, rows }) => `<div class="uw-work-board-group" style="--uw-group:${groupInfo.color}"><div class="uw-work-board-group-head"><span></span><strong>${esc(groupInfo.name)}</strong><small>${rows.length}</small></div>${sorted(rows).map(workRow).join("")}</div>`).join("");
+  return `<section class="uw-work-status-section" style="--uw-status:${definition.color}" data-work-kind="${kind}" data-work-drop-status="${definition.id}"><div class="uw-work-status-head"><span></span><strong>${definition.label}</strong><small>${items.length}</small></div><div class="uw-work-list">${items.length ? body : '<div class="uw-work-status-empty">여기로 옮길 수 있어요.</div>'}</div></section>`;
 }
 
 function renderKind(kind) {
