@@ -171,6 +171,11 @@ function openDialog(kind, item = null) {
   $("#projectDeadline").value = item?.deadline || "";
   $("#projectGoal").value = item?.goalId || "";
   $("#projectProgress").value = String(Math.max(0, Math.min(100, Number(item?.progress || 0))));
+  const convertButton = $("#convertProjectBtn");
+  convertButton.hidden = !item;
+  convertButton.textContent = kind === "goal" ? "작업으로 전환" : "목표로 전환";
+  convertButton.dataset.workConvertId = item?.id || "";
+  convertButton.dataset.workConvertKind = kind === "goal" ? "project" : "goal";
   dialog.showModal();
   requestAnimationFrame(() => $("#projectTitle").focus({ preventScroll: true }));
 }
@@ -304,6 +309,33 @@ function wireUI() {
   $("#addGoalBtn")?.addEventListener("click", () => openDialog("goal"));
   $("#addProjectBtn")?.addEventListener("click", () => openDialog("project"));
   $("#cancelProjectBtn")?.addEventListener("click", () => $("#projectDialog")?.close());
+  $("#convertProjectBtn")?.addEventListener("click", async (event) => {
+    const id = event.currentTarget.dataset.workConvertId;
+    const nextKind = event.currentTarget.dataset.workConvertKind;
+    if (!id || !["goal", "project"].includes(nextKind)) return;
+    await writeState((current) => {
+      const item = current.projects.find((entry) => entry.id === id);
+      if (!item) return;
+      const oldKind = item.kind;
+      item.kind = nextKind;
+      delete item.goalId;
+      if (oldKind === "project" && nextKind === "goal") {
+        current.tasks.forEach((task) => {
+          if (task.projectId !== id) return;
+          delete task.projectId;
+          task.goalId = id;
+        });
+      } else if (oldKind === "goal" && nextKind === "project") {
+        current.tasks.forEach((task) => {
+          if (task.goalId !== id) return;
+          delete task.goalId;
+          task.projectId = id;
+        });
+        current.projects.forEach((project) => { if (project.goalId === id) delete project.goalId; });
+      }
+    });
+    $("#projectDialog").close();
+  });
   $("#projectForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const title = $("#projectTitle").value.trim();
