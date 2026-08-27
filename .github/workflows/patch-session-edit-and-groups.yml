@@ -16,7 +16,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Patch time tracking records
-        run: python scripts/patch-session-edit.py
+        run: |
+          sed -i 's#"./js/app.js?v=29", "./js/app.js?v=30"#"./js/app.js?v=30", "./js/app.js?v=31"#' scripts/patch-session-edit.py
+          python scripts/patch-session-edit.py
       - name: Validate JavaScript
         run: |
           node --check js/app.js
