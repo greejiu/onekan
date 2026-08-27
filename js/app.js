@@ -132,6 +132,9 @@ function normalizeState(raw) {
     },
   };
 
+  const normalizedSessionGroupId = normalized.eventGroups[0]?.id || "default";
+  normalized.sessions = normalized.sessions.map((session) => ({ ...session, groupId: session.groupId || normalizedSessionGroupId }));
+
   // 이전 시간블럭 템플릿을 새 타임라인 블록으로 한 번만 옮긴다.
   // 기본 상태를 만드는 동안에는 아직 state/SLOT가 준비되지 않았으므로,
   // 저장된 데이터를 정규화한 다음에만 이 변환을 실행한다.
@@ -724,7 +727,7 @@ function eventGroupOptions(selectedId = "") {
 }
 
 function refreshEventGroupInputs() {
-  for (const selector of ["#timelineEventGroup"]) {
+  for (const selector of ["#timelineEventGroup", "#manualSessionGroup"]) {
     const select = $(selector);
     if (!select) continue;
     const previous = select.value;
@@ -1136,7 +1139,8 @@ function finishTimer(automatic = false) {
   const duration = mode === "pomodoro" ? Math.min(currentTimerElapsed(), timerDurationMs()) : currentTimerElapsed();
   const task = state.tasks.find((item) => item.id === timer.taskId);
   if (duration >= 1000) {
-    state.sessions.push({ id: uid(), taskId: timer.taskId || null, title: task?.title || timer.title || "집중 기록", start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), durationMs: duration, timerMode: mode });
+    const groupId = task?.groupId || state.eventGroups[0]?.id || "default";
+    state.sessions.push({ id: uid(), taskId: timer.taskId || null, groupId, title: task?.title || timer.title || "집중 기록", start: new Date(Date.now() - duration).toISOString(), end: new Date().toISOString(), durationMs: duration, timerMode: mode });
   }
   const durationMs = timerDurationMs();
   state.timer = { mode, running: false, paused: false, taskId: null, title: null, startedAt: null, accumulatedMs: 0, durationMs };
@@ -1196,7 +1200,7 @@ function renderSessions() {
   const dayKey = appDayKey();
   const today = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) === dayKey).sort((a, b) => new Date(b.end) - new Date(a.end));
   const past = state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) < dayKey).sort((a, b) => new Date(b.end) - new Date(a.end)).slice(0, 50);
-  const rowMarkup = (session) => `<div class="history-row editable-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta">${sessionPeriod(session)}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`;
+  const rowMarkup = (session) => { const group = eventGroupFor(session); return `<div class="history-row editable-row" data-context-kind="session" data-context-id="${session.id}"><div><div class="history-name">${esc(session.title)}</div><div class="history-meta"><span aria-hidden="true" style="display:inline-block;width:7px;height:7px;margin-right:4px;border-radius:50%;background:${safeColor(group.color)}"></span>${esc(group.name)} · ${sessionPeriod(session)}</div></div><div class="history-time">${fmtDuration(session.durationMs)}</div></div>`; };
   const make = (items) => items.length ? items.map(rowMarkup).join("") : '<div class="empty">아직 기록이 없어요.</div>';
   const makePast = (items) => {
     if (!items.length) return '<div class="empty">아직 기록이 없어요.</div>';
@@ -1227,6 +1231,7 @@ function ensureManualSessionDialog() {
     <form id="manualSessionForm">
       <div class="manual-session-head"><strong id="manualSessionDialogTitle">시간 기록 추가</strong><button class="uw-icon-btn" data-close-session type="button" aria-label="닫기">×</button></div>
       <label><span>기록 이름</span><input id="manualSessionTitle" type="text" required maxlength="80" placeholder="무엇을 했나요?"></label>
+      <label><span>그룹</span><select id="manualSessionGroup" required></select></label>
       <label><span>날짜</span><input id="manualSessionDate" type="date" required></label>
       <div class="manual-session-times">
         <label><span>시작</span><input id="manualSessionStart" type="time" required></label>
@@ -1241,6 +1246,7 @@ function ensureManualSessionDialog() {
   $("#manualSessionForm", dialog).addEventListener("submit", async (event) => {
     event.preventDefault();
     const title = $("#manualSessionTitle", dialog).value.trim();
+    const groupId = $("#manualSessionGroup", dialog).value || state.eventGroups[0]?.id || "default";
     const date = $("#manualSessionDate", dialog).value;
     const startValue = $("#manualSessionStart", dialog).value;
     const endValue = $("#manualSessionEnd", dialog).value;
@@ -1262,6 +1268,7 @@ function ensureManualSessionDialog() {
         return;
       }
       session.title = title;
+      session.groupId = groupId;
       session.start = start.toISOString();
       session.end = end.toISOString();
       session.durationMs = end - start;
@@ -1269,6 +1276,7 @@ function ensureManualSessionDialog() {
       state.sessions.push({
         id: uid(),
         taskId: null,
+        groupId,
         title,
         start: start.toISOString(),
         end: end.toISOString(),
@@ -1297,6 +1305,8 @@ function openManualSession(defaultOffset = 0) {
   const startMinute = Math.max(0, endMinute - 30);
   const timeValue = (minute) => `${String(Math.floor(minute / 60) % 24).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
   $("#manualSessionTitle", dialog).value = "";
+  $("#manualSessionGroup", dialog).innerHTML = eventGroupOptions(state.eventGroups[0]?.id || "default");
+  $("#manualSessionGroup", dialog).value = state.eventGroups[0]?.id || "default";
   $("#manualSessionDate", dialog).value = localDateKey(date);
   $("#manualSessionStart", dialog).value = timeValue(startMinute);
   $("#manualSessionEnd", dialog).value = timeValue(endMinute);
@@ -1313,8 +1323,10 @@ function openSessionEditor(sessionId) {
   const start = new Date(session.start || session.end);
   const end = new Date(session.end || session.start);
   const timeValue = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  $("#manualSessionDialogTitle", dialog).textContent = "시간 기록 변경";
+  $("#manualSessionDialogTitle", dialog).textContent = "기록 변경";
   $("#manualSessionTitle", dialog).value = session.title || "";
+  $("#manualSessionGroup", dialog).innerHTML = eventGroupOptions(session.groupId || state.eventGroups[0]?.id || "default");
+  $("#manualSessionGroup", dialog).value = session.groupId || state.eventGroups[0]?.id || "default";
   $("#manualSessionDate", dialog).value = localDateKey(start);
   $("#manualSessionStart", dialog).value = timeValue(start);
   $("#manualSessionEnd", dialog).value = timeValue(end);
@@ -1389,6 +1401,7 @@ function renderSettings() {
       state.events.forEach((event) => { if (event.groupId === id) event.groupId = state.eventGroups[0].id; });
       state.tasks.forEach((task) => { if (task.groupId === id) task.groupId = state.eventGroups[0].id; });
       state.projects.forEach((project) => { if (project.groupId === id) project.groupId = state.eventGroups[0].id; });
+      state.sessions.forEach((session) => { if (session.groupId === id) session.groupId = state.eventGroups[0].id; });
       state.eventGroups = state.eventGroups.filter((group) => group.id !== id);
       save();
       renderSettings();

@@ -170,7 +170,7 @@ function hideMenu() {
 }
 
 function groupable(kind) {
-  return kind === "task" || kind === "event" || kind === "project";
+  return kind === "task" || kind === "event" || kind === "project" || kind === "session";
 }
 
 function renderGroupChoices(state, target) {
@@ -416,7 +416,7 @@ function ensureUI() {
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
     <button type="button" role="menuitem" data-context-action="groups">그룹 <span class="context-menu-arrow">›</span></button>
     <div class="context-group-list hidden" id="contextGroupList" role="group"></div>
-    <button type="button" role="menuitem" class="hidden" data-context-action="session-time">시간 변경</button>
+    <button type="button" role="menuitem" class="hidden" data-context-action="session-time">기록 변경</button>
     <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;
   document.body.appendChild(menu);
 
