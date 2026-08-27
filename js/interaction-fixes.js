@@ -86,6 +86,11 @@ if (!window.__onekanInteractionFixesInstalled) {
       cursor: grabbing;
     }
   }
+
+  /* Month calendar cells are already clickable, so the visual + marker is redundant. */
+  .uw-task-month-cell > .uw-list > .uw-task-inline-add {
+    display: none !important;
+  }
   `;
   document.head.appendChild(interactionStyle);
 }
