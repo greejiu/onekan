@@ -56,12 +56,8 @@ if (!window.__onekanInteractionFixesInstalled) {
         return;
       }
 
-      const title = event.target.closest?.(".uw-item-title, .uw-habit-title");
-      if (!title) return;
-      if (event.target.closest?.("[data-uw-resize]")) return;
-
-      // Keep the title as an edit/click target instead of starting a move gesture.
-      event.stopImmediatePropagation();
+      // Titles must reach the unified gesture handler:
+      // a click edits, while moving at least 6px starts item movement.
     },
     true,
   );
