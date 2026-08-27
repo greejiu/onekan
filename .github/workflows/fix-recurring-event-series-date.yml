@@ -1,0 +1,26 @@
+name: Fix recurring event series date
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fix-recurring-event-series-date.py'
+      - '.github/workflows/fix-recurring-event-series-date.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply fix
+        run: python3 scripts/fix-recurring-event-series-date.py
+      - name: Validate JavaScript
+        run: node --check js/unified-workspace.js
+      - name: Commit fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/unified-workspace.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Preserve recurring event series date on whole edit'
+          git push
