@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=20" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=30" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=31" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -115,11 +115,17 @@
         <div class="page-head"><div><h1 class="page-title">습관</h1></div></div>
         <form class="habit-page-add uw-habit-add-form" id="habitPageForm">
           <input id="habitPageTitle" placeholder="새 습관" aria-label="새 습관" required />
-          <label class="uw-habit-icon-field" title="시간"><span aria-hidden="true">◷</span><input id="habitPageTime" type="time" step="1800" aria-label="습관 시간" /></label>
           <label class="uw-habit-icon-field" title="그룹"><span aria-hidden="true">◉</span><select id="habitPageGroup" aria-label="습관 그룹"></select></label>
-          <label class="uw-habit-range-field"><span>시작</span><input id="habitPageStartDate" type="date" aria-label="습관 시작일" /></label>
-          <label class="uw-habit-range-field"><span>종료</span><input id="habitPageEndDate" type="date" aria-label="습관 종료일" /></label>
-          <label class="uw-habit-duration-field"><span>길이</span><select id="habitPageDuration" aria-label="습관 길이"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option></select></label>
+          <div class="uw-habit-period-control" id="habitPagePeriodControl">
+            <button class="uw-habit-period-button" id="habitPagePeriodButton" type="button" aria-expanded="false" title="습관 기간 설정"><span aria-hidden="true">▦</span><span id="habitPagePeriodLabel">오늘부터</span></button>
+            <div class="uw-habit-period-pop" id="habitPagePeriodPanel" hidden>
+              <strong>기간</strong>
+              <label><span>시작일</span><input id="habitPageStartDate" type="date" aria-label="습관 시작일" /></label>
+              <label><span>종료일</span><input id="habitPageEndDate" type="date" aria-label="습관 종료일" /></label>
+              <small>종료일을 비우면 계속 반복돼요.</small>
+            </div>
+          </div>
+          <div class="uw-habit-repeat-control" id="habitPageRepeatControl"></div>
           <button class="primary-btn" type="submit">추가</button>
         </form>
         <div class="habit-history" id="habitHistory"></div>
@@ -266,7 +272,7 @@
   <script type="module" src="./js/context-menu.js?v=19"></script>
   <script type="module" src="./js/workspace-pages.js?v=11"></script>
   <script type="module" src="./js/appearance.js?v=3"></script>
-  <script type="module" src="./js/unified-workspace.js?v=31"></script>
+  <script type="module" src="./js/unified-workspace.js?v=32"></script>
   <script type="module" src="./js/work-management.js?v=12"></script>
   <script type="module" src="./js/project-planning.js?v=4"></script>
   <script type="module" src="./js/work-status-inline-add.js?v=5"></script>

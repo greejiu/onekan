@@ -938,17 +938,44 @@ function wireControlsV2(){
 
 function wireHabitForm(){
   const form=$("#habitPageForm");if(!form||form.dataset.uwBound)return;form.dataset.uwBound="1";
-  const startInput=$("#habitPageStartDate"),endInput=$("#habitPageEndDate");if(startInput&&!startInput.value)startInput.value=todayKey();endInput?.addEventListener("input",()=>endInput.setCustomValidity(""));
-  let control=$("#habitPageRepeatControl");
+  const startInput=$("#habitPageStartDate"),endInput=$("#habitPageEndDate"),periodButton=$("#habitPagePeriodButton"),periodPanel=$("#habitPagePeriodPanel"),periodLabel=$("#habitPagePeriodLabel");
+  if(startInput&&!startInput.value)startInput.value=todayKey();
+  const shortDate=value=>{if(!value)return"";const d=fromKey(value);return`${d.getMonth()+1}/${d.getDate()}`};
+  const refreshPeriodLabel=()=>{if(!periodLabel)return;const startDate=startInput?.value||todayKey(),endDate=endInput?.value||"";periodLabel.textContent=endDate?`${shortDate(startDate)}–${shortDate(endDate)}`:startDate===todayKey()?"오늘부터":`${shortDate(startDate)}부터`};
+  const closePeriod=()=>{if(periodPanel)periodPanel.hidden=true;periodButton?.setAttribute("aria-expanded","false")};
+  const closeRepeat=()=>{const panel=$("#habitPageRepeatPanel"),button=$("#habitPageRepeatButton");if(panel)panel.hidden=true;button?.setAttribute("aria-expanded","false")};
+  endInput?.addEventListener("input",()=>{endInput.setCustomValidity("");refreshPeriodLabel()});
+  startInput?.addEventListener("input",()=>{endInput?.setCustomValidity("");refreshPeriodLabel()});
+  periodButton?.addEventListener("click",()=>{const open=periodPanel?.hidden!==false;closeRepeat();if(periodPanel)periodPanel.hidden=!open;periodButton.setAttribute("aria-expanded",String(open))});
+  refreshPeriodLabel();
+
+  const control=$("#habitPageRepeatControl");
   const installRepeat=()=>{
-    if(!control){control=document.createElement("div");control.id="habitPageRepeatControl";control.className="uw-habit-repeat-control";const groupField=$("#habitPageGroup")?.closest("label");(groupField||$("#habitPageTitle"))?.after(control)}
-    control.innerHTML=`<button class="uw-habit-repeat-button active" id="habitPageRepeatButton" type="button" aria-expanded="false" title="반복 설정">↻ <span>매일</span></button><div class="uw-habit-repeat-pop" id="habitPageRepeatPanel" hidden>${recurrenceEditorMarkup({recurrence:{frequency:"daily",interval:1}},"daily",false,false)}</div>`;
-    const panel=$("#habitPageRepeatPanel"),button=$("#habitPageRepeatButton");wireRecurrenceEditor(panel,startInput?.value||todayKey());
+    if(!control)return;
+    control.innerHTML=`<button class="uw-habit-repeat-button active" id="habitPageRepeatButton" type="button" aria-expanded="false" title="반복 설정">↻ <span>매일</span></button><div class="uw-habit-repeat-pop" id="habitPageRepeatPanel" hidden>${recurrenceEditorMarkup({recurrence:{frequency:"daily",interval:1}},"daily",false,false)}<div class="uw-habit-time-plan"><button class="uw-habit-time-add" id="habitPageTimeAdd" type="button">＋ 시간 추가</button><div class="uw-habit-time-fields" id="habitPageTimeFields" hidden><label><span>시간</span><input id="habitPageTime" type="time" step="1800" aria-label="습관 시간"></label><label><span>길이</span><select id="habitPageDuration" aria-label="습관 길이"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option></select></label><button class="uw-habit-time-remove" id="habitPageTimeRemove" type="button">시간 제거</button></div></div></div>`;
+    const panel=$("#habitPageRepeatPanel"),button=$("#habitPageRepeatButton"),timeAdd=$("#habitPageTimeAdd"),timeFields=$("#habitPageTimeFields"),timeInput=$("#habitPageTime"),durationInput=$("#habitPageDuration"),timeRemove=$("#habitPageTimeRemove");
+    wireRecurrenceEditor(panel,startInput?.value||todayKey());
     const refreshLabel=()=>{const recurrence=recurrenceFromEditor(panel,startInput?.value||todayKey(),{includeUntil:false});const label=recurrenceLabel({recurrence})||"매일";$("span",button).textContent=label;button.classList.toggle("active",!!recurrence)};
-    button.addEventListener("click",()=>{panel.hidden=!panel.hidden;button.setAttribute("aria-expanded",String(!panel.hidden))});panel.addEventListener("change",refreshLabel);panel.addEventListener("uw-repeat-refresh",refreshLabel);refreshLabel()
+    const showTimeFields=show=>{if(timeFields)timeFields.hidden=!show;if(timeAdd)timeAdd.hidden=show;if(show)requestAnimationFrame(()=>{try{timeInput?.showPicker()}catch{timeInput?.focus()}})};
+    button.addEventListener("click",()=>{const open=panel.hidden;closePeriod();panel.hidden=!open;button.setAttribute("aria-expanded",String(open))});
+    timeAdd?.addEventListener("click",()=>showTimeFields(true));
+    timeRemove?.addEventListener("click",()=>{if(timeInput)timeInput.value="";if(durationInput)durationInput.value="30";showTimeFields(false)});
+    panel.addEventListener("change",refreshLabel);panel.addEventListener("uw-repeat-refresh",refreshLabel);refreshLabel()
   };
   installRepeat();
-  form.addEventListener("submit",async event=>{event.preventDefault();const title=$("#habitPageTitle")?.value.trim(),time=$("#habitPageTime")?.value||"",duration=Math.max(SLOT,+$("#habitPageDuration")?.value||SLOT),groupId=$("#habitPageGroup")?.value||state?.eventGroups?.[0]?.id||"default",startDate=startInput?.value||todayKey(),endDate=endInput?.value||"",panel=$("#habitPageRepeatPanel"),button=form.querySelector('button[type="submit"]');if(!title)return;if(endDate&&endDate<startDate){endInput?.setCustomValidity("종료일은 시작일과 같거나 이후여야 해요.");endInput?.reportValidity();return}const original=button.dataset.defaultLabel||button.textContent;button.dataset.defaultLabel=original;button.disabled=true;button.textContent="추가 중…";try{await write(current=>{const habit={id:uid(),title,duration,groupId,startDate};if(endDate)habit.endDate=endDate;const recurrence=recurrenceFromEditor(panel,startDate,{includeUntil:false})||{frequency:"daily",interval:1};recurrence.anchorDate=startDate;habit.recurrence=recurrence;if(time){const[hour,minute]=time.split(":").map(Number);habit.startMinute=hour*60+minute}current.habitTemplates.push(habit)});form.reset();$("#habitPageGroup").value=groupId;if(startInput)startInput.value=todayKey();if(endInput)endInput.value="";installRepeat()}catch(error){console.error("습관 추가 실패",error);button.textContent="다시 시도"}finally{button.disabled=false;if(button.textContent!=="다시 시도")button.textContent=original}})
+  document.addEventListener("pointerdown",event=>{if(!form.contains(event.target)){closePeriod();closeRepeat()}},true);
+  form.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const title=$("#habitPageTitle")?.value.trim(),time=$("#habitPageTime")?.value||"",duration=Math.max(SLOT,+$("#habitPageDuration")?.value||SLOT),groupId=$("#habitPageGroup")?.value||state?.eventGroups?.[0]?.id||"default",startDate=startInput?.value||todayKey(),endDate=endInput?.value||"",panel=$("#habitPageRepeatPanel"),button=form.querySelector('button[type="submit"]');
+    if(!title)return;
+    if(endDate&&endDate<startDate){endInput?.setCustomValidity("종료일은 시작일과 같거나 이후여야 해요.");endInput?.reportValidity();return}
+    const original=button.dataset.defaultLabel||button.textContent;button.dataset.defaultLabel=original;button.disabled=true;button.textContent="추가 중…";
+    try{
+      await write(current=>{const habit={id:uid(),title,groupId,startDate};if(endDate)habit.endDate=endDate;const recurrence=recurrenceFromEditor(panel,startDate,{includeUntil:false})||{frequency:"daily",interval:1};recurrence.anchorDate=startDate;habit.recurrence=recurrence;if(time){const[hour,minute]=time.split(":").map(Number);habit.startMinute=hour*60+minute;habit.duration=duration}current.habitTemplates.push(habit)});
+      form.reset();$("#habitPageGroup").value=groupId;if(startInput)startInput.value=todayKey();if(endInput)endInput.value="";refreshPeriodLabel();closePeriod();installRepeat()
+    }catch(error){console.error("습관 추가 실패",error);button.textContent="다시 시도"}
+    finally{button.disabled=false;if(button.textContent!=="다시 시도")button.textContent=original}
+  })
 }
 function wireOverdueActions(){document.addEventListener("click",async event=>{const view=event.target.closest("[data-uw-overdue-view]"),move=event.target.closest("[data-uw-overdue-move]");if(!view&&!move)return;event.preventDefault();event.stopImmediatePropagation();if(view){overdueExpanded=!overdueExpanded;renderOverdue();return}move.disabled=true;move.textContent="이동 중…";await write(current=>{const today=todayKey(),ids=new Set();current.tasks.forEach(task=>{if(!task.done&&task.date&&task.date<today&&!task.recurrence?.frequency){ids.add(task.id);task.date=today}});(current.timeBlocks||[]).forEach(block=>{if(ids.has(block.taskId)&&block.date<today)block.date=today})});overdueExpanded=false},true)}
 async function renderAll(){if(rendering)return;rendering=true;try{await read();if(!state)return;applyColors();renderHome();renderSchedulePage();renderTasks();renderHabits()}catch(e){console.error("통합 화면 렌더링 실패",e)}finally{rendering=false}}
