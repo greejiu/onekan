@@ -1374,7 +1374,11 @@ function renderTracking() {
   const previousCustom = custom?.value || "";
   const dayKey = appDayKey();
   const activeTasks = state.tasks.filter((task) => recurringOnDate(task, dayKey) && !taskCompletedOn(task, dayKey));
-  const activeHabits = state.habitTemplates.filter((habit) => habitOccursOnDate(habit, dayKey));
+  const activeHabits = state.habitTemplates.filter((habit) =>
+    habitOccursOnDate(habit, dayKey) &&
+    !Boolean(state.habitDays?.[dayKey]?.[habit.id]) &&
+    !Boolean(state.habitOverrides?.[dayKey]?.[habit.id]?.hidden)
+  );
   const taskOptions = activeTasks.map((task) => `<option value="task:${task.id}">${esc(task.title)}</option>`).join("");
   const habitOptions = activeHabits.map((habit) => `<option value="habit:${habit.id}">${esc(habit.title)}</option>`).join("");
   select.innerHTML = '<option value="">할일·습관 선택 (선택 안 해도 됨)</option>' + (taskOptions ? `<optgroup label="할일">${taskOptions}</optgroup>` : "") + (habitOptions ? `<optgroup label="습관">${habitOptions}</optgroup>` : "");
