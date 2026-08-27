@@ -28,24 +28,13 @@ function installStyle(){
 }
 
 function repeatMarkup(){
-  return `<select class="uw-repeat-select" aria-label="반복"><option value="none">반복 없음</option><option value="daily">매일</option><option value="weekly">매주</option><option value="monthly">매월</option><option value="custom">사용자 정의</option></select><div class="uw-repeat-custom" hidden><select class="uw-repeat-custom-type" aria-label="사용자 정의 반복 방식"><option value="days">일마다</option><option value="weekdays">요일마다</option><option value="weeks">주마다</option><option value="months">달마다</option></select><label class="uw-repeat-interval"><input type="number" min="1" max="365" value="1" aria-label="반복 간격"><span class="uw-repeat-unit">주마다</span></label><div class="uw-repeat-weekdays" hidden>${["일","월","화","수","목","금","토"].map((label,day)=>`<label><input type="checkbox" value="${day}"><span>${label}</span></label>`).join("")}</div></div><label class="uw-repeat-until"><span>반복 종료</span><input type="date" value="" aria-label="반복 종료일"></label>`
+  return `<select class="uw-repeat-select" aria-label="반복"><option value="none">반복 없음</option><option value="daily">매일</option><option value="weekdays">평일</option><option value="weekly">매주</option><option value="custom">사용자 지정</option></select><div class="uw-repeat-custom" hidden><select class="uw-repeat-custom-type" aria-label="사용자 지정 반복 방식"><option value="days">일</option><option value="weeks">주</option><option value="months">개월</option></select><label class="uw-repeat-interval"><input type="number" min="1" max="365" value="1" aria-label="반복 간격"><span class="uw-repeat-unit">일마다</span></label></div><div class="uw-repeat-weekdays" hidden>${["일","월","화","수","목","금","토"].map((label,day)=>`<label><input type="checkbox" value="${day}"><span>${label}</span></label>`).join("")}</div><label class="uw-repeat-until"><span>반복 종료</span><input type="date" value="" aria-label="반복 종료일"></label>`
 }
 
 function wireRepeat(panel,baseDate){
   const select=$(".uw-repeat-select",panel),custom=$(".uw-repeat-custom",panel),type=$(".uw-repeat-custom-type",panel),interval=$(".uw-repeat-interval",panel),weekdays=$(".uw-repeat-weekdays",panel),unit=$(".uw-repeat-unit",panel);
-  if(!select||!custom)return;
-  const refresh=()=>{
-    const open=select.value==="custom",mode=type?.value||"weeks";
-    custom.hidden=!open;
-    if(weekdays)weekdays.hidden=!open||mode!=="weekdays";
-    if(interval)interval.hidden=!open||mode==="weekdays";
-    if(unit)unit.textContent=mode==="days"?"일마다":mode==="weeks"?"주마다":"달마다";
-    if(open&&mode==="weekdays"&&!$("input:checked",weekdays)&&baseDate){
-      const day=new Date(`${baseDate}T12:00:00`).getDay();
-      const input=$(`input[value="${day}"]`,weekdays);if(input)input.checked=true
-    }
-    panel.dispatchEvent(new CustomEvent("uw-repeat-refresh",{bubbles:true}))
-  };
+  if(!select)return;
+  const refresh=()=>{const mode=select.value,customMode=type?.value||"days",open=mode==="custom",showWeekdays=mode==="weekly"||(open&&customMode==="weeks");if(custom)custom.hidden=!open;if(weekdays)weekdays.hidden=!showWeekdays;if(interval)interval.hidden=!open;if(unit)unit.textContent=customMode==="days"?"일마다":customMode==="weeks"?"주마다":"개월마다";if(showWeekdays&&weekdays&&!$("input:checked",weekdays)&&baseDate){const day=new Date(`${baseDate}T12:00:00`).getDay();const input=$(`input[value="${day}"]`,weekdays);if(input)input.checked=true}panel.dispatchEvent(new CustomEvent("uw-repeat-refresh",{bubbles:true}))};
   select.addEventListener("change",refresh);type?.addEventListener("change",refresh);refresh()
 }
 

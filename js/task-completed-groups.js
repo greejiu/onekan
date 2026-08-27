@@ -1,4 +1,4 @@
-import "./task-input-controls.js?v=2";
+import "./task-input-controls.js?v=3";
 import { supabase } from "./supabase.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
