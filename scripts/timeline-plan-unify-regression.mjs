@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const u=fs.readFileSync('js/unified-workspace.js','utf8');
 const c=fs.readFileSync('css/unified-workspace.css','utf8');
 const i=fs.readFileSync('index.html','utf8');
+const m=fs.readFileSync('js/context-menu.js','utf8');
 
 assert.match(u,/uw-time-block-plan-item uw-time-block-v2-item plan-draggable/,'projected timeline items must remain planner draggable');
 assert.match(u,/data-time-block-token=.*data-time-block-block-id=.*data-time-block-after-anchor=.*data-time-block-order=/s,'projected timeline items must carry placement metadata');
@@ -14,9 +15,15 @@ assert.match(u,/else if\(sharedDragRow\)\{mode="move";source=item\}/,'list, time
 assert.match(u,/const DRAG_MOUSE_DISTANCE=6,TOUCH_SCROLL_DISTANCE=10,TOUCH_HOLD_MS=450/,'shared drag must preserve mouse threshold and mobile long-press rules');
 assert.match(u,/const sharedDragRow=!interactive&&movableRow/,'buttons and form controls must stay clickable instead of starting a drag');
 assert.doesNotMatch(u,/mode="time-block-plan"/,'time-block cards must not enter a separate drag mode');
+assert.doesNotMatch(u,/function wireControls\(\)/,'obsolete drag controller must be removed');
 assert.match(u,/g\.planToken=item\.dataset\.timeBlockToken\|\|derivedPlanToken/,'shared move gesture must retain the source time-block assignment token');
-assert.match(u,/const derivedPlanToken=g\.start===null.*timeBlockOccurrenceToken/s,'ordinary untimed task and habit cards must derive the same occurrence token for time-block drops');
+assert.match(u,/g\.canUseTimeBlock=Boolean\(g\.date&&\(g\.kind==="task"\|\|g\.kind==="habit"\|\|g\.kind==="event"\)\)/,'all dated planner item kinds must enter time-block drop detection');
+assert.match(u,/const derivedPlanToken=g\.canUseTimeBlock\?timeBlockOccurrenceToken/,'every dated planner card must derive the same occurrence token for time-block drops');
 assert.match(u,/\.uw-time-block-v2-section\"\)/,'the whole target time-block section must accept planner drops');
+assert.match(u,/if\(g\.start!==null\|\|g\.kind==="event"\).*saveTimedChange/s,'timed cards dropped between blocks must move to the target block time');
+assert.match(u,/window\.__onekanSuppressItemClickUntil=suppressItemClickUntil/,'drag completion must suppress older click-to-edit handlers');
+assert.match(m,/function itemClickSuppressed\(\)/,'legacy click-to-edit must share the drag suppression window');
+assert.match(m,/press\.element\.closest\("\.uw-drag-ready,\.uw-dragging"\)/,'mobile context menu must not open during an active drag');
 assert.match(u,/if\(g\.dropType==="time"\)await saveTimedChange\([^;]+g\.planDate,g\.planToken\)/,'projected plans must move into exact timeline time through the normal save path');
 assert.match(u,/clearMovedPlan\(current,planDate,planToken\)/,'moving a projected plan must clear its old time-block assignment atomically');
 assert.match(u,/uw-time-block-plan-drop-surface/,'timeline plan rail should be an explicit planner drop surface');
@@ -28,6 +35,7 @@ assert.match(c,/\.uw-time-block-plan-item \.uw-item-title\{font-size:11px\}/,'pr
 assert.match(c,/\.uw-time-block-v2-list \.uw-time-block-v2-item\{min-height:28px;padding:4px 6px\}/,'time-block list cards must stay compact');
 assert.doesNotMatch(c,/\.uw-time-block-v2-item\.fixed-anchor[^\{]*\{grid-column:1\/-1\}/,'timed cards must use the same two-column grid as all-day cards');
 assert.match(c,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-time-block-v2-item\.plan-draggable\{min-height:36px/,'touch cards must stay compact while preserving a usable hit area');
-assert.match(i,/unified-workspace\.js\?v=51/);
+assert.match(i,/unified-workspace\.js\?v=52/);
+assert.match(i,/context-menu\.js\?v=22/);
 assert.match(i,/unified-workspace\.css\?v=42/);
 console.log('timeline plan unify regression: ok');

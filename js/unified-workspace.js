@@ -877,17 +877,6 @@ async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSourc
 }
 async function saveDateMove(kind,id,date){await write(s=>{if(kind==="habit")return;if(kind==="task"){const t=s.tasks.find(x=>x.id===id);if(!t)return;t.date=date||null;delete t.notionStart;delete t.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);return}const e=s.events.find(x=>x.id===id);if(!e)return;const oldStart=new Date(e.start),oldEnd=new Date(e.end||e.start),duration=Math.max(0,oldEnd-oldStart),clock=e.allDay?"12:00:00":`${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`;const start=new Date(`${date}T${clock}`);e.start=start.toISOString();e.end=new Date(start.getTime()+duration).toISOString()})}
 function wireSideTabs(){document.addEventListener("click",event=>{const button=event.target.closest("[data-uw-side-tab]");if(!button)return;homeSideTab=button.dataset.uwSideTab;renderSideTab()})}
-function wireControls(){let gesture=null;
-const clearGesture=(g,restore=true)=>{clearTimeout(g?.timer);g?.preview?.remove();g?.ghost?.remove();g?.item?.classList.remove("uw-drag-ready","resizing","uw-dragging");$$(".uw-range-selected,.uw-drop-target").forEach(x=>x.classList.remove("uw-range-selected","uw-drop-target"));if(restore&&g?.item&&g.originalTop!==undefined){g.item.style.top=g.originalTop;g.item.style.height=g.originalHeight}if(gesture===g)gesture=null};
-const activate=g=>{if(!g||g.cancelled||gesture!==g)return;g.active=true;g.item?.classList.add("uw-drag-ready");g.source.setPointerCapture?.(g.pointerId);if(navigator.vibrate)navigator.vibrate(18);if(g.mode==="time-create"){g.preview=document.createElement("div");g.preview.className="uw-drag-selection";g.lane.appendChild(g.preview)}if(g.mode==="move"){g.item.classList.add("uw-dragging");g.ghost=g.item.cloneNode(true);g.ghost.className="uw-drag-ghost";g.ghost.style.left=`${g.x}px`;g.ghost.style.top=`${g.y}px`;document.body.appendChild(g.ghost)}};
-const updateDateRange=(g,date)=>{const a=date<g.startDate?date:g.startDate,b=date<g.startDate?g.startDate:date;g.nextDate=date;$$(".uw-month-cell").forEach(c=>c.classList.toggle("uw-range-selected",c.dataset.date>=a&&c.dataset.date<=b))};
-document.addEventListener("pointerdown",e=>{if(!e.isPrimary||e.button>0)return;const resizeHandle=e.target.closest("[data-uw-resize]"),moveHandle=e.target.closest(".uw-move-handle"),item=(resizeHandle||moveHandle)?.closest(".uw-item")||e.target.closest(".uw-item");let mode=null,source=null;if(resizeHandle){mode="resize";source=resizeHandle}else if(moveHandle&&(!coarse()||item?.classList.contains("selected"))){mode="move";source=moveHandle}else if(!e.target.closest(".uw-item,.uw-inline-form")){const hit=e.target.closest(".uw-time-hit");const cell=e.target.closest(".uw-month-cell");if(hit){mode="time-create";source=hit}else if(cell){mode="date-create";source=cell}}if(!mode||!source)return;const g=gesture={mode,source,item,pointerId:e.pointerId,x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,active:false,cancelled:false,coarse:e.pointerType!=="mouse"||coarse()};if(mode==="resize"){g.edge=resizeHandle.dataset.uwResize;g.start=+item.dataset.time;g.duration=+item.dataset.duration;g.nextStart=g.start;g.nextDuration=g.duration;g.originalTop=item.style.top;g.originalHeight=item.style.height}if(mode==="time-create"){g.lane=source.closest(".uw-time-lane");g.date=source.dataset.date;g.start=+source.dataset.time;g.nextStart=g.start;g.nextEnd=g.start+SLOT}if(mode==="date-create"){g.startDate=source.dataset.date;g.nextDate=g.startDate}if(mode==="move"){g.kind=item.dataset.uwKind;g.id=item.dataset.id;g.date=item.dataset.date;g.start=Number.isFinite(+item.dataset.time)?+item.dataset.time:null;g.duration=+item.dataset.duration||SLOT;g.nextDate=g.date;g.nextStart=g.start}if(g.coarse)g.timer=setTimeout(()=>activate(g),450)},true);
-document.addEventListener("pointermove",e=>{const g=gesture;if(!g||e.pointerId!==g.pointerId)return;g.lastX=e.clientX;g.lastY=e.clientY;const distance=Math.hypot(e.clientX-g.x,e.clientY-g.y);if(!g.active){if(g.coarse&&distance>10){g.cancelled=true;clearGesture(g);return}if(!g.coarse&&distance>5)activate(g);if(!g.active)return}e.preventDefault();e.stopImmediatePropagation();if(g.mode==="resize"){const delta=Math.round((e.clientY-g.y)/SLOT_H)*SLOT;if(g.edge==="top"){g.nextStart=Math.max(START,Math.min(g.start+delta,g.start+g.duration-SLOT));g.nextDuration=g.duration-(g.nextStart-g.start)}else{g.nextDuration=Math.max(SLOT,Math.min(g.duration+delta,END-g.start));g.nextStart=g.start}g.item.classList.add("resizing");g.item.style.top=`${((g.nextStart-START)/SLOT)*SLOT_H+1}px`;g.item.style.height=`${Math.max(18,(g.nextDuration/SLOT)*SLOT_H-2)}px`;return}if(g.mode==="time-create"){const current=minuteAt(g.lane,e.clientY),a=Math.min(g.start,current),b=Math.max(g.start,current)+SLOT;g.nextStart=a;g.nextEnd=b;g.preview.style.top=`${((a-START)/SLOT)*SLOT_H}px`;g.preview.style.height=`${((b-a)/SLOT)*SLOT_H}px`;return}if(g.mode==="date-create"){const cell=document.elementFromPoint(e.clientX,e.clientY)?.closest(".uw-month-cell");if(cell)updateDateRange(g,cell.dataset.date);return}if(g.mode==="move"){$$(".uw-drop-target").forEach(x=>x.classList.remove("uw-drop-target"));const pointed=document.elementFromPoint(e.clientX,e.clientY),somedayTab=pointed?.closest('[data-uw-side-tab="someday"]'),lane=pointed?.closest(".uw-time-lane"),target=pointed?.closest("[data-uw-someday-drop],.uw-all-day-list,[data-task-drop-date],.uw-month-cell,.uw-list[data-date]");let drop=null;g.validTarget=false;if(somedayTab&&g.kind==="task"&&homeSideTab!=="someday"){homeSideTab="someday";renderSideTab()}if(lane){g.nextDate=lane.closest(".uw-day")?.dataset.date||g.date;g.nextStart=minuteAt(lane,e.clientY);drop=lane.querySelector(`.uw-time-hit[data-time="${g.nextStart}"]`)}else if(target&&g.kind!=="habit"&&(!target.hasAttribute("data-uw-someday-drop")||g.kind==="task")){g.nextDate=target.hasAttribute("data-uw-someday-drop")?"":target.dataset.date||target.dataset.taskDropDate||g.date;g.nextStart=null;drop=target}if(drop){drop.classList.add("uw-drop-target");g.validTarget=true}if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}}},{passive:false,capture:true});
-document.addEventListener("pointerup",async e=>{const g=gesture;if(!g||e.pointerId!==g.pointerId)return;if(!g.active){clearGesture(g);return}suppressItemClickUntil=Date.now()+650;clearGesture(g,g.mode!=="resize");if(g.mode==="resize"){await saveTimedChange(g.item.dataset.uwKind,g.item.dataset.id,g.item.dataset.date,g.nextStart,g.nextDuration);return}if(g.mode==="time-create"){const host=findAddHost("task",g.date,g.nextStart);openInline(host,{kind:"task",date:g.date,time:g.nextStart,duration:g.nextEnd-g.nextStart});return}if(g.mode==="date-create"){const a=g.nextDate<g.startDate?g.nextDate:g.startDate,b=g.nextDate<g.startDate?g.startDate:g.nextDate,host=$(`.uw-month-cell[data-date="${a}"]`);openInline(host,{kind:"event",date:a,endDate:b});return}if(g.mode==="move"){if(!g.validTarget)return;if(g.nextStart!==null)await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration);else await saveDateMove(g.kind,g.id,g.nextDate)}},{capture:true});
-document.addEventListener("pointercancel",()=>clearGesture(gesture));document.addEventListener("contextmenu",e=>{if(gesture?.active){e.preventDefault();e.stopImmediatePropagation()}},true);
-document.addEventListener("change",async e=>{const daySelect=e.target.closest("[data-uw-home-days-select]");if(daySelect){homeDays=Math.max(1,Math.min(7,+daySelect.value||1));renderPlanner();return}const field=e.target.closest("[data-habit-field]");if(!field)return;const row=field.closest("[data-habit-manager]");await write(s=>{const h=s.habitTemplates.find(x=>x.id===row.dataset.habitManager);if(!h)return;if(field.dataset.habitField==="title"&&field.value.trim())h.title=field.value.trim();if(field.dataset.habitField==="time"){if(field.value){const[a,b]=field.value.split(":").map(Number);h.startMinute=a*60+b}else delete h.startMinute}if(field.dataset.habitField==="duration")h.duration=+field.value;if(field.dataset.habitField==="groupId")h.groupId=field.value})});
-$("#calPrev")?.addEventListener("click",e=>{e.stopImmediatePropagation();calendarCursor=calendarView==="month"?new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1):addDays(calendarCursor,calendarView==="week"?-7:-1);renderCalendar()},true);$("#calNext")?.addEventListener("click",e=>{e.stopImmediatePropagation();calendarCursor=calendarView==="month"?new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1):addDays(calendarCursor,calendarView==="week"?7:1);renderCalendar()},true);$("#calToday")?.addEventListener("click",e=>{e.stopImmediatePropagation();calendarCursor=new Date();renderCalendar()},true);$("#tasksPageAdd")?.addEventListener("click",e=>{e.stopImmediatePropagation();openInline($("#tasksPageList [data-uw-add-kind=task]")||$("#tasksPageList"),{kind:"task",date:null})},true);$$('.nav-item[data-page]').forEach(b=>b.addEventListener("click",()=>scheduleRender(220)));$("#reloadCloudBtn")?.addEventListener("click",()=>scheduleRender(240))}
-
 function wireDragClickGuard(){
   document.addEventListener("click",e=>{
     if(Date.now()>=suppressItemClickUntil)return;
@@ -1154,7 +1143,8 @@ function wireControlsV2(){
       g.currentAfterAnchor=item.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR;
       g.currentOrder=Math.max(1,+item.dataset.timeBlockOrder||1);
       g.start=Number.isFinite(+item.dataset.time)?+item.dataset.time:null;
-      const derivedPlanToken=g.start===null&&g.date&&(g.kind==="task"||g.kind==="habit")?timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource},g.date):"";
+      g.canUseTimeBlock=Boolean(g.date&&(g.kind==="task"||g.kind==="habit"||g.kind==="event"));
+      const derivedPlanToken=g.canUseTimeBlock?timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource},g.date):"";
       g.planToken=item.dataset.timeBlockToken||derivedPlanToken;
       g.planDate=item.dataset.timeBlockToken?g.date:"";
       g.duration=+item.dataset.duration||SLOT;
@@ -1206,7 +1196,7 @@ function wireControlsV2(){
     }
     clearDropIndicators();
     const pointed=document.elementFromPoint(e.clientX,e.clientY);
-    const planSurface=g.planToken&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section");
+    const planSurface=g.canUseTimeBlock&&g.planToken&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section");
     if(planSurface){
       const target=plannerDropAt(g,pointed,e.clientY);
       g.validTarget=Boolean(target);
@@ -1257,6 +1247,7 @@ function wireControlsV2(){
     if(!g||e.pointerId!==g.pointerId)return;
     if(!g.active){clear(g);return}
     suppressItemClickUntil=Date.now()+650;
+    window.__onekanSuppressItemClickUntil=suppressItemClickUntil;
     clear(g,g.mode!=="resize");
     if(g.mode==="resize"){await saveTimedChange(g.item.dataset.uwKind,g.item.dataset.id,g.item.dataset.date,g.nextStart,g.nextDuration,g.item.dataset.occurrenceSource||g.item.dataset.date);return}
     if(g.mode==="time-create"){
@@ -1272,8 +1263,18 @@ function wireControlsV2(){
       return;
     }
     if(!g.validTarget)return;
-    if(g.dropType==="time-block-unassigned"&&g.planToken){await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));return}
-    if(g.dropType==="time-block"&&g.planToken&&g.nextBlockId){await write(next=>placeTimeBlockOccurrence(next,g.nextDate,g.planToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));return}
+    if(g.dropType==="time-block-unassigned"&&g.planToken){
+      if(g.planDate)await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));
+      else await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken);
+      return
+    }
+    if(g.dropType==="time-block"&&g.planToken&&g.nextBlockId){
+      if(g.start!==null||g.kind==="event"){
+        const targetBlock=effectiveTimeBlockTemplatesForDate(state,g.nextDate).find(block=>String(block.id)===String(g.nextBlockId));
+        if(targetBlock)await saveTimedChange(g.kind,g.id,g.nextDate,Number(targetBlock.startMinute),g.duration,g.occurrenceSource,g.planDate,g.planToken);
+      }else await write(next=>placeTimeBlockOccurrence(next,g.nextDate,g.planToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));
+      return
+    }
     if(g.dropType==="all-day"&&g.planToken&&g.nextDate===g.planDate){await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));return}
     if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration,g.occurrenceSource,g.planDate,g.planToken);
     else if(g.dropType==="all-day"||g.dropType==="someday")await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken);

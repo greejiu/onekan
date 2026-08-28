@@ -10,6 +10,10 @@ let longPressTimer = null;
 let longPressStart = null;
 let suppressClickUntil = 0;
 
+function itemClickSuppressed() {
+  return Date.now() < suppressClickUntil || Date.now() < Number(window.__onekanSuppressItemClickUntil || 0);
+}
+
 function localDateKey(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
@@ -480,7 +484,7 @@ function installListeners() {
 
   document.addEventListener("click", (event) => {
     const element = event.target instanceof Element ? event.target : null;
-    if (!element || Date.now() >= suppressClickUntil || !isSupportedSurface(element)) return;
+    if (!element || !itemClickSuppressed() || !isSupportedSurface(element)) return;
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
@@ -505,7 +509,7 @@ function installListeners() {
   document.addEventListener("click", async (event) => {
     const element = event.target instanceof Element ? event.target : null;
     if (!element) return;
-    if (Date.now() < suppressClickUntil && isSupportedSurface(element)) {
+    if (itemClickSuppressed() && isSupportedSurface(element)) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -551,6 +555,7 @@ function installListeners() {
     longPressStart = press;
     longPressTimer = setTimeout(async () => {
       try {
+        if (press.element.closest(".uw-drag-ready,.uw-dragging")) return;
         const current = await readState();
         const target = resolveDirect(press.element) || resolveByPosition(press.element, current?.state);
         if (!target) return;
