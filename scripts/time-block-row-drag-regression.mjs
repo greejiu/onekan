@@ -12,8 +12,8 @@ assert.match(u, /!e\.target\.closest\("button,input,select,textarea,a,\[contente
 assert.match(u, /else if\(plannerRow\)\{mode="time-block-plan";source=item\}/, 'whole planner row should be the drag source');
 assert.match(u, /if\(g\.coarse\)g\.timer=setTimeout\(\(\)=>activate\(g\),450\)/, 'touch drag should require deliberate long press');
 assert.match(u, /if\(g\.coarse&&distance>10\)\{g\.cancelled=true;clear\(g\);return\}/, 'touch movement before activation should remain scroll');
-assert.match(u, /placeTimeBlockOccurrence\(s,g\.date,g\.token,g\.nextBlockId,g\.nextAfterAnchor,g\.nextOrder\)/, 'row drag must preserve precise block/anchor/order placement');
-assert.match(u, /clearTimeBlockAssignment\(s,g\.date,g\.token\)/, 'dropping into all-day should clear assignment');
+assert.match(u, /placeTimeBlockOccurrence\(next,g\.date,g\.token,g\.nextBlockId,g\.nextAfterAnchor,g\.nextOrder\)/, 'row drag must preserve precise block/anchor/order placement');
+assert.match(u, /clearTimeBlockAssignment\(next,g\.date,g\.token\)/, 'dropping into all-day should clear assignment');
 assert.match(c, /uw-time-block-v2-item\.plan-draggable\{cursor:grab;user-select:none\}/, 'desktop row should visually indicate drag affordance');
 assert.doesNotMatch(c, /uw-time-block-drag-handle/, 'drag handle CSS should be removed');
 assert.match(i, /unified-workspace\.js\?v=44/, 'JS cache should be bumped');
