@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { confirmAction } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -285,6 +286,8 @@ function wireUI() {
     if (remove) {
       event.preventDefault();
       event.stopPropagation();
+      const confirmed = await confirmAction({ title: "계획을 삭제할까요?", message: "연결된 시간 계획도 함께 정리될 수 있어요.\n삭제한 내용은 되돌릴 수 없어요." });
+      if (!confirmed) return;
       await deletePlan(remove.dataset.projectPlanDelete);
     }
   }, true);

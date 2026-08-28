@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -198,7 +199,7 @@ function wireShell(card) {
       input.value = "";
     } catch (error) {
       console.error(error);
-      window.alert("할일을 추가하지 못했어요.");
+      showToast("할일을 추가하지 못했어요.");
     } finally {
       input.disabled = false;
     }
@@ -349,7 +350,7 @@ function wireBoard(board) {
         });
       } catch (error) {
         console.error(error);
-        window.alert("할일을 옮기지 못했어요.");
+        showToast("할일을 옮기지 못했어요.");
       }
     });
   });
@@ -417,7 +418,7 @@ function openInlineEditor(titleElement) {
       }, createNext ? { pendingEditor: { type: "nextInBlock", templateId } } : {});
     } catch (error) {
       console.error(error);
-      window.alert("할일을 수정하지 못했어요.");
+      showToast("할일을 수정하지 못했어요.");
       titleElement.textContent = oldTitle;
       row.draggable = true;
     }
@@ -487,7 +488,7 @@ function openNewTaskInput(templateId = "") {
       }, continueNext ? { pendingEditor: { type: "nextInBlock", templateId } } : {});
     } catch (error) {
       console.error(error);
-      window.alert("할일을 추가하지 못했어요.");
+      showToast("할일을 추가하지 못했어요.");
       saving = false;
     }
   };
@@ -585,7 +586,7 @@ async function saveTemplateRows() {
     const startMinute = timeToMinute($("[data-template-start]", row)?.value);
     const endMinute = timeToMinute($("[data-template-end]", row)?.value);
     if (startMinute === null || endMinute === null || endMinute <= startMinute) {
-      window.alert("시간블럭의 시작/종료 시간을 확인해 주세요.");
+      showToast("시간블럭의 시작/종료 시간을 확인해 주세요.");
       return;
     }
     templates.push({
@@ -610,7 +611,7 @@ async function saveTemplateRows() {
     await renderSettings();
   } catch (error) {
     console.error(error);
-    window.alert("시간블럭 설정을 저장하지 못했어요.");
+    showToast("시간블럭 설정을 저장하지 못했어요.");
   } finally {
     if (button) button.disabled = false;
   }

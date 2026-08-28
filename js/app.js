@@ -1,5 +1,6 @@
 import { supabase } from "./supabase.js";
 import { setupAuth } from "./auth.js";
+import { confirmAction, showToast } from "./ui-feedback.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -375,7 +376,7 @@ function hasBlockConflict(startMinute, duration, excludeId = null) {
 function addDirectTimeBlock(startMinute, duration = 30) {
   const dayKey = appDayKey();
   startMinute = clampStart(startMinute, duration);
-  if (hasBlockConflict(startMinute, duration)) return window.alert("이미 시간 계획이 있는 구간이에요. 다른 시간을 골라 주세요.");
+  if (hasBlockConflict(startMinute, duration)) return showToast("이미 시간 계획이 있는 구간이에요. 다른 시간을 골라 주세요.");
   const block = { id: uid(), taskId: null, sourceTitle: "직접 추가", detail: "새 시간 계획", startMinute, duration, date: dayKey };
   state.timeBlocks.push(block);
   save();
@@ -438,7 +439,7 @@ function renderTimeGrid() {
         const block = state.timeBlocks.find((item) => item.id === blockId);
         if (!block) return;
         const next = clampStart(minute, block.duration);
-        if (hasBlockConflict(next, block.duration, block.id)) return window.alert("이미 시간 계획이 있는 구간이에요.");
+        if (hasBlockConflict(next, block.duration, block.id)) return showToast("이미 시간 계획이 있는 구간이에요.");
         block.startMinute = next;
         block.date = appDayKey();
         save();
@@ -459,7 +460,7 @@ function renderTimeGrid() {
       const taskId = event.dataTransfer.getData("text/task-id");
       const task = state.tasks.find((item) => item.id === taskId);
       if (!task) return;
-      if (hasBlockConflict(minute, 30)) return window.alert("이미 시간 계획이 있는 구간이에요.");
+      if (hasBlockConflict(minute, 30)) return showToast("이미 시간 계획이 있는 구간이에요.");
       state.timeBlocks.push({ id: uid(), taskId, sourceTitle: task.title, detail: task.title, startMinute: minute, duration: 30, date: appDayKey() });
       save();
       renderTimeGrid();
@@ -1179,7 +1180,7 @@ function finishTimer(automatic = false) {
   save();
   renderTracking();
   renderDashboard();
-  if (automatic) window.alert("집중 시간이 끝났어요. 기록에 저장했어요!");
+  if (automatic) showToast("집중 시간이 끝났어요. 기록에 저장했어요!", { tone: "success" });
   timerFinishing = false;
 }
 
@@ -1349,7 +1350,7 @@ function openManualSession(defaultOffset = 0) {
 
 function openSessionEditor(sessionId) {
   const session = state.sessions.find((item) => item.id === sessionId);
-  if (!session) return window.alert("수정할 기록을 찾지 못했어요.");
+  if (!session) return showToast("수정할 기록을 찾지 못했어요.");
   editingSessionId = sessionId;
   const dialog = ensureManualSessionDialog();
   const start = new Date(session.start || session.end);
@@ -1411,9 +1412,15 @@ function renderSettings() {
   const container = $("#habitTemplateList");
   if (container) {
     container.innerHTML = state.habitTemplates.map((habit) => `<div class="template-row"><span>${esc(habit.title)}</span><button class="ghost-btn danger-text" data-del-habit="${habit.id}" type="button">삭제</button></div>`).join("");
-    container.querySelectorAll("[data-del-habit]").forEach((button) => button.addEventListener("click", () => {
-      state.habitTemplates = state.habitTemplates.filter((habit) => habit.id !== button.dataset.delHabit);
-      save();
+    container.querySelectorAll("[data-del-habit]").forEach((button) => button.addEventListener("click", async () => {
+      const id = button.dataset.delHabit;
+      const habit = state.habitTemplates.find((item) => item.id === id);
+      const confirmed = await confirmAction({ title: "습관을 삭제할까요?", message: `‘${habit?.title || "선택한 습관"}’의 과거 완료 기록도 함께 삭제돼요.\n삭제한 내용은 되돌릴 수 없어요.` });
+      if (!confirmed) return;
+      state.habitTemplates = state.habitTemplates.filter((item) => item.id !== id);
+      Object.values(state.habitDays || {}).forEach((day) => { if (day && typeof day === "object") delete day[id]; });
+      Object.values(state.habitOverrides || {}).forEach((day) => { if (day && typeof day === "object") delete day[id]; });
+      await save();
       renderSettings();
       renderHome();
     }));
@@ -1440,15 +1447,18 @@ function renderSettings() {
       refreshEventGroupInputs();
       renderCalendar();
     }));
-    groupList.querySelectorAll("[data-event-group-delete]").forEach((button) => button.addEventListener("click", () => {
+    groupList.querySelectorAll("[data-event-group-delete]").forEach((button) => button.addEventListener("click", async () => {
       const id = button.closest("[data-event-group-id]")?.dataset.eventGroupId;
       if (!id || id === state.eventGroups[0]?.id) return;
+      const target = state.eventGroups.find((group) => group.id === id);
+      const confirmed = await confirmAction({ title: "영역을 삭제할까요?", message: `‘${target?.name || "선택한 영역"}’의 항목은 기본 영역으로 이동해요.` });
+      if (!confirmed) return;
       state.events.forEach((event) => { if (event.groupId === id) event.groupId = state.eventGroups[0].id; });
       state.tasks.forEach((task) => { if (task.groupId === id) task.groupId = state.eventGroups[0].id; });
       state.projects.forEach((project) => { if (project.groupId === id) project.groupId = state.eventGroups[0].id; });
       state.sessions.forEach((session) => { if (session.groupId === id) session.groupId = state.eventGroups[0].id; });
       state.eventGroups = state.eventGroups.filter((group) => group.id !== id);
-      save();
+      await save();
       renderSettings();
       renderCalendar();
     }));
@@ -1576,7 +1586,7 @@ function bindUI() {
     if (!block) return;
     const nextStart = Number($("#blockStart").value);
     const nextDuration = Number($("#blockDuration").value);
-    if (hasBlockConflict(nextStart, nextDuration, block.id)) return window.alert("이미 시간 계획이 있는 구간이에요. 다른 시간을 골라 주세요.");
+    if (hasBlockConflict(nextStart, nextDuration, block.id)) return showToast("이미 시간 계획이 있는 구간이에요. 다른 시간을 골라 주세요.");
     block.detail = $("#blockDetail").value.trim() || block.sourceTitle || "시간 계획";
     block.startMinute = nextStart;
     block.duration = nextDuration;
@@ -1584,9 +1594,12 @@ function bindUI() {
     $("#blockEditor").classList.remove("open");
     renderTimeGrid();
   });
-  $("#deleteBlockBtn").addEventListener("click", () => {
+  $("#deleteBlockBtn").addEventListener("click", async () => {
+    const block = state.timeBlocks.find((item) => item.id === editingBlockId);
+    const confirmed = await confirmAction({ title: "시간 계획을 삭제할까요?", message: `‘${block?.detail || block?.sourceTitle || "선택한 시간 계획"}’\n삭제한 내용은 되돌릴 수 없어요.` });
+    if (!confirmed) return;
     state.timeBlocks = state.timeBlocks.filter((item) => item.id !== editingBlockId);
-    save();
+    await save();
     $("#blockEditor").classList.remove("open");
     renderTimeGrid();
   });
@@ -1635,7 +1648,7 @@ function bindUI() {
     const habitId = source?.kind === "habit" ? source.item.id : null;
     const customTitle = $("#timerCustomTitle")?.value.trim() || "";
     const title = source?.item.title || customTitle;
-    if (!title) return window.alert("할일·습관을 선택하거나 기록 이름을 입력해 주세요.");
+    if (!title) return showToast("할일·습관을 선택하거나 기록 이름을 입력해 주세요.");
     state.timer = { mode: timerMode(), running: true, paused: false, taskId, habitId, title, startedAt: Date.now(), accumulatedMs: 0, durationMs: timerDurationMs() };
     save();
     renderTracking();

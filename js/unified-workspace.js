@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { confirmAction } from "./ui-feedback.js";
 
 const $=(s,r=document)=>r.querySelector(s);const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const pad=n=>String(n).padStart(2,"0");const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -651,17 +652,17 @@ async function action(name,records=[...selected.values()]){
     for(const record of records){
       if(record.kind==="habit"){
         const habit=state.habitTemplates.find(item=>item.id===record.id);if(!habit)continue;
-        const date=record.date||todayKey(),existing=habitOverride(state,date,record.id),scope=existing?"day":await askHabitScope("delete",habit,date);
+        const date=record.date||todayKey(),scope=await askHabitScope("delete",habit,date);
         if(scope)decisions.push({...record,date,scope});
         continue
       }
       if(record.kind==="task"){
         const task=state.tasks.find(item=>item.id===record.id);
-        if(task?.recurrence?.frequency){const date=record.occurrenceSource||record.date||task.date,existing=taskOverride(state,date,record.id),scope=existing?"day":await askTaskScope(task,date,"delete");if(scope)decisions.push({...record,date,scope});continue}
+        if(task?.recurrence?.frequency){const date=record.occurrenceSource||record.date||task.date,scope=await askTaskScope(task,date,"delete");if(scope)decisions.push({...record,date,scope});continue}
       }
       if(record.kind==="event"){
         const event=state.events.find(item=>item.id===record.id);
-        if(event?.recurrence?.frequency){const date=record.occurrenceSource||record.date||key(new Date(event.start)),existing=eventOverride(state,date,record.id),scope=existing?"day":await askEventScope("delete",event,date);if(scope)decisions.push({...record,date,scope});continue}
+        if(event?.recurrence?.frequency){const date=record.occurrenceSource||record.date||key(new Date(event.start)),scope=await askEventScope("delete",event,date);if(scope)decisions.push({...record,date,scope});continue}
       }
       otherRecords.push(record)
     }
@@ -680,6 +681,7 @@ async function action(name,records=[...selected.values()]){
       }
     }));
     records=otherRecords;
+    if(records.length){const names=records.map(record=>{const list=record.kind==="event"?state.events:state.tasks;return list.find(item=>item.id===record.id)?.title}).filter(Boolean),confirmed=await confirmAction({title:records.length>1?`${records.length}개 항목을 삭제할까요?`:"삭제할까요?",message:`${names.slice(0,3).map(name=>`‘${name}’`).join("\n")}${names.length>3?`\n외 ${names.length-3}개`:""}${names.length?"\n":""}삭제한 내용은 되돌릴 수 없어요.`});if(!confirmed){clearSelection();return}}
     if(!records.length){clearSelection();return}
   }
   if(name==="duplicate"){await write(current=>records.forEach(record=>{const list=record.kind==="event"?current.events:record.kind==="habit"?current.habitTemplates:current.tasks;const item=list.find(value=>value.id===record.id);if(item)list.push({...item,id:uid(),title:`${item.title} 복사`,done:false,completedAt:null})}))}

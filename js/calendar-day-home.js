@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -212,7 +213,7 @@ function openInlineNew(zone, dateKey, templateId = "") {
     } catch (error) {
       console.error("달력 일 시간블럭 할일 추가 실패", error);
       saving = false;
-      window.alert("할일을 추가하지 못했어요.");
+      showToast("할일을 추가하지 못했어요.");
     }
   };
 
@@ -355,7 +356,7 @@ function wireSurface(body, dateKey) {
         });
       } catch (error) {
         console.error("달력 일 시간블럭 이동 실패", error);
-        window.alert("할일을 옮기지 못했어요.");
+        showToast("할일을 옮기지 못했어요.");
       }
     });
   });
@@ -386,7 +387,7 @@ function wireSurface(body, dateKey) {
       });
     } catch (error) {
       console.error("달력 일 시간블럭 빠른 추가 실패", error);
-      window.alert("할일을 추가하지 못했어요.");
+      showToast("할일을 추가하지 못했어요.");
     }
   });
 }

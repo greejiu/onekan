@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { showToast } from "./ui-feedback.js";
 
 const $ = (selector) => document.querySelector(selector);
 const BUCKET = "onekan-user-assets";
@@ -104,8 +105,8 @@ async function extractThemeColor(file) {
 
 async function uploadBackground(file) {
   if (!file || !user) return;
-  if (!file.type.startsWith("image/")) return window.alert("이미지 파일만 선택할 수 있어요.");
-  if (file.size > 5 * 1024 * 1024) return window.alert("사진은 5MB 이하로 골라 주세요.");
+  if (!file.type.startsWith("image/")) return showToast("이미지 파일만 선택할 수 있어요.");
+  if (file.size > 5 * 1024 * 1024) return showToast("사진은 5MB 이하로 골라 주세요.");
   const status = $("#homeBackgroundStatus");
   if (status) status.textContent = "사진 저장 중...";
   const autoTheme = !!$("#homeAutoTheme")?.checked;
@@ -121,7 +122,7 @@ async function saveTimelineRange() {
   const start = minuteValue($("#timelineStart")?.value);
   const end = minuteValue($("#timelineEnd")?.value);
   if (start === null || end === null || end - start < 60) {
-    window.alert("종료 시간은 시작 시간보다 최소 1시간 뒤여야 해요.");
+    showToast("종료 시간은 시작 시간보다 최소 1시간 뒤여야 해요.");
     await applyAppearance();
     return;
   }
@@ -174,7 +175,7 @@ function wireUI() {
       await writeAppearance({ backgroundPath: null });
     } catch (error) {
       console.error("배경 제거 실패", error);
-      window.alert("배경 사진을 제거하지 못했어요.");
+      showToast("배경 사진을 제거하지 못했어요.");
     }
   });
   $("#reloadCloudBtn")?.addEventListener("click", async () => { await readState(); await applyAppearance(); });

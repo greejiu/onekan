@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { confirmAction, showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -234,7 +235,7 @@ async function moveTarget(offset) {
     });
   } catch (error) {
     console.error(error);
-    window.alert("날짜를 변경하지 못했어요.");
+    showToast("날짜를 변경하지 못했어요.");
   }
 }
 
@@ -306,7 +307,7 @@ function startInlineEdit(root, target, state) {
       await writeState((latest) => applyInlineTitle(latest, target, value, root));
     } catch (error) {
       console.error(error);
-      window.alert("수정하지 못했어요.");
+      showToast("수정하지 못했어요.");
       titleElement.textContent = original;
     }
   };
@@ -325,6 +326,13 @@ async function deleteTarget() {
   hideMenu();
   if (!target) return;
   try {
+    const loaded = await readState();
+    const item = loaded ? getItem(loaded.state, target) : null;
+    const labels = { task: "할일", event: "일정", timeBlock: "시간 계획", habit: "습관", project: item?.kind === "goal" ? "목표" : "작업", session: "시간 기록" };
+    const label = labels[target.kind] || "항목";
+    const title = item?.title || item?.detail || item?.sourceTitle || "선택한 항목";
+    const confirmed = await confirmAction({ title: `${label}을 삭제할까요?`, message: `‘${title}’\n삭제한 내용은 되돌릴 수 없어요.` });
+    if (!confirmed) return;
     await writeState((state) => {
       if (target.kind === "task") {
         state.tasks = state.tasks.filter((item) => item.id !== target.id);
@@ -347,7 +355,7 @@ async function deleteTarget() {
     });
   } catch (error) {
     console.error(error);
-    window.alert("삭제하지 못했어요.");
+    showToast("삭제하지 못했어요.");
   }
 }
 
@@ -385,7 +393,7 @@ async function duplicateTarget() {
     });
   } catch (error) {
     console.error(error);
-    window.alert("복제하지 못했어요.");
+    showToast("복제하지 못했어요.");
   }
 }
 
@@ -401,7 +409,7 @@ async function changeTargetGroup(groupId) {
     });
   } catch (error) {
     console.error(error);
-    window.alert("영역을 변경하지 못했어요.");
+    showToast("영역을 변경하지 못했어요.");
   }
 }
 

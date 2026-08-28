@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const pad = (n) => String(n).padStart(2, "0");
@@ -117,7 +118,7 @@ function openEditor(zone, templateId = "") {
       console.error("시간블럭 할일 추가 실패", error);
       finished = false;
       input.disabled = false;
-      window.alert("할일을 추가하지 못했어요.");
+      showToast("할일을 추가하지 못했어요.");
       input.focus();
     }
   };
