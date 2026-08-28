@@ -7,6 +7,7 @@ import "./management.js?v=3";
 import "./management-section-context.js?v=1";
 import "./management-items.js?v=3";
 import "./management-item-drag-fix.js?v=3";
+import "./management-section-item-drag.js?v=1";
 import "./management-item-schedule.js?v=2";
 import "./management-home.js?v=2";
 import "./management-history.js?v=3";

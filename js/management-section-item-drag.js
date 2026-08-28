@@ -3,6 +3,7 @@ import { showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const esc = (value) => String(value ?? "").replace(/[&<>"\']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 
 let state = null;
 let user = null;
@@ -112,7 +113,7 @@ function openGroupChooser(itemId, sectionId, groups, x, y) {
   ensureMenu();
   const menu = $("#managementSectionMoveMenu");
   pendingMove = { itemId, sectionId };
-  menu.innerHTML = `<strong class="management-context-label">어느 그룹으로 옮길까요?</strong>${groups.map((group) => `<button data-management-section-move-group="${group.id}" type="button">${String(group.name ?? "")}</button>`).join("")}`;
+  menu.innerHTML = `<strong class="management-context-label">어느 그룹으로 옮길까요?</strong>${groups.map((group) => `<button data-management-section-move-group="${group.id}" type="button">${esc(group.name)}</button>`).join("")}`;
   menu.style.left = `${Math.max(8, Math.min(innerWidth - 210, x))}px`;
   menu.style.top = `${Math.max(8, Math.min(innerHeight - Math.min(300, 48 + groups.length * 36), y))}px`;
   menu.classList.add("open");
