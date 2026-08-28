@@ -1150,12 +1150,13 @@ function wireControlsV2(){
       g.id=item.dataset.id;
       g.date=item.dataset.date;
       g.occurrenceSource=item.dataset.occurrenceSource||g.date;
-      g.planToken=item.dataset.timeBlockToken||"";
-      g.planDate=g.planToken?g.date:"";
       g.currentBlockId=item.dataset.timeBlockBlockId||"";
       g.currentAfterAnchor=item.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR;
       g.currentOrder=Math.max(1,+item.dataset.timeBlockOrder||1);
       g.start=Number.isFinite(+item.dataset.time)?+item.dataset.time:null;
+      const derivedPlanToken=g.start===null&&g.date&&(g.kind==="task"||g.kind==="habit")?timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource},g.date):"";
+      g.planToken=item.dataset.timeBlockToken||derivedPlanToken;
+      g.planDate=item.dataset.timeBlockToken?g.date:"";
       g.duration=+item.dataset.duration||SLOT;
       g.nextDate=g.date;
       g.nextStart=g.start;
@@ -1205,7 +1206,7 @@ function wireControlsV2(){
     }
     clearDropIndicators();
     const pointed=document.elementFromPoint(e.clientX,e.clientY);
-    const planSurface=g.planToken&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section.unassigned");
+    const planSurface=g.planToken&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section");
     if(planSurface){
       const target=plannerDropAt(g,pointed,e.clientY);
       g.validTarget=Boolean(target);
