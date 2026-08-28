@@ -10,5 +10,5 @@ assert.match(u,/const directPlanningMove=Boolean\(g\.planToken&&g\.start===null&
 assert.match(u,/placeTimeBlockOccurrence\(next,g\.date,g\.planToken,g\.nextBlockId,g\.nextAfterAnchor,g\.nextOrder\)/,'direct planning move must persist block placement');
 assert.match(c,/\.uw-time-exact-lane\{position:absolute;inset:0;min-width:0;pointer-events:none\}\.uw-time-exact-lane \.uw-time-entry\{pointer-events:auto\}/,'empty timeline hit grid must remain pointer reachable');
 assert.match(i,/unified-workspace\.js\?v=55/);
-assert.match(i,/unified-workspace\.css\?v=44/);
+assert.match(i,/unified-workspace\.css\?v=43/);
 console.log('drag/input fix regression: ok');
