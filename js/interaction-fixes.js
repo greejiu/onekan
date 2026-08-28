@@ -1,6 +1,7 @@
 import "./auth-guard.js?v=1";
 import "./notes.js?v=1";
-import "./notes-board-view.js?v=1";
+import "./notes-board-view.js?v=2";
+import "./notes-interactions-v2.js?v=2";
 
 // Compatibility + interaction safeguards loaded before app.js initializes.
 // Safe to load more than once because cached module URLs may coexist during deployment.
