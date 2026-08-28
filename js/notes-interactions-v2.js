@@ -4,6 +4,8 @@ import { showToast } from "./ui-feedback.js";
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const uid = () => crypto.randomUUID();
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
+const safeColor = (value) => /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : "#8fa9c4";
 
 if (!window.__onekanNotesInteractionsV2Installed) {
   window.__onekanNotesInteractionsV2Installed = true;
@@ -46,8 +48,7 @@ if (!window.__onekanNotesInteractionsV2Installed) {
   }
 
   function hiddenAction(noteItem, selector) {
-    const button = $(selector, noteItem);
-    if (button) button.click();
+    $(selector, noteItem)?.click();
   }
 
   function positionMenu(menu, x, y) {
@@ -86,33 +87,32 @@ if (!window.__onekanNotesInteractionsV2Installed) {
         hiddenAction(noteItem, "[data-note-delete]");
         return;
       }
-      if (action === "group") {
-        const groups = loaded.state.eventGroups;
-        menu.innerHTML = '<button data-note-context-back>← 돌아가기</button>' + groups.map((group) => `<button data-note-group-choice="${group.id}"><span class="context-group-dot" style="--group-color:${group.color || "#8fa9c4"}"></span><span>${group.name}</span>${group.id === note.groupId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
-        positionMenu(menu, x, y);
-        menu.onclick = async (groupEvent) => {
-          if (groupEvent.target.closest("[data-note-context-back]")) {
-            showNoteMenu(noteItem, x, y);
-            return;
-          }
-          const groupId = groupEvent.target.closest("[data-note-group-choice]")?.dataset.noteGroupChoice;
-          if (!groupId) return;
-          menu.classList.remove("open");
-          try {
-            await writeState((state) => {
-              const target = state.notes.find((item) => item.id === noteId);
-              if (target) target.groupId = groupId;
-            });
-          } catch (error) {
-            console.error(error);
-            showToast("영역을 바꾸지 못했어요.");
-          }
-        };
-      }
+      if (action !== "group") return;
+      const groups = loaded.state.eventGroups;
+      menu.innerHTML = '<button data-note-context-back>← 돌아가기</button>' + groups.map((group) => `<button data-note-group-choice="${esc(group.id)}"><span class="context-group-dot" style="--group-color:${safeColor(group.color)}"></span><span>${esc(group.name)}</span>${group.id === note.groupId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
+      positionMenu(menu, x, y);
+      menu.onclick = async (groupEvent) => {
+        if (groupEvent.target.closest("[data-note-context-back]")) {
+          showNoteMenu(noteItem, x, y);
+          return;
+        }
+        const groupId = groupEvent.target.closest("[data-note-group-choice]")?.dataset.noteGroupChoice;
+        if (!groupId) return;
+        menu.classList.remove("open");
+        try {
+          await writeState((state) => {
+            const target = state.notes.find((item) => item.id === noteId);
+            if (target && state.eventGroups.some((group) => group.id === groupId)) target.groupId = groupId;
+          });
+        } catch (error) {
+          console.error(error);
+          showToast("영역을 바꾸지 못했어요.");
+        }
+      };
     };
   }
 
-  async function startInlineEdit(noteItem) {
+  function startInlineEdit(noteItem) {
     const title = $(".note-title", noteItem);
     if (!title || $(".note-title-input", noteItem)) return;
     const noteId = noteItem.dataset.noteId;
@@ -183,8 +183,7 @@ if (!window.__onekanNotesInteractionsV2Installed) {
     const board = pointed?.closest?.(".notes-section-board[data-section-id]");
     g.targetSectionId = board?.dataset.sectionId || null;
     g.targetGroupId = area?.dataset.groupId || (board ? defaultGroupId() : null);
-    const target = area || board;
-    target?.classList.add("notes-drop-target");
+    (area || board)?.classList.add("notes-drop-target");
   }
 
   async function finishGesture(g) {
@@ -202,8 +201,8 @@ if (!window.__onekanNotesInteractionsV2Installed) {
       await writeState((state) => {
         const note = state.notes.find((item) => item.id === noteId);
         if (!note) return;
-        note.sectionId = sectionId;
-        note.groupId = groupId;
+        if (state.noteSections.some((section) => section.id === sectionId)) note.sectionId = sectionId;
+        if (state.eventGroups.some((group) => group.id === groupId)) note.groupId = groupId;
       });
     } catch (error) {
       console.error(error);
@@ -240,16 +239,13 @@ if (!window.__onekanNotesInteractionsV2Installed) {
   }, true);
 
   document.addEventListener("click", (event) => {
-    if (Date.now() < suppressClickUntil) {
-      if (event.target.closest(".note-item")) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
+    if (Date.now() < suppressClickUntil && event.target.closest(".note-item")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
       return;
     }
     const noteItem = event.target.closest?.(".note-item[data-note-id]");
-    if (!noteItem) return;
-    if (event.target.closest("button,input,select,textarea,a")) return;
+    if (!noteItem || event.target.closest("button,input,select,textarea,a")) return;
     if (coarsePointer()) {
       const rect = noteItem.getBoundingClientRect();
       showNoteMenu(noteItem, Math.min(rect.left + 18, innerWidth - 180), Math.min(rect.bottom + 6, innerHeight - 180));
@@ -271,18 +267,7 @@ if (!window.__onekanNotesInteractionsV2Installed) {
     const item = event.target.closest?.(".note-item[data-note-id]");
     if (!item || event.target.closest("button,input,select,textarea,a,[contenteditable=true]")) return;
     const coarse = coarsePointer() || event.pointerType === "touch";
-    const g = {
-      pointerId: event.pointerId,
-      item,
-      x: event.clientX,
-      y: event.clientY,
-      coarse,
-      active: false,
-      targetSectionId: null,
-      targetGroupId: null,
-      timer: null,
-      preview: null,
-    };
+    const g = { pointerId: event.pointerId, item, x: event.clientX, y: event.clientY, coarse, active: false, targetSectionId: null, targetGroupId: null, timer: null, preview: null };
     gesture = g;
     if (coarse) g.timer = setTimeout(() => activateGesture(g), TOUCH_HOLD_MS);
   }, true);
