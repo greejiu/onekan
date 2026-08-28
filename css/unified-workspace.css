@@ -360,3 +360,12 @@
 .uw-time-block-day-dialog input{width:100%;height:38px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font:inherit}
 .uw-time-block-day-times{display:grid;grid-template-columns:1fr 1fr;gap:8px}.uw-time-block-day-error{min-height:18px;margin:0;color:var(--danger);font-size:10px}.uw-time-block-day-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:7px}
 @media(max-width:600px){.uw-time-block-v2-head{align-items:flex-start}.uw-time-block-v2-actions{flex-wrap:wrap;justify-content:flex-end}.uw-time-block-v2-actions button{min-height:30px}.uw-time-block-day-add{min-height:32px}.uw-time-block-day-times{grid-template-columns:1fr}.uw-time-block-day-dialog form{padding:16px}}
+
+
+/* Time block V2 header menu */
+.uw-time-block-v2-head{align-items:center;justify-content:space-between}
+.uw-time-block-v2-title{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
+.uw-time-block-v2-today-badge{display:inline-flex;align-items:center;min-height:20px;padding:1px 7px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);font-size:10px;line-height:1}
+.uw-time-block-v2-menu-button{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:18px;line-height:1;cursor:pointer}
+.uw-time-block-v2-menu-button:hover,.uw-time-block-v2-menu-button:focus-visible{background:var(--panel);color:var(--text);outline:none}
+@media(max-width:700px){.uw-time-block-v2-menu-button{width:38px;height:38px}}
