@@ -5,6 +5,7 @@ import "./notes-interactions-v2.js?v=2";
 import "./notes-section-controls.js?v=1";
 import "./habit-area-check-colors.js?v=1";
 import "./habit-start-date-fix.js?v=3";
+import "./habit-period-direct-save.js?v=1";
 
 // Compatibility + interaction safeguards loaded before app.js initializes.
 // Safe to load more than once because cached module URLs may coexist during deployment.
@@ -95,6 +96,11 @@ if (!window.__onekanInteractionFixesInstalled) {
 
   /* Month calendar cells are already clickable, so the visual + marker is redundant. */
   .uw-task-month-cell > .uw-list > .uw-task-inline-add {
+    display: none !important;
+  }
+
+  /* In month view, keep card width for the title instead of repeating the recurrence label. */
+  .uw-task-month-cell .uw-repeat-badge {
     display: none !important;
   }
   `;
