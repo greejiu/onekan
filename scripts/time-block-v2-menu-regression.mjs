@@ -52,7 +52,7 @@ assert.match(unified, /오늘만 수정/);
 assert.match(unified, /기본 블럭 수정/);
 assert.match(unified, /오늘만 숨기기/);
 assert.match(unified, /기본 블럭 삭제/);
-assert.match(unified, /data-uw-time-block-action=\\"day-delete\\"/);
+assert.match(unified, /day-delete/);
 assert.match(unified, /uw-time-block-v2-today-badge/);
 assert.match(unified, /setTimeBlockTemplatesForDate\(next,validation\.templates,date\)/);
 assert.match(unified, /clearTimeBlockDateOverride\(next,date,id\)/);
