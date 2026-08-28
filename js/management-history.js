@@ -15,7 +15,9 @@ let rendering = false;
 let pageObserver = null;
 
 function dateKey(date = new Date()) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const value = new Date(date);
+  value.setHours(value.getHours() - 3);
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
 }
 
 function nowTime() {

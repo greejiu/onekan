@@ -140,10 +140,13 @@ function openMoveContext(itemId, x, y) {
 async function deleteItem(itemId) {
   const item = state?.managementItems.find((entry) => entry.id === itemId);
   if (!item) return;
-  const confirmed = await confirmAction({ title: `‘${item.title}’ 항목을 삭제할까요?`, message: "아직 실행 기록 기능을 붙이기 전이라 항목만 삭제돼요.", confirmLabel: "삭제" });
+  const confirmed = await confirmAction({ title: `‘${item.title}’ 항목을 삭제할까요?`, message: "항목과 이 항목의 실행 기록도 함께 삭제돼요.", confirmLabel: "삭제" });
   if (!confirmed) return;
   await writeState((current) => {
     current.managementItems = current.managementItems.filter((entry) => entry.id !== itemId);
+  current.managementHistory = Array.isArray(current.managementHistory)
+    ? current.managementHistory.filter((entry) => entry.itemId !== itemId)
+    : [];
   });
 }
 
