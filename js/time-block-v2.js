@@ -242,6 +242,48 @@ export function clearTimeBlockAssignment(state, dateKey, token) {
 }
 
 
+
+export function buildTimeBlockTimelinePlanRows(templates, assignments, occurrences) {
+  const blocks = sortTemplates((Array.isArray(templates) ? templates : []).filter((item) => item?.id && Number.isFinite(Number(item.startMinute)) && Number.isFinite(Number(item.endMinute)) && Number(item.endMinute) > Number(item.startMinute)));
+  const blockById = new Map(blocks.map((block) => [String(block.id), block]));
+  const exactByBlock = new Map(blocks.map((block) => [String(block.id), new Map()]));
+  const rows = Array.isArray(occurrences) ? occurrences : [];
+
+  for (const occurrence of rows) {
+    if (!occurrence?.token || !occurrence.timed || !Number.isFinite(Number(occurrence.time))) continue;
+    const minute = Number(occurrence.time);
+    const block = blocks.find((candidate) => minute >= Number(candidate.startMinute) && minute < Number(candidate.endMinute));
+    if (block) exactByBlock.get(String(block.id))?.set(String(occurrence.token), minute);
+  }
+
+  const result = [];
+  for (const occurrence of rows) {
+    if (!occurrence?.token || occurrence.timed) continue;
+    const assignment = cleanAssignment(assignments?.[occurrence.token]);
+    if (!assignment) continue;
+    const block = blockById.get(String(assignment.blockId));
+    if (!block) continue;
+    let afterAnchor = TIME_BLOCK_START_ANCHOR;
+    let anchorMinute = Number(block.startMinute);
+    if (assignment.afterAnchor !== TIME_BLOCK_START_ANCHOR) {
+      const anchor = exactByBlock.get(String(block.id))?.get(String(assignment.afterAnchor));
+      if (Number.isFinite(anchor)) {
+        afterAnchor = String(assignment.afterAnchor);
+        anchorMinute = Number(anchor);
+      }
+    }
+    result.push({
+      token: String(occurrence.token),
+      blockId: String(block.id),
+      afterAnchor,
+      anchorMinute,
+      order: Math.max(1, Math.floor(Number(assignment.order) || 1)),
+    });
+  }
+
+  return result.sort((a, b) => a.anchorMinute - b.anchorMinute || String(a.blockId).localeCompare(String(b.blockId)) || String(a.afterAnchor).localeCompare(String(b.afterAnchor)) || a.order - b.order || String(a.token).localeCompare(String(b.token)));
+}
+
 export function timeBlockDateOverridesForDate(state, dateKey) {
   if (!state || !validDateKey(dateKey)) return {};
   ensureTimeBlockV2State(state);
