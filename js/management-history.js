@@ -75,7 +75,7 @@ function ensureStyle() {
   if ($('link[data-onekan-management-history-style]')) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = "./css/management-history.css?v=1";
+  link.href = "./css/management-history.css?v=2";
   link.dataset.onekanManagementHistoryStyle = "1";
   document.head.appendChild(link);
 }
@@ -139,6 +139,33 @@ function displayDate(value) {
   return `${parts.year === currentYear ? "" : `${parts.year}.`}${parts.month}.${parts.day}`;
 }
 
+function fullDisplayDate(value) {
+  const parts = parseDate(value);
+  if (!parts) return "";
+  return `${parts.year}.${pad(parts.month)}.${pad(parts.day)}`;
+}
+
+function repeatSummary(value) {
+  const repeat = normalizeRepeat(value);
+  if (!repeat) return "";
+  if (repeat.unit === "day") return `${repeat.interval}일마다`;
+  if (repeat.unit === "week") return `${repeat.interval}주마다`;
+  if (repeat.unit === "month") return repeat.interval === 1 ? "매월" : `${repeat.interval}개월마다`;
+  return repeat.interval === 1 ? "매년" : `${repeat.interval}년마다`;
+}
+
+function dueSummary(value) {
+  const targetParts = parseDate(value);
+  const todayParts = parseDate(dateKey());
+  if (!targetParts || !todayParts) return "";
+  const target = new Date(targetParts.year, targetParts.month - 1, targetParts.day, 12);
+  const today = new Date(todayParts.year, todayParts.month - 1, todayParts.day, 12);
+  const diff = Math.round((target - today) / 86400000);
+  if (diff === 0) return "오늘";
+  if (diff > 0) return `${diff}일 남음`;
+  return `${Math.abs(diff)}일 지남`;
+}
+
 function relativeDate(value) {
   const parts = parseDate(value);
   if (!parts) return "";
@@ -154,15 +181,21 @@ function relativeDate(value) {
 
 function summaryMarkup(item) {
   const latest = rowsFor(item.id).at(-1) || null;
-  const text = latest
-    ? `마지막 ${displayDate(latest.completedDate)}${relativeDate(latest.completedDate) ? ` · ${relativeDate(latest.completedDate)}` : ""}`
-    : "기록 없음";
-  return `<button class="management-history-summary" data-management-history-open="${esc(item.id)}" type="button">${esc(text)}</button>`;
+  const parts = [];
+  const repeat = repeatSummary(item.repeat);
+  if (repeat) parts.push(repeat);
+  parts.push(latest ? `마지막 완료 ${fullDisplayDate(latest.completedDate)}` : "아직 완료 기록 없음");
+  if (item.nextDate) {
+    parts.push(`다음 예정 ${fullDisplayDate(item.nextDate)}`);
+    const due = dueSummary(item.nextDate);
+    if (due) parts.push(due);
+  }
+  return `<button class="management-history-summary" data-management-history-open="${esc(item.id)}" type="button">${esc(parts.join(" · "))}</button>`;
 }
 
 function decorateItem(itemEl, item) {
   const latest = rowsFor(item.id).at(-1) || null;
-  const signature = JSON.stringify([latest?.id || "", latest?.completedDate || "", latest?.completedTime || ""]);
+  const signature = JSON.stringify([latest?.id || "", latest?.completedDate || "", latest?.completedTime || "", item.nextDate || "", normalizeRepeat(item.repeat)]);
   if (itemEl.dataset.managementHistorySignature === signature && itemEl.querySelector(".management-history-summary")) return;
   itemEl.querySelectorAll(".management-history-summary").forEach((node) => node.remove());
   itemEl.insertAdjacentHTML("beforeend", summaryMarkup(item));
