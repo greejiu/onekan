@@ -8,6 +8,7 @@ import "./management-items.js?v=2";
 import "./management-item-drag-fix.js?v=2";
 import "./management-item-schedule.js?v=2";
 import "./management-home.js?v=2";
+import "./management-history.js?v=1";
 import "./habit-area-check-colors.js?v=1";
 import "./habit-start-date-fix.js?v=3";
 import "./habit-period-direct-save.js?v=1";
