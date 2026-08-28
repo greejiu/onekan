@@ -1315,7 +1315,7 @@ function wireControlsV2(){
     }
     if(!g.validTarget)return;
     const dateChanged=(g.nextDate||"")!==(g.date||"");
-    const directPlanningMove=Boolean(g.planToken&&g.start===null&&(g.kind==="task"||g.kind==="habit")&&!dateChanged&&(g.dropType==="time-block"||g.dropType==="time-block-unassigned"));
+    const directPlanningMove=Boolean(g.planToken&&g.start===null&&(g.kind==="task"||g.kind==="habit")&&!recurringDragItem(g.kind,g.id)&&!dateChanged&&(g.dropType==="time-block"||g.dropType==="time-block-unassigned"));
     if(directPlanningMove){
       if(g.dropType==="time-block-unassigned"){await write(next=>clearTimeBlockAssignment(next,g.date,g.planToken));return}
       if(g.nextBlockId){await write(next=>placeTimeBlockOccurrence(next,g.date,g.planToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));return}

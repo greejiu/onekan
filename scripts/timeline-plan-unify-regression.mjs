@@ -30,6 +30,7 @@ assert.match(m,/press\.element\.closest\("\.uw-drag-ready,\.uw-dragging"\)/,'mob
 assert.match(u,/if\(g\.dropType==="time"\)await saveTimedChange\([^;]+g\.planDate,g\.planToken,scope\)/,'projected plans must move into exact timeline time through the normal save path');
 assert.match(u,/clearMovedPlan\(current,planDate,planToken\)/,'moving a projected plan must clear its old time-block assignment atomically');
 assert.match(u,/const scope=await dragMoveScope\(g\.kind,g\.id,g\.occurrenceSource,g\.date\)/,'every completed item drag must resolve recurrence scope before saving');
+assert.match(u,/const directPlanningMove=Boolean\([^;]+!recurringDragItem\(g\.kind,g\.id\)[^;]+\)/,'recurring tasks and habits inside time blocks must not bypass the scope question');
 assert.match(u,/return await askTaskScope\(task,sourceDate\)/,'a recurring task drag must always ask for occurrence or series scope');
 assert.match(u,/return await askEventScope\("change",event,sourceDate\)/,'a recurring event drag must always ask for occurrence or series scope');
 assert.match(u,/return await askHabitScope\("change",habit,sourceDate\)/,'a habit drag must always ask for occurrence or series scope');
@@ -54,7 +55,7 @@ assert.match(c,/\.uw-time-block-plan-item \.uw-item-title\{font-size:11px\}/,'pr
 assert.match(c,/\.uw-time-block-v2-list \.uw-time-block-v2-item\{min-height:28px;padding:4px 6px\}/,'time-block list cards must stay compact');
 assert.doesNotMatch(c,/\.uw-time-block-v2-item\.fixed-anchor[^\{]*\{grid-column:1\/-1\}/,'timed cards must use the same two-column grid as all-day cards');
 assert.match(c,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-time-block-v2-item\.plan-draggable\{min-height:36px/,'touch cards must stay compact while preserving a usable hit area');
-assert.match(i,/unified-workspace\.js\?v=59/);
+assert.match(i,/unified-workspace\.js\?v=60/);
 assert.match(i,/workspace-pages\.js\?v=12/);
 assert.match(i,/context-menu\.js\?v=22/);
 assert.match(i,/unified-workspace\.css\?v=44/);
