@@ -10,9 +10,12 @@ if (!window.__onekanHabitStartDateFixInstalled) {
   let refreshTimer = null;
   let renderTimer = null;
   let pendingPeriodEdit = null;
+  let pendingPeriodCommit = null;
+  let pendingNewHabitPeriod = null;
+  let commitRunning = false;
 
   const style = document.createElement("style");
-  style.dataset.onekanHabitStartDateFix = "1";
+  style.dataset.onekanHabitStartDateFix = "2";
   style.textContent = `
     .uw-habit-day-check.habit-range-inactive {
       border-color: var(--line, #ddd) !important;
@@ -35,21 +38,28 @@ if (!window.__onekanHabitStartDateFixInstalled) {
     return true;
   }
 
+  async function loadCloudState() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return null;
+    const { data, error } = await supabase
+      .from("onekan_state")
+      .select("data")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (error) throw error;
+    const cloud = data?.data && typeof data.data === "object" ? data.data : {};
+    cloud.habitTemplates = Array.isArray(cloud.habitTemplates) ? cloud.habitTemplates : [];
+    return { user: session.user, cloud };
+  }
+
   async function refreshState() {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      const loaded = await loadCloudState();
+      if (!loaded) {
         habitsById = new Map();
         return;
       }
-      const { data, error } = await supabase
-        .from("onekan_state")
-        .select("data")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (error) throw error;
-      const habits = Array.isArray(data?.data?.habitTemplates) ? data.data.habitTemplates : [];
-      habitsById = new Map(habits.map((habit) => [habit.id, habit]));
+      habitsById = new Map(loaded.cloud.habitTemplates.map((habit) => [habit.id, habit]));
       scheduleEnforce(0);
     } catch (error) {
       console.error("habit period refresh failed", error);
@@ -94,10 +104,23 @@ if (!window.__onekanHabitStartDateFixInstalled) {
     renderTimer = setTimeout(enforceHabitRanges, delay);
   }
 
+  function inlineHabitPeriod(form) {
+    const item = form?.closest?.(".uw-item[data-uw-kind='habit'][data-id]");
+    if (!item) return null;
+    return {
+      form,
+      habitId: item.dataset.id,
+      startDate: $(".uw-habit-start-date", form)?.value || "",
+      endDate: $(".uw-habit-end-date", form)?.value || "",
+      at: Date.now(),
+    };
+  }
+
   function markPeriodEdit(input) {
     const form = input.closest(".uw-inline-form");
-    if (!form) return;
-    pendingPeriodEdit = { form, at: Date.now() };
+    const period = inlineHabitPeriod(form);
+    if (!period) return;
+    pendingPeriodEdit = period;
   }
 
   function resolvePeriodScopeIfNeeded() {
@@ -109,15 +132,68 @@ if (!window.__onekanHabitStartDateFixInstalled) {
     }
 
     const message = $("#uwHabitScopeMessage", dialog);
-    if (message && !message.dataset.periodNotice) {
-      message.dataset.periodNotice = "1";
+    if (message) {
       message.textContent = "습관 시작일·종료일은 전체 습관에 적용돼요.";
     }
 
     const allButton = dialog.querySelector('[data-uw-habit-scope="all"]');
     if (!allButton) return;
-    pendingPeriodEdit = null;
     requestAnimationFrame(() => allButton.click());
+  }
+
+  async function persistPendingPeriods() {
+    if (commitRunning || (!pendingPeriodCommit && !pendingNewHabitPeriod)) return;
+    commitRunning = true;
+    const editCommit = pendingPeriodCommit;
+    const newCommit = pendingNewHabitPeriod;
+    pendingPeriodCommit = null;
+    pendingNewHabitPeriod = null;
+
+    try {
+      const loaded = await loadCloudState();
+      if (!loaded) return;
+      let changed = false;
+
+      if (editCommit) {
+        const habit = loaded.cloud.habitTemplates.find((item) => item.id === editCommit.habitId);
+        if (habit) {
+          if (editCommit.startDate) habit.startDate = editCommit.startDate;
+          else delete habit.startDate;
+          if (editCommit.endDate) habit.endDate = editCommit.endDate;
+          else delete habit.endDate;
+          if (habit.recurrence && editCommit.startDate) habit.recurrence.anchorDate = editCommit.startDate;
+          changed = true;
+        }
+      }
+
+      if (newCommit) {
+        const created = loaded.cloud.habitTemplates
+          .filter((habit) => !newCommit.beforeIds.has(habit.id))
+          .at(-1);
+        if (created) {
+          created.startDate = newCommit.startDate;
+          if (newCommit.endDate) created.endDate = newCommit.endDate;
+          else delete created.endDate;
+          if (created.recurrence) created.recurrence.anchorDate = newCommit.startDate;
+          changed = true;
+        }
+      }
+
+      if (!changed) return;
+      const { error } = await supabase
+        .from("onekan_state")
+        .upsert({ user_id: loaded.user.id, data: loaded.cloud }, { onConflict: "user_id" });
+      if (error) throw error;
+
+      habitsById = new Map(loaded.cloud.habitTemplates.map((habit) => [habit.id, habit]));
+      document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "habit-period-fix" } }));
+      $("#reloadCloudBtn")?.click();
+      scheduleEnforce(120);
+    } catch (error) {
+      console.error("habit period persist failed", error);
+    } finally {
+      commitRunning = false;
+    }
   }
 
   document.addEventListener("input", (event) => {
@@ -128,7 +204,36 @@ if (!window.__onekanHabitStartDateFixInstalled) {
     if (event.target.matches?.(".uw-habit-start-date,.uw-habit-end-date")) markPeriodEdit(event.target);
   }, true);
 
-  document.addEventListener("onekan:state-changed", () => scheduleRefresh(100));
+  document.addEventListener("submit", (event) => {
+    const form = event.target;
+    if (form?.matches?.(".uw-inline-form")) {
+      const period = inlineHabitPeriod(form);
+      const old = period ? habitsById.get(period.habitId) : null;
+      if (period && old && (period.startDate !== (old.startDate || "") || period.endDate !== (old.endDate || ""))) {
+        pendingPeriodEdit = period;
+        pendingPeriodCommit = { habitId: period.habitId, startDate: period.startDate, endDate: period.endDate, at: Date.now() };
+      }
+      return;
+    }
+
+    if (form?.id === "habitPageForm") {
+      const startDate = $("#habitPageStartDate")?.value || "";
+      if (!startDate) return;
+      pendingNewHabitPeriod = {
+        startDate,
+        endDate: $("#habitPageEndDate")?.value || "",
+        beforeIds: new Set(habitsById.keys()),
+        at: Date.now(),
+      };
+    }
+  }, true);
+
+  document.addEventListener("onekan:state-changed", (event) => {
+    scheduleRefresh(100);
+    if (event.detail?.source === "unified" && (pendingPeriodCommit || pendingNewHabitPeriod)) {
+      setTimeout(persistPendingPeriods, 160);
+    }
+  });
   supabase.auth.onAuthStateChange(() => scheduleRefresh(120));
 
   const observer = new MutationObserver(() => {
