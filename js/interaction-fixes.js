@@ -4,6 +4,7 @@ import "./notes-board-view.js?v=3";
 import "./notes-interactions-v2.js?v=2";
 import "./notes-section-controls.js?v=1";
 import "./management.js?v=2";
+import "./management-section-context.js?v=1";
 import "./management-items.js?v=3";
 import "./management-item-drag-fix.js?v=3";
 import "./management-item-schedule.js?v=2";
