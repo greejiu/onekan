@@ -1,0 +1,53 @@
+name: Patch habit drag scope behavior
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-habit-drag-scope.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Always ask scope when dragging habits
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('js/unified-workspace.js')
+          text = path.read_text()
+
+          replacements = {
+              'return habitOverride(state,sourceDate,id)?"day":await askHabitScope("change",habit,sourceDate)':
+              'return await askHabitScope("change",habit,sourceDate)',
+              'scope=forcedScope||(habitOverride(state,sourceDate,id)?"day":await askHabitScope("change",habit,sourceDate));':
+              'scope=forcedScope||await askHabitScope("change",habit,sourceDate);',
+          }
+
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count == 0:
+                  raise SystemExit(f'Expected drag scope pattern not found: {old}')
+              text = text.replace(old, new)
+              print(f'Replaced {count} occurrence(s): {old[:60]}...')
+
+          path.write_text(text)
+          PY
+      - name: Commit patch
+        run: |
+          if git diff --quiet -- js/unified-workspace.js; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/unified-workspace.js
+          git commit -m "fix: always ask scope when dragging habits"
+          git push origin main
