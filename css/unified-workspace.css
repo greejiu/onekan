@@ -398,3 +398,11 @@
 .uw-time-block-v2-list.uw-time-block-drop-bottom::after{content:"";display:block;height:2px;margin:3px 5px 1px;border-radius:99px;background:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 12%,transparent);pointer-events:none}
 .uw-time-block-v2-list[data-uw-time-block-unassigned].uw-drop-target{outline:2px solid var(--accent)!important;outline-offset:-2px;border-radius:7px;background:color-mix(in srgb,var(--accent) 7%,transparent)!important}
 @media(hover:none),(pointer:coarse){.uw-time-block-v2-item.plan-draggable{min-height:42px;cursor:default}.uw-time-block-v2-item.uw-time-block-drop-before::before{top:-5px}.uw-time-block-v2-item.uw-time-block-drop-after::after{bottom:-5px}}
+
+
+/* Home list + timeline shared drag gesture */
+.uw-timeline .uw-time-entry.uw-item{cursor:grab;user-select:none}
+.uw-timeline .uw-time-entry.uw-item.uw-dragging,.uw-timeline .uw-time-entry.uw-item.uw-drag-ready{cursor:grabbing}
+.uw-timeline .uw-time-entry.uw-item .uw-move-handle{display:none!important}
+.uw-timeline .uw-time-entry.uw-item button{cursor:pointer}
+@media(hover:none),(pointer:coarse){.uw-timeline .uw-time-entry.uw-item{cursor:default}}
