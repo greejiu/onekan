@@ -1,0 +1,46 @@
+name: Finalize time block V2 stage 2
+
+on:
+  push:
+    paths:
+      - 'scripts/finalize-time-block-v2-stage2.py'
+      - '.github/workflows/finalize-time-block-v2-stage2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Apply safety patch
+        run: python scripts/finalize-time-block-v2-stage2.py
+      - name: Check JavaScript
+        run: node --check js/unified-workspace.js
+      - name: Verify V2 list drag handle is absent
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('js/unified-workspace.js').read_text(encoding='utf-8')
+          start = text.index('function timeBlockV2ItemMarkup')
+          end = text.index('function timeBlockV2ManualGroup', start)
+          block = text[start:end]
+          assert 'uw-move-handle' not in block
+          assert 'data-uw-time-block-picker' in text
+          print('time block V2 stage 2 safety regression: ok')
+          PY
+      - name: Commit safety patch
+        run: |
+          if git diff --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/unified-workspace.js index.html
+          git commit -m "Disable legacy drag handle in time block V2 list"
+          git push
