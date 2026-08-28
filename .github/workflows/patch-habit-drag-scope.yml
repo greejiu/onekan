@@ -1,4 +1,4 @@
-name: Patch habit drag scope behavior
+name: Finalize habit drag scope patch
 
 on:
   push:
@@ -10,44 +10,31 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  finalize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Always ask scope when dragging habits
+      - name: Bump workspace cache version and remove patch workflow
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          path = Path('js/unified-workspace.js')
+          path = Path('index.html')
           text = path.read_text()
-
-          replacements = {
-              'return habitOverride(state,sourceDate,id)?"day":await askHabitScope("change",habit,sourceDate)':
-              'return await askHabitScope("change",habit,sourceDate)',
-              'scope=forcedScope||(habitOverride(state,sourceDate,id)?"day":await askHabitScope("change",habit,sourceDate));':
-              'scope=forcedScope||await askHabitScope("change",habit,sourceDate);',
-          }
-
-          for old, new in replacements.items():
-              count = text.count(old)
-              if count == 0:
-                  raise SystemExit(f'Expected drag scope pattern not found: {old}')
+          old = './js/unified-workspace.js?v=57'
+          new = './js/unified-workspace.js?v=58'
+          if old not in text and new not in text:
+              raise SystemExit('Unified workspace script tag not found')
+          if old in text:
               text = text.replace(old, new)
-              print(f'Replaced {count} occurrence(s): {old[:60]}...')
-
-          path.write_text(text)
+              path.write_text(text)
           PY
-      - name: Commit patch
+          git rm .github/workflows/patch-habit-drag-scope.yml
+      - name: Commit cleanup
         run: |
-          if git diff --quiet -- js/unified-workspace.js; then
-            echo "No changes needed"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/unified-workspace.js
-          git commit -m "fix: always ask scope when dragging habits"
+          git add index.html
+          git commit -m "fix: refresh habit drag scope behavior"
           git push origin main
