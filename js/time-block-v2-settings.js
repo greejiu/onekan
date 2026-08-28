@@ -12,6 +12,7 @@ const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const pad = (value) => String(value).padStart(2, "0");
 let renderTimer = null;
 let saving = false;
+let initialized = false;
 
 function localDateKey(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -217,6 +218,8 @@ function injectStyles() {
 }
 
 async function init() {
+  if (initialized) return;
+  initialized = true;
   ensureSection();
   await renderSettings();
   document.addEventListener("click", (event) => {
