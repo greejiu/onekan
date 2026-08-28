@@ -1,0 +1,73 @@
+name: Fix management home isolation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-management-home-isolation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Isolate management home integration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('js/management-home.js')
+          text = path.read_text()
+
+          old_reload = '''  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management-home" } }));
+  $("#reloadCloudBtn")?.click();
+  scheduleRender(90);'''
+          new_reload = '''  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management-home" } }));
+  scheduleRender(90);'''
+          if old_reload not in text:
+              raise SystemExit('management reload block not found')
+          text = text.replace(old_reload, new_reload, 1)
+
+          old_observer = '''const observer = new MutationObserver((mutations) => {
+  if (mutations.some((mutation) => mutation.type === "childList" && !mutation.target.closest?.("[data-management-home-item]"))) scheduleRender(35);
+});
+observer.observe(document.body, { childList: true, subtree: true });'''
+          new_observer = '''const homeRoot = $("#page-home");
+          if (homeRoot) {
+            const observer = new MutationObserver((mutations) => {
+              if (mutations.some((mutation) => mutation.type === "childList" && !mutation.target.closest?.("[data-management-home-item]"))) scheduleRender(35);
+            });
+            observer.observe(homeRoot, { childList: true, subtree: true });
+          }
+          const settingsRoot = $("#page-settings");
+          if (settingsRoot) {
+            const settingsObserver = new MutationObserver(() => ensureColorSetting());
+            settingsObserver.observe(settingsRoot, { childList: true, subtree: true });
+          }'''
+          if old_observer not in text:
+              raise SystemExit('management observer block not found')
+          text = text.replace(old_observer, new_observer, 1)
+          path.write_text(text)
+          PY
+          node --check js/management-home.js
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('js/interaction-fixes.js')
+          text = path.read_text()
+          old = 'import "./management-home.js?v=1";'
+          new = 'import "./management-home.js?v=2";'
+          if old not in text:
+              raise SystemExit('management-home import not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/management-home.js js/interaction-fixes.js
+          git commit -m "fix: isolate management home rendering"
+          git push origin main
