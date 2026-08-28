@@ -826,11 +826,12 @@ document.addEventListener("contextmenu",e=>{const item=e.target.closest(".uw-ite
 
 function minuteAt(lane,clientY){const rect=lane.getBoundingClientRect();return Math.max(START,Math.min(END-SLOT,START+Math.floor((clientY-rect.top)/SLOT_H)*SLOT))}
 function dateTargetAt(x,y){return document.elementFromPoint(x,y)?.closest("[data-date],[data-task-drop-date]")}
-async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSource=date){
+function clearMovedPlan(current,planDate,planToken){if(planDate&&planToken)clearTimeBlockAssignment(current,planDate,planToken)}
+async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSource=date,planDate="",planToken=""){
   if(kind==="habit"){
     const habit=state?.habitTemplates.find(item=>item.id===id),scope=habitOverride(state,date,id)?"day":await askHabitScope("change",habit,date);
     if(!habit||!scope)return;
-    await write(current=>{const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=startMinute;override.duration=duration}else{target.startMinute=startMinute;target.duration=duration;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=startMinute;override.duration=duration}else{target.startMinute=startMinute;target.duration=duration;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
     return
   }
   if(kind==="task"){
@@ -840,6 +841,7 @@ async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSourc
       const sourceDate=occurrenceSource||date||task.date,movedDate=(date||null)!==(sourceDate||null),scope=taskOverride(state,sourceDate,id)||movedDate?"day":await askTaskScope(task,sourceDate);
       if(!scope)return;
       await write(current=>{
+        clearMovedPlan(current,planDate,planToken);
         const target=current.tasks.find(item=>item.id===id);
         if(!target)return;
         if(scope==="day"){
@@ -860,7 +862,7 @@ async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSourc
       });
       return
     }
-    await write(current=>{const target=current.tasks.find(item=>item.id===id);if(!target)return;const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);target.date=date;target.notionStart=start.toISOString();target.notionEnd=new Date(start.getTime()+duration*60000).toISOString();current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:target.title,detail:target.title,date,startMinute,duration})});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.tasks.find(item=>item.id===id);if(!target)return;const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);target.date=date;target.notionStart=start.toISOString();target.notionEnd=new Date(start.getTime()+duration*60000).toISOString();current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);current.timeBlocks.push({id:uid(),taskId:id,sourceTitle:target.title,detail:target.title,date,startMinute,duration})});
     return
   }
   const event=state?.events.find(item=>item.id===id);
@@ -868,10 +870,10 @@ async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSourc
   if(event.recurrence?.frequency){
     const sourceDate=occurrenceSource||date||key(new Date(event.start)),existing=eventOverride(state,sourceDate,id),movedDate=(date||null)!==(sourceDate||null),scope=existing||movedDate?"day":await askEventScope("change",event,sourceDate);
     if(!scope)return;
-    await write(current=>{const target=current.events.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=eventOverride(current,sourceDate,id,true);override.date=date;override.startMinute=startMinute;override.duration=duration;override.allDay=false;return}const baseDate=key(new Date(target.start)),start=new Date(`${baseDate}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.events.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=eventOverride(current,sourceDate,id,true);override.date=date;override.startMinute=startMinute;override.duration=duration;override.allDay=false;return}const baseDate=key(new Date(target.start)),start=new Date(`${baseDate}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false});
     return
   }
-  await write(current=>{const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);const target=current.events.find(item=>item.id===id);if(!target)return;target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false})
+  await write(current=>{clearMovedPlan(current,planDate,planToken);const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);const target=current.events.find(item=>item.id===id);if(!target)return;target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false})
 }
 async function saveDateMove(kind,id,date){await write(s=>{if(kind==="habit")return;if(kind==="task"){const t=s.tasks.find(x=>x.id===id);if(!t)return;t.date=date||null;delete t.notionStart;delete t.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);return}const e=s.events.find(x=>x.id===id);if(!e)return;const oldStart=new Date(e.start),oldEnd=new Date(e.end||e.start),duration=Math.max(0,oldEnd-oldStart),clock=e.allDay?"12:00:00":`${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`;const start=new Date(`${date}T${clock}`);e.start=start.toISOString();e.end=new Date(start.getTime()+duration).toISOString()})}
 function wireSideTabs(){document.addEventListener("click",event=>{const button=event.target.closest("[data-uw-side-tab]");if(!button)return;homeSideTab=button.dataset.uwSideTab;renderSideTab()})}
@@ -898,11 +900,11 @@ function wireDragClickGuard(){
   },true);
 }
 
-async function saveUntimedChange(kind,id,date,occurrenceSource=date){
+async function saveUntimedChange(kind,id,date,occurrenceSource=date,planDate="",planToken=""){
   if(kind==="habit"){
     const habit=state?.habitTemplates.find(item=>item.id===id),scope=habitOverride(state,date,id)?"day":await askHabitScope("change",habit,date);
     if(!habit||!scope)return;
-    await write(current=>{const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=null;delete override.duration}else{delete target.startMinute;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=null;delete override.duration}else{delete target.startMinute;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
     return
   }
   if(kind==="task"){
@@ -913,6 +915,7 @@ async function saveUntimedChange(kind,id,date,occurrenceSource=date){
       const movedDate=(date||null)!==(sourceDate||null),scope=existing||movedDate?"day":await askTaskScope(task,sourceDate);
       if(!scope)return;
       await write(current=>{
+        clearMovedPlan(current,planDate,planToken);
         const target=current.tasks.find(item=>item.id===id);
         if(!target)return;
         if(scope==="day"){
@@ -930,7 +933,7 @@ async function saveUntimedChange(kind,id,date,occurrenceSource=date){
       });
       return
     }
-    await write(s=>{const target=s.tasks.find(x=>x.id===id);if(!target)return;target.date=date||null;delete target.notionStart;delete target.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id)});
+    await write(s=>{clearMovedPlan(s,planDate,planToken);const target=s.tasks.find(x=>x.id===id);if(!target)return;target.date=date||null;delete target.notionStart;delete target.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id)});
     return
   }
   const event=state?.events.find(item=>item.id===id);
@@ -938,13 +941,14 @@ async function saveUntimedChange(kind,id,date,occurrenceSource=date){
   if(event.recurrence?.frequency){
     const sourceDate=occurrenceSource||date||key(new Date(event.start)),existing=eventOverride(state,sourceDate,id),movedDate=(date||null)!==(sourceDate||null),scope=existing||movedDate?"day":await askEventScope("change",event,sourceDate);
     if(!scope)return;
-    await write(current=>{const target=current.events.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=eventOverride(current,sourceDate,id,true);override.date=date;override.allDay=true;delete override.startMinute;delete override.duration;return}const baseDate=key(new Date(target.start)),noon=new Date(`${baseDate}T12:00:00`);target.start=noon.toISOString();target.end=noon.toISOString();target.allDay=true});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.events.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=eventOverride(current,sourceDate,id,true);override.date=date;override.allDay=true;delete override.startMinute;delete override.duration;return}const baseDate=key(new Date(target.start)),noon=new Date(`${baseDate}T12:00:00`);target.start=noon.toISOString();target.end=noon.toISOString();target.allDay=true});
     return
   }
-  await write(s=>{const target=s.events.find(x=>x.id===id);if(!target)return;const noon=new Date(`${date}T12:00:00`);target.start=noon.toISOString();target.end=noon.toISOString();target.allDay=true})
+  await write(s=>{clearMovedPlan(s,planDate,planToken);const target=s.events.find(x=>x.id===id);if(!target)return;const noon=new Date(`${date}T12:00:00`);target.start=noon.toISOString();target.end=noon.toISOString();target.allDay=true})
 }
-async function saveDateOnlyChange(kind,id,date,occurrenceSource=date){
+async function saveDateOnlyChange(kind,id,date,occurrenceSource=date,planDate="",planToken=""){
   await write(s=>{
+    clearMovedPlan(s,planDate,planToken);
     if(kind==="habit")return;
     if(kind==="task"){
       const task=s.tasks.find(x=>x.id===id);
@@ -1109,11 +1113,12 @@ function wireControlsV2(){
     const item=(resizeHandle||moveHandle)?.closest(".uw-item")||e.target.closest(".uw-item");
     const interactive=Boolean(e.target.closest("button,input,select,textarea,a,[contenteditable=true]"));
     const plannerRow=Boolean(item?.classList.contains("uw-time-block-v2-item")&&item.classList.contains("plan-draggable"));
+    const projectedPlannerRow=Boolean(plannerRow&&item.closest(".uw-timeline"));
     const timelineRow=Boolean(item?.classList.contains("uw-time-entry")&&item.closest(".uw-timeline")&&!item.classList.contains("uw-session-entry"));
     const sharedDragRow=!interactive&&(plannerRow||timelineRow);
     let mode=null,source=null;
     if(resizeHandle){mode="resize";source=resizeHandle}
-    else if(sharedDragRow){mode=plannerRow?"time-block-plan":"move";source=item}
+    else if(sharedDragRow){mode=plannerRow&&!projectedPlannerRow?"time-block-plan":"move";source=item}
     else if(moveHandle&&item?.classList.contains("selected")){mode="move";source=moveHandle}
     else if(!e.target.closest(".uw-item,.uw-inline-form")){
       const hit=e.target.closest(".uw-time-hit");
@@ -1157,6 +1162,11 @@ function wireControlsV2(){
       g.id=item.dataset.id;
       g.date=item.dataset.date;
       g.occurrenceSource=item.dataset.occurrenceSource||g.date;
+      g.planToken=item.dataset.timeBlockToken||"";
+      g.planDate=g.planToken?g.date:"";
+      g.currentBlockId=item.dataset.timeBlockBlockId||"";
+      g.currentAfterAnchor=item.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR;
+      g.currentOrder=Math.max(1,+item.dataset.timeBlockOrder||1);
       g.start=Number.isFinite(+item.dataset.time)?+item.dataset.time:null;
       g.duration=+item.dataset.duration||SLOT;
       g.nextDate=g.date;
@@ -1219,8 +1229,20 @@ function wireControlsV2(){
       else if(e.clientY>innerHeight-70)window.scrollBy(0,12);
       return;
     }
-    $$(".uw-drop-target").forEach(x=>x.classList.remove("uw-drop-target"));
+    clearDropIndicators();
     const pointed=document.elementFromPoint(e.clientX,e.clientY);
+    const planSurface=g.planToken&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section.unassigned");
+    if(planSurface){
+      const target=plannerDropAt(g,pointed,e.clientY);
+      g.validTarget=Boolean(target);
+      g.dropType=target?.dropType||null;
+      g.nextDate=target?.date||g.date;
+      g.nextBlockId=target?.blockId||null;
+      g.nextAfterAnchor=target?.afterAnchor||TIME_BLOCK_START_ANCHOR;
+      g.nextOrder=target?.order||1;
+      if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}
+      return;
+    }
     const lane=pointed?.closest(".uw-time-lane");
     const someday=pointed?.closest("[data-uw-someday-drop]");
     const allDay=pointed?.closest("[data-uw-all-day-drop]");
@@ -1281,9 +1303,12 @@ function wireControlsV2(){
       return;
     }
     if(!g.validTarget)return;
-    if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration,g.occurrenceSource);
-    else if(g.dropType==="all-day"||g.dropType==="someday")await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource);
-    else await saveDateOnlyChange(g.kind,g.id,g.nextDate,g.occurrenceSource);
+    if(g.dropType==="time-block-unassigned"&&g.planToken){await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));return}
+    if(g.dropType==="time-block"&&g.planToken&&g.nextBlockId){await write(next=>placeTimeBlockOccurrence(next,g.nextDate,g.planToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));return}
+    if(g.dropType==="all-day"&&g.planToken&&g.nextDate===g.planDate){await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));return}
+    if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration,g.occurrenceSource,g.planDate,g.planToken);
+    else if(g.dropType==="all-day"||g.dropType==="someday")await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken);
+    else await saveDateOnlyChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken);
   },{capture:true});
   document.addEventListener("pointercancel",()=>clear(gesture));
   document.addEventListener("contextmenu",e=>{if(gesture?.active){e.preventDefault();e.stopImmediatePropagation()}},true);
