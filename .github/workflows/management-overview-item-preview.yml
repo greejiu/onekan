@@ -88,3 +88,5 @@ jobs:
           git add js/management.js css/management.css js/interaction-fixes.js index.html
           git commit -m "feat: show management item previews in overview"
           git push origin main
+
+# trigger
