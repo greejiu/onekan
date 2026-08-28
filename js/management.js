@@ -55,7 +55,7 @@ function ensureShell() {
   if (!$("link[data-onekan-management-style]")) {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "./css/management.css?v=2";
+    link.href = "./css/management.css?v=3";
     link.dataset.onekanManagementStyle = "1";
     document.head.appendChild(link);
   }
@@ -131,7 +131,10 @@ function renderAllSections() {
   }
   root.innerHTML = `<div class="management-section-board-grid">${sections.map((section) => {
     const groupCount = managementState.managementGroups.filter((group) => group.sectionId === section.id).length;
-    const itemCount = managementState.managementItems.filter((item) => item.sectionId === section.id).length;
+    const sectionItems = managementState.managementItems.filter((item) => item.sectionId === section.id);
+    const itemCount = sectionItems.length;
+    const previewItems = sectionItems.slice(0, 5);
+    const remainingItems = Math.max(0, itemCount - previewItems.length);
     return `
       <section class="management-section-board" data-management-section-id="${esc(section.id)}">
         <div class="management-section-board-head">
@@ -139,8 +142,11 @@ function renderAllSections() {
           <button class="management-board-open" data-management-open-section="${esc(section.id)}" type="button" aria-label="${esc(section.name)} 열기">›</button>
         </div>
         <div class="management-section-board-body">
-          <span>${groupCount ? `${groupCount}개 그룹` : "그룹 없음"}</span>
-          <small>${itemCount ? `${itemCount}개 항목` : "아직 관리 항목이 없어요."}</small>
+          <div class="management-section-board-items">
+            ${previewItems.length ? previewItems.map((item) => `<span class="management-section-board-item">${esc(item.title || "이름 없는 항목")}</span>`).join("") : '<span class="management-section-board-item-empty">아직 관리 항목이 없어요.</span>'}
+            ${remainingItems ? `<small class="management-section-board-more">외 ${remainingItems}개</small>` : ""}
+          </div>
+          <small class="management-section-board-meta">${groupCount ? `${groupCount}개 그룹` : "그룹 없음"} · ${itemCount}개 항목</small>
         </div>
       </section>`;
   }).join("")}</div>`;
