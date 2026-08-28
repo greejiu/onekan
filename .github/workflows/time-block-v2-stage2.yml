@@ -1,0 +1,40 @@
+name: Time block V2 stage 2
+
+on:
+  push:
+    paths:
+      - 'scripts/patch-time-block-v2-stage2.py'
+      - 'scripts/time-block-v2-stage2.mjs'
+      - '.github/workflows/time-block-v2-stage2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  stage2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Apply stage 2 patch
+        run: python scripts/patch-time-block-v2-stage2.py
+      - name: Check JavaScript
+        run: |
+          node --check js/time-block-v2.js
+          node --check js/time-block-v2-settings.js
+          node --check js/unified-workspace.js
+      - name: Run stage 2 regression
+        run: node scripts/time-block-v2-stage2.mjs
+      - name: Commit stage 2
+        run: |
+          if git diff --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/time-block-v2.js js/time-block-v2-settings.js js/unified-workspace.js css/unified-workspace.css index.html
+          git commit -m "Implement time block V2 assignments and home list"
+          git push
