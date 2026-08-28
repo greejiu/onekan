@@ -1009,7 +1009,7 @@ function wireControlsV2(){
       g.preview.className="uw-drag-selection";
       g.lane.appendChild(g.preview);
     }
-    if(g.mode==="move"||g.mode==="time-block-plan"){
+    if(g.mode==="move"){
       window.getSelection?.()?.removeAllRanges();
       g.item.classList.add("uw-dragging");
       g.ghost=g.item.cloneNode(true);
@@ -1112,13 +1112,11 @@ function wireControlsV2(){
     const moveHandle=e.target.closest(".uw-move-handle");
     const item=(resizeHandle||moveHandle)?.closest(".uw-item")||e.target.closest(".uw-item");
     const interactive=Boolean(e.target.closest("button,input,select,textarea,a,[contenteditable=true]"));
-    const plannerRow=Boolean(item?.classList.contains("uw-time-block-v2-item")&&item.classList.contains("plan-draggable"));
-    const projectedPlannerRow=Boolean(plannerRow&&item.closest(".uw-timeline"));
-    const timelineRow=Boolean(item?.classList.contains("uw-time-entry")&&item.closest(".uw-timeline")&&!item.classList.contains("uw-session-entry"));
-    const sharedDragRow=!interactive&&(plannerRow||timelineRow);
+    const movableRow=Boolean(item?.matches(".uw-item[data-uw-kind]")&&!item.classList.contains("uw-session-entry")&&!item.closest(".uw-drag-ghost"));
+    const sharedDragRow=!interactive&&movableRow;
     let mode=null,source=null;
     if(resizeHandle){mode="resize";source=resizeHandle}
-    else if(sharedDragRow){mode=plannerRow&&!projectedPlannerRow?"time-block-plan":"move";source=item}
+    else if(sharedDragRow){mode="move";source=item}
     else if(moveHandle&&item?.classList.contains("selected")){mode="move";source=moveHandle}
     else if(!e.target.closest(".uw-item,.uw-inline-form")){
       const hit=e.target.closest(".uw-time-hit");
@@ -1147,16 +1145,6 @@ function wireControlsV2(){
       g.startDate=source.dataset.date;
       g.nextDate=g.startDate;
       g.createKind=source.dataset.uwAddKind||"event";
-    }else if(mode==="time-block-plan"){
-      g.kind=item.dataset.uwKind;
-      g.id=item.dataset.id;
-      g.date=item.dataset.date;
-      g.token=item.dataset.timeBlockToken||"";
-      g.currentBlockId=item.dataset.timeBlockBlockId||"";
-      g.currentAfterAnchor=item.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR;
-      g.currentOrder=Math.max(1,+item.dataset.timeBlockOrder||1);
-      g.dropType=null;
-      g.validTarget=false;
     }else{
       g.kind=item.dataset.uwKind;
       g.id=item.dataset.id;
@@ -1213,20 +1201,6 @@ function wireControlsV2(){
     if(g.mode==="date-create"){
       const cell=document.elementFromPoint(e.clientX,e.clientY)?.closest(".uw-month-cell");
       if(cell)updateDateRange(g,cell.dataset.date);
-      return;
-    }
-    if(g.mode==="time-block-plan"){
-      clearDropIndicators();
-      const pointed=document.elementFromPoint(e.clientX,e.clientY),target=plannerDropAt(g,pointed,e.clientY);
-      g.validTarget=Boolean(target);
-      g.dropType=target?.dropType||null;
-      g.nextDate=target?.date||g.date;
-      g.nextBlockId=target?.blockId||null;
-      g.nextAfterAnchor=target?.afterAnchor||TIME_BLOCK_START_ANCHOR;
-      g.nextOrder=target?.order||1;
-      if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}
-      if(e.clientY<70)window.scrollBy(0,-12);
-      else if(e.clientY>innerHeight-70)window.scrollBy(0,12);
       return;
     }
     clearDropIndicators();
@@ -1294,12 +1268,6 @@ function wireControlsV2(){
       const first=g.nextDate<g.startDate?g.nextDate:g.startDate;
       const last=g.nextDate<g.startDate?g.startDate:g.nextDate;
       openInline($(`.uw-month-cell[data-date="${first}"]`),{kind:g.createKind||"event",date:first,endDate:last});
-      return;
-    }
-    if(g.mode==="time-block-plan"){
-      if(!g.validTarget||!g.token)return;
-      if(g.dropType==="time-block-unassigned")await write(next=>clearTimeBlockAssignment(next,g.date,g.token));
-      else if(g.dropType==="time-block"&&g.nextBlockId)await write(next=>placeTimeBlockOccurrence(next,g.date,g.token,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));
       return;
     }
     if(!g.validTarget)return;
