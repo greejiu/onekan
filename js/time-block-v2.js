@@ -234,6 +234,46 @@ export function assignTimeBlockOccurrence(state, dateKey, token, blockId, afterA
   });
 }
 
+
+export function placeTimeBlockOccurrence(state, dateKey, token, blockId, afterAnchor = TIME_BLOCK_START_ANCHOR, order = Number.MAX_SAFE_INTEGER) {
+  if (!state || !validDateKey(dateKey) || !token || !blockId) return false;
+  ensureTimeBlockV2State(state);
+  state.timeBlockAssignments[dateKey] ||= {};
+  const map = state.timeBlockAssignments[dateKey];
+  const before = JSON.stringify(map);
+  const targetBlockId = String(blockId);
+  const targetAnchor = String(afterAnchor || TIME_BLOCK_START_ANCHOR);
+  const previous = cleanAssignment(map[token]);
+
+  const bucketTokens = (wantedBlockId, wantedAnchor, excludeToken = "") => Object.entries(map)
+    .map(([otherToken, value]) => [otherToken, cleanAssignment(value)])
+    .filter(([otherToken, value]) => otherToken !== excludeToken && value && value.blockId === String(wantedBlockId) && value.afterAnchor === String(wantedAnchor || TIME_BLOCK_START_ANCHOR))
+    .sort((a, b) => a[1].order - b[1].order || String(a[0]).localeCompare(String(b[0])))
+    .map(([otherToken]) => otherToken);
+
+  const writeBucket = (tokens, wantedBlockId, wantedAnchor) => {
+    tokens.forEach((otherToken, index) => {
+      map[otherToken] = {
+        blockId: String(wantedBlockId),
+        afterAnchor: String(wantedAnchor || TIME_BLOCK_START_ANCHOR),
+        order: index + 1,
+      };
+    });
+  };
+
+  delete map[token];
+  if (previous) {
+    writeBucket(bucketTokens(previous.blockId, previous.afterAnchor), previous.blockId, previous.afterAnchor);
+  }
+
+  const targetTokens = bucketTokens(targetBlockId, targetAnchor, token);
+  const requested = Number.isFinite(Number(order)) ? Math.floor(Number(order)) : targetTokens.length + 1;
+  const insertAt = Math.max(0, Math.min(targetTokens.length, requested - 1));
+  targetTokens.splice(insertAt, 0, token);
+  writeBucket(targetTokens, targetBlockId, targetAnchor);
+  return before !== JSON.stringify(map);
+}
+
 export function clearTimeBlockAssignment(state, dateKey, token) {
   if (!state || !validDateKey(dateKey) || !token || !state.timeBlockAssignments?.[dateKey]?.[token]) return false;
   delete state.timeBlockAssignments[dateKey][token];

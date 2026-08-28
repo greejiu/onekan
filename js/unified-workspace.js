@@ -3,6 +3,7 @@ import { confirmAction, showToast } from "./ui-feedback.js";
 import {
   TIME_BLOCK_START_ANCHOR,
   assignTimeBlockOccurrence,
+  placeTimeBlockOccurrence,
   buildTimeBlockTimelinePlanRows,
   clearTimeBlockAssignment,
   clearTimeBlockAssignmentsForBlock,
@@ -17,7 +18,7 @@ import {
   timeBlockOccurrenceToken,
   timeBlockTemplatesForDate,
   validateTimeBlockTemplates,
-} from "./time-block-v2.js?v=3";
+} from "./time-block-v2.js?v=4";
 
 const $=(s,r=document)=>r.querySelector(s);const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const pad=n=>String(n).padStart(2,"0");const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
@@ -283,14 +284,9 @@ function timeBlockV2MinuteText(minute){const value=Math.max(0,Math.min(1439,Numb
 function timeBlockV2TemplateForMinute(templates,minute){return templates.find(template=>Number(minute)>=Number(template.startMinute)&&Number(minute)<Number(template.endMinute))||null}
 function timeBlockV2Assignable(entry){return!entry.timed&&(entry.kind==="task"||entry.kind==="habit")}
 function timeBlockV2EntryToken(entry,k){return timeBlockOccurrenceToken(entry.kind,entry.item,k)}
-function timeBlockV2PickerMarkup(entry,k,templates,assignment){
-  if(!timeBlockV2Assignable(entry))return"";
-  const token=timeBlockV2EntryToken(entry,k),selected=assignment?.blockId||"";
-  return`<select class="uw-time-block-picker" data-uw-time-block-picker data-date="${k}" data-token="${esc(token)}" aria-label="타임블럭 선택"><option value=""${selected?"":" selected"}>하루종일</option>${templates.map(template=>`<option value="${esc(template.id)}"${selected===template.id?" selected":""}>${timeBlockV2MinuteText(template.startMinute)}–${timeBlockV2MinuteText(template.endMinute)}${template.title?` · ${esc(template.title)}`:""}</option>`).join("")}</select>`
-}
 function timeBlockV2ItemMarkup(entry,k,templates,assignment=null){
-  const kind=entry.kind,item=entry.item,done=itemDoneOn(kind,item,k),repeat=recurrenceLabel(item),occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"",time=entry.timed?timeBlockV2MinuteText(entry.time):"",picker=timeBlockV2PickerMarkup(entry,k,templates,assignment);
-  return`<div class="uw-item uw-${kind} uw-time-block-v2-item${entry.timed?" timed":" untimed"}${done?" done":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}${picker}<button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
+  const kind=entry.kind,item=entry.item,done=itemDoneOn(kind,item,k),repeat=recurrenceLabel(item),occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"",time=entry.timed?timeBlockV2MinuteText(entry.time):"",token=timeBlockV2EntryToken(entry,k),assignable=timeBlockV2Assignable(entry),planningClass=entry.timed?" fixed-anchor":assignable?" plan-draggable":"",planningAttrs=entry.timed?` data-time-block-anchor="${esc(token)}"`:assignable?` data-time-block-token="${esc(token)}"${assignment?` data-time-block-block-id="${esc(assignment.blockId)}" data-time-block-after-anchor="${esc(assignment.afterAnchor||TIME_BLOCK_START_ANCHOR)}" data-time-block-order="${Math.max(1,Number(assignment.order)||1)}"`:""}`:"",dragHandle=assignable?`<button class="uw-time-block-drag-handle" data-uw-time-block-drag data-token="${esc(token)}" type="button" aria-label="타임블럭 안에서 순서 이동" title="끌어서 순서 이동">⠿</button>`:"";
+  return`<div class="uw-item uw-${kind} uw-time-block-v2-item${entry.timed?" timed":" untimed"}${planningClass}${done?" done":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${planningAttrs} draggable="false">${dragHandle}${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
 }
 function timeBlockV2ManualGroup(entries,k,templates,assignments,anchor){
   return entries.filter(entry=>{const token=timeBlockV2EntryToken(entry,k),assignment=assignments[token];return(assignment?.afterAnchor||TIME_BLOCK_START_ANCHOR)===anchor}).sort((a,b)=>{const at=timeBlockV2EntryToken(a,k),bt=timeBlockV2EntryToken(b,k),aa=assignments[at],ba=assignments[bt];return(Number(aa?.order)||1)-(Number(ba?.order)||1)||at.localeCompare(bt)}).map(entry=>timeBlockV2ItemMarkup(entry,k,templates,assignments[timeBlockV2EntryToken(entry,k)])).join("")
@@ -298,7 +294,7 @@ function timeBlockV2ManualGroup(entries,k,templates,assignments,anchor){
 function timeBlockV2BlockContents(block,timed,manual,k,templates,assignments){
   const sorted=[...timed].sort((a,b)=>Number(a.time)-Number(b.time)||String(a.item.createdAt||a.item.id).localeCompare(String(b.item.createdAt||b.item.id))),anchors=new Set(sorted.map(entry=>timeBlockV2EntryToken(entry,k)));
   const normalizedManual=manual.map(entry=>{const token=timeBlockV2EntryToken(entry,k),assignment=assignments[token];if(assignment&&assignment.afterAnchor!==TIME_BLOCK_START_ANCHOR&&!anchors.has(assignment.afterAnchor))return{...entry,_timeBlockFallback:true};return entry});
-  const manualFor=(anchor)=>normalizedManual.filter(entry=>{const token=timeBlockV2EntryToken(entry,k),assignment=assignments[token];const resolved=entry._timeBlockFallback?TIME_BLOCK_START_ANCHOR:(assignment?.afterAnchor||TIME_BLOCK_START_ANCHOR);return resolved===anchor}).sort((a,b)=>{const at=timeBlockV2EntryToken(a,k),bt=timeBlockV2EntryToken(b,k),aa=assignments[at],ba=assignments[bt];return(Number(aa?.order)||1)-(Number(ba?.order)||1)||at.localeCompare(bt)}).map(entry=>timeBlockV2ItemMarkup(entry,k,templates,assignments[timeBlockV2EntryToken(entry,k)])).join("");
+  const manualFor=(anchor)=>normalizedManual.filter(entry=>{const token=timeBlockV2EntryToken(entry,k),assignment=assignments[token];const resolved=entry._timeBlockFallback?TIME_BLOCK_START_ANCHOR:(assignment?.afterAnchor||TIME_BLOCK_START_ANCHOR);return resolved===anchor}).sort((a,b)=>{const at=timeBlockV2EntryToken(a,k),bt=timeBlockV2EntryToken(b,k),aa=assignments[at],ba=assignments[bt];return(Number(aa?.order)||1)-(Number(ba?.order)||1)||at.localeCompare(bt)}).map(entry=>{const token=timeBlockV2EntryToken(entry,k),raw=assignments[token],resolvedAnchor=entry._timeBlockFallback?TIME_BLOCK_START_ANCHOR:(raw?.afterAnchor||TIME_BLOCK_START_ANCHOR),viewAssignment=raw?{...raw,afterAnchor:resolvedAnchor}:raw;return timeBlockV2ItemMarkup(entry,k,templates,viewAssignment)}).join("");
   let html="",index=0;
   if(sorted.length&&Number(sorted[0].time)===Number(block.startMinute)){
     const leading=[];while(index<sorted.length&&Number(sorted[index].time)===Number(block.startMinute)){leading.push(sorted[index]);index+=1}
@@ -558,8 +554,8 @@ function plannerListDay(d){
   const outsideTimedMarkup=outsideTimedSorted.map(entry=>timeBlockV2ItemMarkup(entry,k,templates)).join("");
   const hiddenMarkup=hiddenTemplates.length?`<div class="uw-time-block-hidden-list">${hiddenTemplates.map(template=>`<div class="uw-time-block-hidden-row"><span>숨긴 블럭 · ${timeBlockV2MinuteText(template.startMinute)}–${timeBlockV2MinuteText(template.endMinute)}${template.title?` · ${esc(template.title)}`:""}</span><button type="button" data-uw-time-block-restore data-date="${k}" data-block-id="${esc(template.id)}">복원</button></div>`).join("")}</div>`:"";
   const outsideSection=outsideTimedSorted.length?`<section class="uw-time-block-v2-section outside-time"><div class="uw-time-block-v2-head"><strong>블럭 밖 시간</strong></div><div class="uw-list uw-time-block-v2-list">${outsideTimedMarkup}</div></section>`:"";
-  const sections=templates.map(template=>{const bucket=blockMap.get(template.id),dayOnly=Boolean(template._dateCreated);return`<section class="uw-time-block-v2-section" data-time-block-id="${esc(template.id)}"><div class="uw-time-block-v2-head"><div class="uw-time-block-v2-title"><strong>${timeBlockV2MinuteText(template.startMinute)}–${timeBlockV2MinuteText(template.endMinute)}</strong>${template.title?`<span>${esc(template.title)}</span>`:""}${dayOnly?`<span class="uw-time-block-v2-today-badge">오늘만</span>`:""}</div><button class="uw-time-block-v2-menu-button" type="button" data-uw-time-block-menu data-date="${k}" data-block-id="${esc(template.id)}" data-created="${dayOnly}" aria-label="타임블럭 메뉴">⋯</button></div><div class="uw-list uw-time-block-v2-list">${timeBlockV2BlockContents(template,bucket?.timed||[],bucket?.manual||[],k,templates,assignments)}</div></section>`}).join("");
-  return`<section class="uw-day uw-list-day uw-time-block-v2-day${k===todayKey()?" uw-today":""}" data-date="${k}">${head}<section class="uw-time-block-v2-section unassigned"><div class="uw-time-block-v2-head"><strong>하루종일</strong><button class="uw-time-block-day-add" type="button" data-uw-time-block-add data-date="${k}">＋ 이 날 블럭</button></div><div class="uw-list uw-time-block-v2-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${allDayMarkup}</div>${hiddenMarkup}</section>${outsideSection}${sections}</section>`
+  const sections=templates.map(template=>{const bucket=blockMap.get(template.id),dayOnly=Boolean(template._dateCreated);return`<section class="uw-time-block-v2-section" data-time-block-id="${esc(template.id)}"><div class="uw-time-block-v2-head"><div class="uw-time-block-v2-title"><strong>${timeBlockV2MinuteText(template.startMinute)}–${timeBlockV2MinuteText(template.endMinute)}</strong>${template.title?`<span>${esc(template.title)}</span>`:""}${dayOnly?`<span class="uw-time-block-v2-today-badge">오늘만</span>`:""}</div><button class="uw-time-block-v2-menu-button" type="button" data-uw-time-block-menu data-date="${k}" data-block-id="${esc(template.id)}" data-created="${dayOnly}" aria-label="타임블럭 메뉴">⋯</button></div><div class="uw-list uw-time-block-v2-list" data-uw-time-block-drop-list data-date="${k}" data-time-block-id="${esc(template.id)}">${timeBlockV2BlockContents(template,bucket?.timed||[],bucket?.manual||[],k,templates,assignments)}</div></section>`}).join("");
+  return`<section class="uw-day uw-list-day uw-time-block-v2-day${k===todayKey()?" uw-today":""}" data-date="${k}">${head}<section class="uw-time-block-v2-section unassigned"><div class="uw-time-block-v2-head"><strong>하루종일</strong><button class="uw-time-block-day-add" type="button" data-uw-time-block-add data-date="${k}">＋ 이 날 블럭</button></div><div class="uw-list uw-time-block-v2-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}" data-uw-time-block-unassigned>${allDayMarkup}</div>${hiddenMarkup}</section>${outsideSection}${sections}</section>`
 }
 function timeBlockV2TimelinePlan(entries,k,templates,assignments){
   const entryByToken=new Map(),occurrences=[];
@@ -817,11 +813,11 @@ async function action(name,records=[...selected.values()]){
 
 function setSomedayOpen(open){homeSideTab=open?"someday":"upcoming";renderSideTab()}
 
-function wireClicks(){installActionUI();wireHabitScopeDialog();wireTimeBlockDayDialog();document.addEventListener("click",async e=>{if(Date.now()<suppressItemClickUntil){e.preventDefault();e.stopImmediatePropagation();return}if(e.target.closest("[data-uw-time-block-picker]"))return;const timeBlockAdd=e.target.closest("[data-uw-time-block-add]"),timeBlockMenuButton=e.target.closest("[data-uw-time-block-menu]"),timeBlockAction=e.target.closest("[data-uw-time-block-action]"),timeBlockRestore=e.target.closest("[data-uw-time-block-restore]");if(timeBlockAdd){e.preventDefault();e.stopImmediatePropagation();openTimeBlockDayDialog(timeBlockAdd.dataset.date);return}if(timeBlockMenuButton){e.preventDefault();e.stopImmediatePropagation();const menu=$("#uwContext"),date=timeBlockMenuButton.dataset.date,id=timeBlockMenuButton.dataset.blockId,dayOnly=timeBlockMenuButton.dataset.created==="true";menu.dataset.timeBlockDate=date;menu.dataset.timeBlockId=id;menu.dataset.timeBlockCreated=String(dayOnly);menu.innerHTML=dayOnly?'<button data-uw-time-block-action="day-edit">수정</button><button class="danger" data-uw-time-block-action="day-delete">삭제</button><button data-uw-time-block-action="empty">비우기</button>':'<button data-uw-time-block-action="day-edit">오늘만 수정</button><button data-uw-time-block-action="base-edit">기본 블럭 수정</button><button data-uw-time-block-action="day-hide">오늘만 숨기기</button><button class="danger" data-uw-time-block-action="base-delete">기본 블럭 삭제</button><button data-uw-time-block-action="empty">비우기</button>';const rect=timeBlockMenuButton.getBoundingClientRect(),menuHeight=dayOnly?132:220;menu.style.right="auto";menu.style.bottom="auto";menu.style.left=`${Math.max(8,Math.min(innerWidth-188,rect.right-180))}px`;menu.style.top=`${Math.max(8,Math.min(innerHeight-menuHeight-8,rect.bottom+6))}px`;menu.classList.add("open");return}if(timeBlockAction){e.preventDefault();e.stopImmediatePropagation();const menu=$("#uwContext"),date=menu.dataset.timeBlockDate,id=menu.dataset.timeBlockId,actionName=timeBlockAction.dataset.uwTimeBlockAction;menu.classList.remove("open");if(!date||!id)return;if(actionName==="day-edit"){const block=effectiveTimeBlockTemplatesForDate(state,date).find(item=>item.id===id);if(block)openTimeBlockDayDialog(date,block,"day");return}if(actionName==="base-edit"){const block=timeBlockTemplatesForDate(state,date).find(item=>item.id===id);if(block)openTimeBlockDayDialog(date,block,"base");return}if(actionName==="day-hide"){const block=effectiveTimeBlockTemplatesForDate(state,date).find(item=>item.id===id),override=timeBlockDateOverridesForDate(state,date)[id];if(block)await write(next=>setTimeBlockDateOverride(next,date,id,{title:block.title,startMinute:block.startMinute,endMinute:block.endMinute,created:Boolean(override?.created),hidden:true}));return}if(actionName==="base-delete"){const block=timeBlockTemplatesForDate(state,date).find(item=>item.id===id);if(!block)return;const confirmed=await confirmAction({title:"기본 타임블럭을 삭제할까요?",message:"오늘부터 앞으로 기본 블럭에서 사라져요. 과거 날짜의 블럭과 계획 기록은 그대로 유지됩니다.",confirmLabel:"기본 블럭 삭제"});if(confirmed)await write(next=>{const remaining=timeBlockTemplatesForDate(next,date).filter(item=>item.id!==id);setTimeBlockTemplatesForDate(next,remaining,date);clearTimeBlockDateOverride(next,date,id)});return}if(actionName==="day-delete"){const confirmed=await confirmAction({title:"이 날 타임블럭을 삭제할까요?",message:"이 날짜에만 만든 블럭을 삭제해요. 직접 배치한 시간 없는 할일·습관은 ‘하루종일’으로 이동합니다.",confirmLabel:"삭제"});if(confirmed)await write(next=>{clearTimeBlockAssignmentsForBlock(next,date,id);clearTimeBlockDateOverride(next,date,id)});return}if(actionName==="empty"){const block=effectiveTimeBlockTemplatesForDate(state,date).find(item=>item.id===id);if(!block)return;const confirmed=await confirmAction({title:"이 타임블럭을 비울까요?",message:"직접 배치한 시간 없는 할일·습관만 ‘하루종일’으로 이동해요. 정확한 시간이 있는 항목은 시간에 따라 계속 자동 표시됩니다.",confirmLabel:"비우기"});if(confirmed)await write(next=>clearTimeBlockAssignmentsForBlock(next,date,id));return}}if(timeBlockRestore){e.preventDefault();e.stopImmediatePropagation();const date=timeBlockRestore.dataset.date,id=timeBlockRestore.dataset.blockId,hidden=hiddenTimeBlockTemplatesForDate(state,date).find(item=>item.id===id),override=timeBlockDateOverridesForDate(state,date)[id];if(!hidden||!override)return;const candidate=[...effectiveTimeBlockTemplatesForDate(state,date),hidden],validation=validateTimeBlockTemplates(candidate);if(!validation.ok){showToast("다른 타임블럭과 시간이 겹쳐서 복원할 수 없어요.");return}await write(next=>setTimeBlockDateOverride(next,date,id,{title:hidden.title,startMinute:hidden.startMinute,endMinute:hidden.endMinute,created:Boolean(override.created),hidden:false}));return}const somedayToggle=e.target.closest("[data-uw-someday-toggle]");if(somedayToggle){setSomedayOpen(!document.body.classList.contains("uw-someday-open"));return}if(e.target.closest("[data-uw-someday-close]")){setSomedayOpen(false);return}const sessionToggle=e.target.closest("[data-uw-toggle-sessions]");if(sessionToggle){await write(current=>{current.ui||={};current.ui.showSessionsOnTimeline=current.ui.showSessionsOnTimeline===false});return}$$(".uw-all-day.open").forEach(x=>{if(!e.target.closest(".uw-all-day"))x.classList.remove("open")});const more=e.target.closest("[data-uw-all-day-more]");if(more){const panel=more.closest(".uw-all-day"),open=!panel.classList.contains("open");$$(".uw-all-day.open").forEach(x=>x.classList.remove("open"));panel.classList.toggle("open",open);more.setAttribute("aria-expanded",String(open));return}const groupButton=e.target.closest("[data-uw-group-id]");if(groupButton){const records=[...pendingGroupRecords],groupId=groupButton.dataset.uwGroupId;pendingGroupRecords=[];$("#uwContext")?.classList.remove("open");await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)x.groupId=groupId}));clearSelection();return}const tab=e.target.closest("#taskPageTabs [data-task-tab]");if(tab){e.stopImmediatePropagation();taskListTab=tab.dataset.taskTab;$('#taskPageTabs [data-task-tab]').forEach(x=>x.classList.toggle("active",x===tab));renderTasks();return}const a=e.target.closest("[data-uw-action]");if(a){await action(a.dataset.uwAction);return}const homeModeButton=e.target.closest("[data-uw-home-mode]");if(homeModeButton){homeMode=homeModeButton.dataset.uwHomeMode;renderPlanner();return}if(e.target.closest("[data-uw-home-prev]")){homeCursor=addDays(homeCursor,-homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-next]")){homeCursor=addDays(homeCursor,homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-today]")){homeCursor=fromKey(todayKey());renderPlanner();return}const cv=e.target.closest("[data-uw-cal-view]");if(cv){e.stopImmediatePropagation();calendarView=cv.dataset.uwCalView;renderCalendar();return}if(e.target.closest("[data-uw-habit-prev]")){habitCursor=addDays(habitCursor,-7);renderHabits();return}
+function wireClicks(){installActionUI();wireHabitScopeDialog();wireTimeBlockDayDialog();document.addEventListener("click",async e=>{if(Date.now()<suppressItemClickUntil){e.preventDefault();e.stopImmediatePropagation();return}if(e.target.closest("[data-uw-time-block-drag]")){e.preventDefault();e.stopImmediatePropagation();return}const timeBlockAdd=e.target.closest("[data-uw-time-block-add]"),timeBlockMenuButton=e.target.closest("[data-uw-time-block-menu]"),timeBlockAction=e.target.closest("[data-uw-time-block-action]"),timeBlockRestore=e.target.closest("[data-uw-time-block-restore]");if(timeBlockAdd){e.preventDefault();e.stopImmediatePropagation();openTimeBlockDayDialog(timeBlockAdd.dataset.date);return}if(timeBlockMenuButton){e.preventDefault();e.stopImmediatePropagation();const menu=$("#uwContext"),date=timeBlockMenuButton.dataset.date,id=timeBlockMenuButton.dataset.blockId,dayOnly=timeBlockMenuButton.dataset.created==="true";menu.dataset.timeBlockDate=date;menu.dataset.timeBlockId=id;menu.dataset.timeBlockCreated=String(dayOnly);menu.innerHTML=dayOnly?'<button data-uw-time-block-action="day-edit">수정</button><button class="danger" data-uw-time-block-action="day-delete">삭제</button><button data-uw-time-block-action="empty">비우기</button>':'<button data-uw-time-block-action="day-edit">오늘만 수정</button><button data-uw-time-block-action="base-edit">기본 블럭 수정</button><button data-uw-time-block-action="day-hide">오늘만 숨기기</button><button class="danger" data-uw-time-block-action="base-delete">기본 블럭 삭제</button><button data-uw-time-block-action="empty">비우기</button>';const rect=timeBlockMenuButton.getBoundingClientRect(),menuHeight=dayOnly?132:220;menu.style.right="auto";menu.style.bottom="auto";menu.style.left=`${Math.max(8,Math.min(innerWidth-188,rect.right-180))}px`;menu.style.top=`${Math.max(8,Math.min(innerHeight-menuHeight-8,rect.bottom+6))}px`;menu.classList.add("open");return}if(timeBlockAction){e.preventDefault();e.stopImmediatePropagation();const menu=$("#uwContext"),date=menu.dataset.timeBlockDate,id=menu.dataset.timeBlockId,actionName=timeBlockAction.dataset.uwTimeBlockAction;menu.classList.remove("open");if(!date||!id)return;if(actionName==="day-edit"){const block=effectiveTimeBlockTemplatesForDate(state,date).find(item=>item.id===id);if(block)openTimeBlockDayDialog(date,block,"day");return}if(actionName==="base-edit"){const block=timeBlockTemplatesForDate(state,date).find(item=>item.id===id);if(block)openTimeBlockDayDialog(date,block,"base");return}if(actionName==="day-hide"){const block=effectiveTimeBlockTemplatesForDate(state,date).find(item=>item.id===id),override=timeBlockDateOverridesForDate(state,date)[id];if(block)await write(next=>setTimeBlockDateOverride(next,date,id,{title:block.title,startMinute:block.startMinute,endMinute:block.endMinute,created:Boolean(override?.created),hidden:true}));return}if(actionName==="base-delete"){const block=timeBlockTemplatesForDate(state,date).find(item=>item.id===id);if(!block)return;const confirmed=await confirmAction({title:"기본 타임블럭을 삭제할까요?",message:"오늘부터 앞으로 기본 블럭에서 사라져요. 과거 날짜의 블럭과 계획 기록은 그대로 유지됩니다.",confirmLabel:"기본 블럭 삭제"});if(confirmed)await write(next=>{const remaining=timeBlockTemplatesForDate(next,date).filter(item=>item.id!==id);setTimeBlockTemplatesForDate(next,remaining,date);clearTimeBlockDateOverride(next,date,id)});return}if(actionName==="day-delete"){const confirmed=await confirmAction({title:"이 날 타임블럭을 삭제할까요?",message:"이 날짜에만 만든 블럭을 삭제해요. 직접 배치한 시간 없는 할일·습관은 ‘하루종일’으로 이동합니다.",confirmLabel:"삭제"});if(confirmed)await write(next=>{clearTimeBlockAssignmentsForBlock(next,date,id);clearTimeBlockDateOverride(next,date,id)});return}if(actionName==="empty"){const block=effectiveTimeBlockTemplatesForDate(state,date).find(item=>item.id===id);if(!block)return;const confirmed=await confirmAction({title:"이 타임블럭을 비울까요?",message:"직접 배치한 시간 없는 할일·습관만 ‘하루종일’으로 이동해요. 정확한 시간이 있는 항목은 시간에 따라 계속 자동 표시됩니다.",confirmLabel:"비우기"});if(confirmed)await write(next=>clearTimeBlockAssignmentsForBlock(next,date,id));return}}if(timeBlockRestore){e.preventDefault();e.stopImmediatePropagation();const date=timeBlockRestore.dataset.date,id=timeBlockRestore.dataset.blockId,hidden=hiddenTimeBlockTemplatesForDate(state,date).find(item=>item.id===id),override=timeBlockDateOverridesForDate(state,date)[id];if(!hidden||!override)return;const candidate=[...effectiveTimeBlockTemplatesForDate(state,date),hidden],validation=validateTimeBlockTemplates(candidate);if(!validation.ok){showToast("다른 타임블럭과 시간이 겹쳐서 복원할 수 없어요.");return}await write(next=>setTimeBlockDateOverride(next,date,id,{title:hidden.title,startMinute:hidden.startMinute,endMinute:hidden.endMinute,created:Boolean(override.created),hidden:false}));return}const somedayToggle=e.target.closest("[data-uw-someday-toggle]");if(somedayToggle){setSomedayOpen(!document.body.classList.contains("uw-someday-open"));return}if(e.target.closest("[data-uw-someday-close]")){setSomedayOpen(false);return}const sessionToggle=e.target.closest("[data-uw-toggle-sessions]");if(sessionToggle){await write(current=>{current.ui||={};current.ui.showSessionsOnTimeline=current.ui.showSessionsOnTimeline===false});return}$$(".uw-all-day.open").forEach(x=>{if(!e.target.closest(".uw-all-day"))x.classList.remove("open")});const more=e.target.closest("[data-uw-all-day-more]");if(more){const panel=more.closest(".uw-all-day"),open=!panel.classList.contains("open");$$(".uw-all-day.open").forEach(x=>x.classList.remove("open"));panel.classList.toggle("open",open);more.setAttribute("aria-expanded",String(open));return}const groupButton=e.target.closest("[data-uw-group-id]");if(groupButton){const records=[...pendingGroupRecords],groupId=groupButton.dataset.uwGroupId;pendingGroupRecords=[];$("#uwContext")?.classList.remove("open");await write(s=>records.forEach(r=>{const arr=r.kind==="event"?s.events:r.kind==="habit"?s.habitTemplates:s.tasks;const x=arr.find(v=>v.id===r.id);if(x)x.groupId=groupId}));clearSelection();return}const tab=e.target.closest("#taskPageTabs [data-task-tab]");if(tab){e.stopImmediatePropagation();taskListTab=tab.dataset.taskTab;$('#taskPageTabs [data-task-tab]').forEach(x=>x.classList.toggle("active",x===tab));renderTasks();return}const a=e.target.closest("[data-uw-action]");if(a){await action(a.dataset.uwAction);return}const homeModeButton=e.target.closest("[data-uw-home-mode]");if(homeModeButton){homeMode=homeModeButton.dataset.uwHomeMode;renderPlanner();return}if(e.target.closest("[data-uw-home-prev]")){homeCursor=addDays(homeCursor,-homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-next]")){homeCursor=addDays(homeCursor,homeDays);renderPlanner();return}if(e.target.closest("[data-uw-home-today]")){homeCursor=fromKey(todayKey());renderPlanner();return}const cv=e.target.closest("[data-uw-cal-view]");if(cv){e.stopImmediatePropagation();calendarView=cv.dataset.uwCalView;renderCalendar();return}if(e.target.closest("[data-uw-habit-prev]")){habitCursor=addDays(habitCursor,-7);renderHabits();return}
 if(e.target.closest("[data-uw-habit-next]")){habitCursor=addDays(habitCursor,7);renderHabits();return}
 if(e.target.closest("[data-uw-habit-today]")){habitCursor=fromKey(todayKey());renderHabits();return}
 const hc=e.target.closest("[data-uw-habit-check]");if(hc){await write(s=>{s.habitDays[hc.dataset.date]||={};s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]=!s.habitDays[hc.dataset.date][hc.dataset.uwHabitCheck]});return}const check=e.target.closest("[data-uw-check]");if(check){e.stopPropagation();await write(s=>{if(check.dataset.uwCheck==="task"){const t=s.tasks.find(x=>x.id===check.dataset.id);if(t){if(t.recurrence?.frequency){const occurrence=check.dataset.occurrenceSource||check.dataset.date;t.recurrenceDone||={};t.recurrenceDone[occurrence]=!t.recurrenceDone[occurrence]}else{t.done=!t.done;t.completedAt=t.done?new Date().toISOString():null}}}else{s.habitDays[check.dataset.date]||={};s.habitDays[check.dataset.date][check.dataset.id]=!s.habitDays[check.dataset.date][check.dataset.id]}});return}const del=e.target.closest("[data-uw-delete-habit]");if(del){await action("delete",[{kind:"habit",id:del.dataset.uwDeleteHabit,date:todayKey()}]);return}const dup=e.target.closest("[data-uw-duplicate-habit]");if(dup){await action("duplicate",[{kind:"habit",id:dup.dataset.uwDuplicateHabit,date:todayKey()}]);return}const item=e.target.closest(".uw-item[data-uw-kind]");if(item){if(Date.now()<suppressItemClickUntil)return;if(coarse()){toggleSelection(item);return}if(!e.target.closest(".uw-item-title,.uw-habit-title"))return;openInline(item,{kind:item.dataset.uwKind,date:item.dataset.date,editId:item.dataset.id,occurrenceSource:item.dataset.occurrenceSource||null,withTime:item.dataset.uwKind==="event"&&calendarView==="day"});return}const add=e.target.closest("[data-uw-add-kind]");if(add&&!e.target.closest(".uw-item,.uw-inline-form")){const kind=add.dataset.uwAddKind,date=add.dataset.date||null,time=add.dataset.time?+add.dataset.time:null;const empty=e.target.closest(".uw-empty-hit"),target=empty||(add.matches(".uw-list,.uw-all-day-list,.uw-time-hit,.uw-month-cell")?add:findAddHost(kind,date,time)||add.parentElement);openInline(target,{kind,date,time,groupId:add.dataset.groupId||target.dataset.groupId||null,withTime:add.dataset.withTime==="1"||target.dataset.withTime==="1"})}},true);
-document.addEventListener("change",async e=>{const blockPicker=e.target.closest("[data-uw-time-block-picker]");if(!blockPicker)return;const date=blockPicker.dataset.date,token=blockPicker.dataset.token,blockId=blockPicker.value;blockPicker.disabled=true;try{await write(s=>{ensureTimeBlockV2State(s);if(blockId)assignTimeBlockOccurrence(s,date,token,blockId,TIME_BLOCK_START_ANCHOR);else clearTimeBlockAssignment(s,date,token)})}finally{blockPicker.disabled=false}});document.addEventListener("contextmenu",e=>{const item=e.target.closest(".uw-item[data-uw-kind]");if(!item)return;e.preventDefault();const menu=$("#uwContext");const convertLabel=item.dataset.uwKind==="task"?"일정으로 바꾸기":item.dataset.uwKind==="event"?"할일로 바꾸기":null;menu.innerHTML='<button data-c="duplicate">복제</button><button data-c="group">영역</button>'+(convertLabel?`<button data-c="convert">${convertLabel}</button>`:'')+'<button class="danger" data-c="delete">삭제</button>';menu.style.left=`${Math.min(innerWidth-170,e.clientX)}px`;menu.style.top=`${Math.min(innerHeight-190,e.clientY)}px`;menu.classList.add("open");menu.onclick=async ev=>{const b=ev.target.closest("[data-c]");if(!b)return;menu.classList.remove("open");await action(b.dataset.c,[{kind:item.dataset.uwKind,id:item.dataset.id,date:item.dataset.date,occurrenceSource:item.dataset.occurrenceSource||null}])}});document.addEventListener("pointerdown",e=>{if(!e.target.closest("#uwContext"))$("#uwContext")?.classList.remove("open")})
+document.addEventListener("contextmenu",e=>{const item=e.target.closest(".uw-item[data-uw-kind]");if(!item)return;e.preventDefault();const menu=$("#uwContext");const convertLabel=item.dataset.uwKind==="task"?"일정으로 바꾸기":item.dataset.uwKind==="event"?"할일로 바꾸기":null;menu.innerHTML='<button data-c="duplicate">복제</button><button data-c="group">영역</button>'+(convertLabel?`<button data-c="convert">${convertLabel}</button>`:'')+'<button class="danger" data-c="delete">삭제</button>';menu.style.left=`${Math.min(innerWidth-170,e.clientX)}px`;menu.style.top=`${Math.min(innerHeight-190,e.clientY)}px`;menu.classList.add("open");menu.onclick=async ev=>{const b=ev.target.closest("[data-c]");if(!b)return;menu.classList.remove("open");await action(b.dataset.c,[{kind:item.dataset.uwKind,id:item.dataset.id,date:item.dataset.date,occurrenceSource:item.dataset.occurrenceSource||null}])}});document.addEventListener("pointerdown",e=>{if(!e.target.closest("#uwContext"))$("#uwContext")?.classList.remove("open")})
 }
 
 function minuteAt(lane,clientY){const rect=lane.getBoundingClientRect();return Math.max(START,Math.min(END-SLOT,START+Math.floor((clientY-rect.top)/SLOT_H)*SLOT))}
@@ -980,12 +976,13 @@ async function saveDateOnlyChange(kind,id,date,occurrenceSource=date){
 
 function wireControlsV2(){
   let gesture=null;
+  const clearDropIndicators=()=>{$$(".uw-range-selected,.uw-drop-target,.uw-time-block-drop-before,.uw-time-block-drop-after,.uw-time-block-drop-bottom").forEach(x=>x.classList.remove("uw-range-selected","uw-drop-target","uw-time-block-drop-before","uw-time-block-drop-after","uw-time-block-drop-bottom"))};
   const clear=(g,restore=true)=>{
     clearTimeout(g?.timer);
     g?.preview?.remove();
     g?.ghost?.remove();
     g?.item?.classList.remove("uw-drag-ready","resizing","uw-dragging");
-    $$(".uw-range-selected,.uw-drop-target").forEach(x=>x.classList.remove("uw-range-selected","uw-drop-target"));
+    clearDropIndicators();
     if(restore&&g?.item&&g.originalTop!==undefined){
       g.item.style.top=g.originalTop;
       g.item.style.height=g.originalHeight;
@@ -1003,7 +1000,7 @@ function wireControlsV2(){
       g.preview.className="uw-drag-selection";
       g.lane.appendChild(g.preview);
     }
-    if(g.mode==="move"){
+    if(g.mode==="move"||g.mode==="time-block-plan"){
       window.getSelection?.()?.removeAllRanges();
       g.item.classList.add("uw-dragging");
       g.ghost=g.item.cloneNode(true);
@@ -1019,16 +1016,60 @@ function wireControlsV2(){
     g.nextDate=date;
     $$(".uw-month-cell").forEach(cell=>cell.classList.toggle("uw-range-selected",cell.dataset.date>=first&&cell.dataset.date<=last));
   };
+  const plannerDropAt=(g,pointed,clientY)=>{
+    const unassignedSection=pointed?.closest(".uw-time-block-v2-section.unassigned");
+    if(unassignedSection){
+      const list=unassignedSection.querySelector("[data-uw-time-block-unassigned]"),date=list?.dataset.date||unassignedSection.closest(".uw-time-block-v2-day")?.dataset.date;
+      if(!list||date!==g.date)return null;
+      list.classList.add("uw-drop-target");
+      return{dropType:"time-block-unassigned",date}
+    }
+    const blockSection=pointed?.closest(".uw-time-block-v2-section[data-time-block-id]");
+    const list=pointed?.closest("[data-uw-time-block-drop-list]")||blockSection?.querySelector("[data-uw-time-block-drop-list]");
+    if(!list)return null;
+    const date=list.dataset.date||blockSection?.closest(".uw-time-block-v2-day")?.dataset.date,blockId=list.dataset.timeBlockId||blockSection?.dataset.timeBlockId;
+    if(!date||date!==g.date||!blockId)return null;
+    const rows=[...list.querySelectorAll(".uw-time-block-v2-item")],row=pointed?.closest(".uw-time-block-v2-item");
+    const bucketRows=anchor=>rows.filter(candidate=>candidate.dataset.timeBlockToken&&candidate.dataset.timeBlockToken!==g.token&&(candidate.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===anchor);
+    if(row&&list.contains(row)){
+      const rect=row.getBoundingClientRect(),before=clientY<rect.top+rect.height/2;
+      if(row.dataset.timeBlockAnchor){
+        if(before){
+          const rowIndex=rows.indexOf(row),previousAnchor=[...rows.slice(0,rowIndex)].reverse().find(candidate=>candidate.dataset.timeBlockAnchor)?.dataset.timeBlockAnchor||TIME_BLOCK_START_ANCHOR,order=bucketRows(previousAnchor).length+1;
+          row.classList.add("uw-time-block-drop-before");
+          return{dropType:"time-block",date,blockId,afterAnchor:previousAnchor,order}
+        }
+        const afterAnchor=row.dataset.timeBlockAnchor;
+        row.classList.add("uw-time-block-drop-after");
+        return{dropType:"time-block",date,blockId,afterAnchor,order:1}
+      }
+      if(row.dataset.timeBlockToken){
+        const afterAnchor=row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR;
+        if(row.dataset.timeBlockToken===g.token){
+          row.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
+          return{dropType:"time-block",date,blockId,afterAnchor:g.currentAfterAnchor||afterAnchor,order:g.currentOrder||1}
+        }
+        const peers=bucketRows(afterAnchor),peerIndex=peers.indexOf(row),order=Math.max(1,(peerIndex<0?peers.length:peerIndex)+(before?1:2));
+        row.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
+        return{dropType:"time-block",date,blockId,afterAnchor,order}
+      }
+    }
+    const afterAnchor=[...rows].reverse().find(candidate=>candidate.dataset.timeBlockAnchor)?.dataset.timeBlockAnchor||TIME_BLOCK_START_ANCHOR,order=bucketRows(afterAnchor).length+1;
+    list.classList.add("uw-time-block-drop-bottom");
+    return{dropType:"time-block",date,blockId,afterAnchor,order}
+  };
 
   document.addEventListener("pointerdown",e=>{
     if(!e.isPrimary||e.button>0)return;
     const resizeHandle=e.target.closest("[data-uw-resize]");
+    const planHandle=e.target.closest("[data-uw-time-block-drag]");
     const moveHandle=e.target.closest(".uw-move-handle");
-    const item=(resizeHandle||moveHandle)?.closest(".uw-item")||e.target.closest(".uw-item");
+    const item=(resizeHandle||planHandle||moveHandle)?.closest(".uw-item")||e.target.closest(".uw-item");
     let mode=null,source=null;
     if(resizeHandle){mode="resize";source=resizeHandle}
+    else if(planHandle&&item?.classList.contains("uw-time-block-v2-item")){mode="time-block-plan";source=planHandle}
     else if(moveHandle&&item?.classList.contains("selected")){mode="move";source=moveHandle}
-    else if(!coarse()&&item&&e.target.closest(".uw-item-title,.uw-habit-title")){mode="move";source=e.target.closest(".uw-item-title,.uw-habit-title")}
+    else if(!coarse()&&item&&!item.classList.contains("uw-time-block-v2-item")&&e.target.closest(".uw-item-title,.uw-habit-title")){mode="move";source=e.target.closest(".uw-item-title,.uw-habit-title")}
     else if(!e.target.closest(".uw-item,.uw-inline-form")){
       const hit=e.target.closest(".uw-time-hit");
       const cell=e.target.closest(".uw-month-cell");
@@ -1056,6 +1097,16 @@ function wireControlsV2(){
       g.startDate=source.dataset.date;
       g.nextDate=g.startDate;
       g.createKind=source.dataset.uwAddKind||"event";
+    }else if(mode==="time-block-plan"){
+      g.kind=item.dataset.uwKind;
+      g.id=item.dataset.id;
+      g.date=item.dataset.date;
+      g.token=source.dataset.token||item.dataset.timeBlockToken||"";
+      g.currentBlockId=item.dataset.timeBlockBlockId||"";
+      g.currentAfterAnchor=item.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR;
+      g.currentOrder=Math.max(1,+item.dataset.timeBlockOrder||1);
+      g.dropType=null;
+      g.validTarget=false;
     }else{
       g.kind=item.dataset.uwKind;
       g.id=item.dataset.id;
@@ -1067,7 +1118,7 @@ function wireControlsV2(){
       g.nextStart=g.start;
       g.dropType=null;
     }
-    if(g.coarse)g.timer=setTimeout(()=>activate(g),450);
+    if(g.coarse&&mode!=="time-block-plan")g.timer=setTimeout(()=>activate(g),450);
   },true);
 
   document.addEventListener("pointermove",e=>{
@@ -1075,9 +1126,14 @@ function wireControlsV2(){
     if(!g||e.pointerId!==g.pointerId)return;
     const distance=Math.hypot(e.clientX-g.x,e.clientY-g.y);
     if(!g.active){
-      if(g.coarse&&distance>10){g.cancelled=true;clear(g);return}
-      if(!g.coarse&&distance>=6)activate(g);
-      if(!g.active)return;
+      if(g.mode==="time-block-plan"){
+        if(distance>=3)activate(g);
+        if(!g.active)return
+      }else{
+        if(g.coarse&&distance>10){g.cancelled=true;clear(g);return}
+        if(!g.coarse&&distance>=6)activate(g);
+        if(!g.active)return
+      }
     }
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -1107,6 +1163,20 @@ function wireControlsV2(){
     if(g.mode==="date-create"){
       const cell=document.elementFromPoint(e.clientX,e.clientY)?.closest(".uw-month-cell");
       if(cell)updateDateRange(g,cell.dataset.date);
+      return;
+    }
+    if(g.mode==="time-block-plan"){
+      clearDropIndicators();
+      const pointed=document.elementFromPoint(e.clientX,e.clientY),target=plannerDropAt(g,pointed,e.clientY);
+      g.validTarget=Boolean(target);
+      g.dropType=target?.dropType||null;
+      g.nextDate=target?.date||g.date;
+      g.nextBlockId=target?.blockId||null;
+      g.nextAfterAnchor=target?.afterAnchor||TIME_BLOCK_START_ANCHOR;
+      g.nextOrder=target?.order||1;
+      if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}
+      if(e.clientY<70)window.scrollBy(0,-12);
+      else if(e.clientY>innerHeight-70)window.scrollBy(0,12);
       return;
     }
     $$(".uw-drop-target").forEach(x=>x.classList.remove("uw-drop-target"));
@@ -1162,6 +1232,12 @@ function wireControlsV2(){
       const first=g.nextDate<g.startDate?g.nextDate:g.startDate;
       const last=g.nextDate<g.startDate?g.startDate:g.nextDate;
       openInline($(`.uw-month-cell[data-date="${first}"]`),{kind:g.createKind||"event",date:first,endDate:last});
+      return;
+    }
+    if(g.mode==="time-block-plan"){
+      if(!g.validTarget||!g.token)return;
+      if(g.dropType==="time-block-unassigned")await write(next=>clearTimeBlockAssignment(next,g.date,g.token));
+      else if(g.dropType==="time-block"&&g.nextBlockId)await write(next=>placeTimeBlockOccurrence(next,g.date,g.token,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));
       return;
     }
     if(!g.validTarget)return;
