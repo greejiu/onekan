@@ -1242,7 +1242,8 @@ function wireControlsV2(){
         return
       }
     }
-    const planSurface=g.canUseTimeBlock&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section");
+    const planningMove=g.canUseTimeBlock&&g.planToken&&g.start===null;
+    const planSurface=planningMove&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section,.uw-timeline,.uw-all-day[data-uw-all-day-drop]");
     if(planSurface){
       const targetDate=planSurface.dataset.date||planSurface.closest("[data-date]")?.dataset.date||planSurface.querySelector?.("[data-date]")?.dataset.date||"";
       if(!g.planToken&&targetDate)g.planToken=timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource||targetDate},targetDate);
@@ -1311,9 +1312,15 @@ function wireControlsV2(){
       return;
     }
     if(!g.validTarget)return;
+    const dateChanged=(g.nextDate||"")!==(g.date||"");
+    const directPlanningMove=Boolean(g.planToken&&g.start===null&&(g.kind==="task"||g.kind==="habit")&&!dateChanged&&(g.dropType==="time-block"||g.dropType==="time-block-unassigned"));
+    if(directPlanningMove){
+      if(g.dropType==="time-block-unassigned"){await write(next=>clearTimeBlockAssignment(next,g.date,g.planToken));return}
+      if(g.nextBlockId){await write(next=>placeTimeBlockOccurrence(next,g.date,g.planToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));return}
+    }
     const scope=await dragMoveScope(g.kind,g.id,g.occurrenceSource,g.date);
     if(!scope)return;
-    const recurring=recurringDragItem(g.kind,g.id),seriesMove=scope==="all"&&recurring,dateChanged=(g.nextDate||"")!==(g.date||"");
+    const recurring=recurringDragItem(g.kind,g.id),seriesMove=scope==="all"&&recurring;
     if(seriesMove&&g.dropType==="someday"){showToast("반복 전체는 언젠가로 옮길 수 없어요. ‘이 할일만’을 선택해 주세요.");return}
     if(g.dropType==="time-block-unassigned"&&g.planToken){
       if(g.planDate&&!seriesMove&&!dateChanged)await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));

@@ -378,7 +378,7 @@
 
 
 /* Time block V2 timeline projection: same cards, different placement source */
-.uw-time-exact-lane{position:absolute;inset:0;min-width:0}
+.uw-time-exact-lane{position:absolute;inset:0;min-width:0;pointer-events:none}.uw-time-exact-lane .uw-time-entry{pointer-events:auto}
 .uw-time-block-plan-rail{position:absolute;top:0;right:1px;bottom:0;left:52%;z-index:4;pointer-events:none}
 .uw-has-time-block-plan .uw-time-exact-lane{right:50%}
 .uw-time-block-plan-group{position:absolute;right:0;left:0;z-index:4;pointer-events:none}
