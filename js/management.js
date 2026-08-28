@@ -1,5 +1,5 @@
 import { supabase } from "./supabase.js";
-import { showToast } from "./ui-feedback.js";
+import { confirmAction, showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const uid = () => crypto.randomUUID();
@@ -9,6 +9,7 @@ let currentUser = null;
 let managementState = null;
 let selectedSectionId = "all";
 let renderTimer = null;
+let editingGroupId = null;
 
 function normalizeState(raw) {
   const state = raw && typeof raw === "object" ? raw : {};
@@ -54,7 +55,7 @@ function ensureShell() {
   if (!$("link[data-onekan-management-style]")) {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "./css/management.css?v=1";
+    link.href = "./css/management.css?v=2";
     link.dataset.onekanManagementStyle = "1";
     document.head.appendChild(link);
   }
@@ -102,6 +103,13 @@ function ensureShell() {
     if (notesPage?.nextSibling) main.insertBefore(page, notesPage.nextSibling);
     else main.appendChild(page);
   }
+
+  if (!$("#managementContext")) {
+    const menu = document.createElement("div");
+    menu.id = "managementContext";
+    menu.className = "management-context";
+    document.body.appendChild(menu);
+  }
 }
 
 function sectionOptions() {
@@ -132,21 +140,43 @@ function renderAllSections() {
         </div>
         <div class="management-section-board-body">
           <span>${groupCount ? `${groupCount}개 그룹` : "그룹 없음"}</span>
-          <small>${itemCount ? `${itemCount}개 항목` : "다음 단계에서 그룹과 항목을 추가해요."}</small>
+          <small>${itemCount ? `${itemCount}개 항목` : "아직 관리 항목이 없어요."}</small>
         </div>
       </section>`;
   }).join("")}</div>`;
 }
 
+function groupMarkup(group) {
+  const itemCount = managementState.managementItems.filter((item) => item.groupId === group.id).length;
+  return `
+    <section class="management-group" data-management-group-id="${esc(group.id)}">
+      <div class="management-group-head" data-management-group-context="${esc(group.id)}">
+        <strong>${esc(group.name)}</strong>
+        <span>${itemCount ? `${itemCount}개` : ""}</span>
+      </div>
+      <div class="management-group-body">
+        <div class="management-group-empty">아직 항목이 없어요.</div>
+      </div>
+    </section>`;
+}
+
 function renderSection(section) {
   const root = $("#managementContent");
   if (!root) return;
+  const groups = managementState.managementGroups.filter((group) => group.sectionId === section.id);
   root.innerHTML = `
     <section class="management-section-detail" data-management-section-id="${esc(section.id)}">
-      <div class="management-section-detail-title"><strong>${esc(section.name)}</strong></div>
-      <div class="management-section-placeholder">
-        <span>섹션이 준비됐어요.</span>
-        <small>다음 단계에서 이 안에 그룹을 만들고 관리 항목을 넣을게요.</small>
+      <div class="management-section-detail-title">
+        <strong>${esc(section.name)}</strong>
+        <button class="soft-btn management-group-add-button" id="managementGroupAddButton" type="button">그룹 추가&nbsp; ＋</button>
+      </div>
+      <form class="management-group-form" id="managementGroupForm" autocomplete="off" hidden>
+        <input id="managementGroupName" type="text" maxlength="40" placeholder="새 그룹 이름" aria-label="관리 그룹 이름" />
+        <button class="primary-btn" id="managementGroupSubmit" type="submit">추가</button>
+        <button class="soft-btn" id="managementGroupCancel" type="button">취소</button>
+      </form>
+      <div class="management-groups">
+        ${groups.length ? groups.map(groupMarkup).join("") : '<div class="management-section-placeholder"><span>아직 그룹이 없어요.</span><small>예: 방, 거실, 욕실처럼 이 섹션 안에서 관리 항목을 묶어보세요.</small></div>'}
       </div>
     </section>`;
 }
@@ -161,6 +191,8 @@ function renderControls() {
 }
 
 function renderContent() {
+  editingGroupId = null;
+  closeContextMenu();
   if (!managementState) return;
   if (selectedSectionId === "all") {
     renderAllSections();
@@ -211,8 +243,69 @@ function closeSectionForm() {
   if (button) button.hidden = false;
 }
 
+function openGroupForm(groupId = null) {
+  const form = $("#managementGroupForm");
+  const button = $("#managementGroupAddButton");
+  const input = $("#managementGroupName");
+  const submit = $("#managementGroupSubmit");
+  if (!form || !button || !input || !submit) return;
+  editingGroupId = groupId;
+  const group = groupId ? managementState?.managementGroups.find((item) => item.id === groupId) : null;
+  form.hidden = false;
+  button.hidden = true;
+  input.value = group?.name || "";
+  submit.textContent = group ? "저장" : "추가";
+  requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+}
+
+function closeGroupForm() {
+  editingGroupId = null;
+  const form = $("#managementGroupForm");
+  const button = $("#managementGroupAddButton");
+  if (form) form.hidden = true;
+  if (button) button.hidden = false;
+}
+
+function closeContextMenu() {
+  $("#managementContext")?.classList.remove("open");
+}
+
+function openGroupContext(groupId, x, y) {
+  const menu = $("#managementContext");
+  if (!menu) return;
+  menu.dataset.groupId = groupId;
+  menu.innerHTML = '<button data-management-group-action="edit" type="button">수정</button><button class="danger" data-management-group-action="delete" type="button">삭제</button>';
+  menu.style.left = `${Math.max(8, Math.min(innerWidth - 170, x))}px`;
+  menu.style.top = `${Math.max(8, Math.min(innerHeight - 100, y))}px`;
+  menu.classList.add("open");
+}
+
+async function deleteGroup(groupId) {
+  const group = managementState?.managementGroups.find((item) => item.id === groupId);
+  if (!group) return;
+  const itemCount = managementState.managementItems.filter((item) => item.groupId === groupId).length;
+  if (itemCount) {
+    showToast("이 그룹의 항목을 다른 그룹으로 옮긴 뒤 삭제해 주세요.");
+    return;
+  }
+  const confirmed = await confirmAction({
+    title: `‘${group.name}’ 그룹을 삭제할까요?`,
+    message: "그룹만 삭제돼요.",
+    confirmLabel: "삭제",
+  });
+  if (!confirmed) return;
+  await writeState((state) => {
+    state.managementGroups = state.managementGroups.filter((item) => item.id !== groupId);
+  });
+}
+
 function wireEvents() {
-  document.addEventListener("click", (event) => {
+  document.addEventListener("click", async (event) => {
+    if (!event.target.closest("#managementContext")) closeContextMenu();
+
     if (event.target.closest("#managementSectionAddButton")) {
       openSectionForm();
       return;
@@ -221,12 +314,39 @@ function wireEvents() {
       closeSectionForm();
       return;
     }
+    if (event.target.closest("#managementGroupAddButton")) {
+      openGroupForm();
+      return;
+    }
+    if (event.target.closest("#managementGroupCancel")) {
+      closeGroupForm();
+      return;
+    }
+
+    const groupAction = event.target.closest("[data-management-group-action]");
+    if (groupAction) {
+      const menu = $("#managementContext");
+      const groupId = menu?.dataset.groupId || "";
+      const action = groupAction.dataset.managementGroupAction;
+      closeContextMenu();
+      if (action === "edit") openGroupForm(groupId);
+      if (action === "delete") await deleteGroup(groupId);
+      return;
+    }
+
     const open = event.target.closest("[data-management-open-section]");
     if (open) {
       selectedSectionId = open.dataset.managementOpenSection || "all";
       renderControls();
       renderContent();
     }
+  });
+
+  document.addEventListener("contextmenu", (event) => {
+    const target = event.target.closest("[data-management-group-context]");
+    if (!target || !target.closest("#page-management")) return;
+    event.preventDefault();
+    openGroupContext(target.dataset.managementGroupContext, event.clientX, event.clientY);
   });
 
   document.addEventListener("change", (event) => {
@@ -236,28 +356,68 @@ function wireEvents() {
   });
 
   document.addEventListener("submit", async (event) => {
-    if (!event.target.matches("#managementSectionForm")) return;
-    event.preventDefault();
-    const input = $("#managementSectionName");
-    const name = input?.value.trim() || "";
-    if (!name) return;
-    if (managementState?.managementSections.some((section) => section.name.trim().toLowerCase() === name.toLowerCase())) {
-      showToast("같은 이름의 관리 섹션이 이미 있어요.");
-      input?.focus();
+    if (event.target.matches("#managementSectionForm")) {
+      event.preventDefault();
+      const input = $("#managementSectionName");
+      const name = input?.value.trim() || "";
+      if (!name) return;
+      if (managementState?.managementSections.some((section) => section.name.trim().toLowerCase() === name.toLowerCase())) {
+        showToast("같은 이름의 관리 섹션이 이미 있어요.");
+        input?.focus();
+        return;
+      }
+      const id = `management-section-${uid()}`;
+      await writeState((state) => {
+        state.managementSections.push({ id, name, createdAt: new Date().toISOString() });
+      });
+      selectedSectionId = id;
+      closeSectionForm();
       return;
     }
-    const id = `management-section-${uid()}`;
-    await writeState((state) => {
-      state.managementSections.push({ id, name, createdAt: new Date().toISOString() });
-    });
-    selectedSectionId = id;
-    closeSectionForm();
+
+    if (event.target.matches("#managementGroupForm")) {
+      event.preventDefault();
+      const input = $("#managementGroupName");
+      const name = input?.value.trim() || "";
+      if (!name || selectedSectionId === "all") return;
+      const duplicate = managementState?.managementGroups.some((group) =>
+        group.sectionId === selectedSectionId &&
+        group.id !== editingGroupId &&
+        group.name.trim().toLowerCase() === name.toLowerCase()
+      );
+      if (duplicate) {
+        showToast("이 섹션에 같은 이름의 그룹이 이미 있어요.");
+        input?.focus();
+        return;
+      }
+      const editingId = editingGroupId;
+      await writeState((state) => {
+        if (editingId) {
+          const group = state.managementGroups.find((item) => item.id === editingId);
+          if (group) group.name = name;
+          return;
+        }
+        state.managementGroups.push({
+          id: `management-group-${uid()}`,
+          sectionId: selectedSectionId,
+          name,
+          createdAt: new Date().toISOString(),
+        });
+      });
+      closeGroupForm();
+    }
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && event.target.closest("#managementSectionForm")) {
+    if (event.key !== "Escape") return;
+    if (event.target.closest("#managementSectionForm")) {
       event.preventDefault();
       closeSectionForm();
+      return;
+    }
+    if (event.target.closest("#managementGroupForm")) {
+      event.preventDefault();
+      closeGroupForm();
     }
   });
 }
