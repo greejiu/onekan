@@ -243,25 +243,6 @@ function wireUI() {
     await writeState((current) => current.tasks.push({ id: crypto.randomUUID(), title: title.trim(), date: null, done: false, groupId: current.eventGroups?.[0]?.id || "default", createdAt: new Date().toISOString() }));
   });
   $("#habitsPageAdd")?.addEventListener("click", () => $("#habitPageTitle")?.focus());
-  $("#habitPageForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const title = $("#habitPageTitle")?.value.trim();
-    if (!title) return;
-    const startMinute = minuteFromTime($("#habitPageTime")?.value);
-    const duration = Number($("#habitPageDuration")?.value || 30);
-    await writeState((current) => {
-      const range = current.ui?.timelineRange || { start: 360, end: 1320 };
-      const habit = { id: crypto.randomUUID(), title, groupId: $("#habitPageGroup")?.value || current.eventGroups?.[0]?.id || "default" };
-      if (startMinute !== null) {
-        habit.startMinute = Math.max(Number(range.start), Math.min(Number(range.end) - duration, Math.round(startMinute / 30) * 30));
-        habit.duration = duration;
-      }
-      current.habitTemplates.push(habit);
-    });
-    $("#habitPageTitle").value = "";
-    $("#habitPageTime").value = "";
-    $("#habitPageDuration").value = "30";
-  });
   document.addEventListener("click", async (event) => {
     const taskCheck = event.target.closest("[data-workspace-task-check]");
     if (taskCheck) {

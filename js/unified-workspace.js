@@ -827,18 +827,41 @@ document.addEventListener("contextmenu",e=>{const item=e.target.closest(".uw-ite
 function minuteAt(lane,clientY){const rect=lane.getBoundingClientRect();return Math.max(START,Math.min(END-SLOT,START+Math.floor((clientY-rect.top)/SLOT_H)*SLOT))}
 function dateTargetAt(x,y){return document.elementFromPoint(x,y)?.closest("[data-date],[data-task-drop-date]")}
 function clearMovedPlan(current,planDate,planToken){if(planDate&&planToken)clearTimeBlockAssignment(current,planDate,planToken)}
-async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSource=date,planDate="",planToken=""){
+async function dragMoveScope(kind,id,occurrenceSource,date){
   if(kind==="habit"){
-    const habit=state?.habitTemplates.find(item=>item.id===id),scope=habitOverride(state,date,id)?"day":await askHabitScope("change",habit,date);
+    const habit=state?.habitTemplates.find(item=>item.id===id),sourceDate=occurrenceSource||date;
+    if(!habit||!sourceDate)return null;
+    return habitOverride(state,sourceDate,id)?"day":await askHabitScope("change",habit,sourceDate)
+  }
+  if(kind==="task"){
+    const task=state?.tasks.find(item=>item.id===id),sourceDate=occurrenceSource||task?.date||date;
+    if(!task)return null;
+    if(!task.recurrence?.frequency)return"all";
+    return taskOverride(state,sourceDate,id)?"day":await askTaskScope(task,sourceDate)
+  }
+  const event=state?.events.find(item=>item.id===id),sourceDate=occurrenceSource||(event?.start?key(new Date(event.start)):date);
+  if(!event)return null;
+  if(!event.recurrence?.frequency)return"all";
+  return eventOverride(state,sourceDate,id)?"day":await askEventScope("change",event,sourceDate)
+}
+function recurringDragItem(kind,id){
+  if(kind==="habit")return Boolean(state?.habitTemplates.some(item=>item.id===id));
+  if(kind==="task")return Boolean(state?.tasks.find(item=>item.id===id)?.recurrence?.frequency);
+  if(kind==="event")return Boolean(state?.events.find(item=>item.id===id)?.recurrence?.frequency);
+  return false
+}
+async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
+  if(kind==="habit"){
+    const sourceDate=occurrenceSource||date,habit=state?.habitTemplates.find(item=>item.id===id),scope=forcedScope||(habitOverride(state,sourceDate,id)?"day":await askHabitScope("change",habit,sourceDate));
     if(!habit||!scope)return;
-    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=startMinute;override.duration=duration}else{target.startMinute=startMinute;target.duration=duration;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,sourceDate,id,true);override.startMinute=startMinute;override.duration=duration}else{target.startMinute=startMinute;target.duration=duration;const override=habitOverride(current,sourceDate,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,sourceDate,id)}}});
     return
   }
   if(kind==="task"){
     const task=state?.tasks.find(item=>item.id===id);
     if(!task)return;
     if(task.recurrence?.frequency){
-      const sourceDate=occurrenceSource||date||task.date,movedDate=(date||null)!==(sourceDate||null),scope=taskOverride(state,sourceDate,id)||movedDate?"day":await askTaskScope(task,sourceDate);
+      const sourceDate=occurrenceSource||date||task.date,scope=forcedScope||(taskOverride(state,sourceDate,id)?"day":await askTaskScope(task,sourceDate));
       if(!scope)return;
       await write(current=>{
         clearMovedPlan(current,planDate,planToken);
@@ -852,7 +875,9 @@ async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSourc
           current.timeBlocks=current.timeBlocks.filter(item=>!(item.taskId===id&&item.date===sourceDate));
           return
         }
-        const baseDate=target.date||date;
+        const baseDate=date||target.date;
+        target.date=baseDate;
+        if(target.recurrence)target.recurrence.anchorDate=baseDate;
         const start=new Date(`${baseDate}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);
         target.notionStart=start.toISOString();
         target.notionEnd=new Date(start.getTime()+duration*60000).toISOString();
@@ -868,9 +893,9 @@ async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSourc
   const event=state?.events.find(item=>item.id===id);
   if(!event)return;
   if(event.recurrence?.frequency){
-    const sourceDate=occurrenceSource||date||key(new Date(event.start)),existing=eventOverride(state,sourceDate,id),movedDate=(date||null)!==(sourceDate||null),scope=existing||movedDate?"day":await askEventScope("change",event,sourceDate);
+    const sourceDate=occurrenceSource||date||key(new Date(event.start)),existing=eventOverride(state,sourceDate,id),scope=forcedScope||(existing?"day":await askEventScope("change",event,sourceDate));
     if(!scope)return;
-    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.events.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=eventOverride(current,sourceDate,id,true);override.date=date;override.startMinute=startMinute;override.duration=duration;override.allDay=false;return}const baseDate=key(new Date(target.start)),start=new Date(`${baseDate}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.events.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=eventOverride(current,sourceDate,id,true);override.date=date;override.startMinute=startMinute;override.duration=duration;override.allDay=false;return}const baseDate=date||key(new Date(target.start)),start=new Date(`${baseDate}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false;if(target.recurrence)target.recurrence.anchorDate=baseDate});
     return
   }
   await write(current=>{clearMovedPlan(current,planDate,planToken);const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);const target=current.events.find(item=>item.id===id);if(!target)return;target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false})
@@ -889,11 +914,11 @@ function wireDragClickGuard(){
   },true);
 }
 
-async function saveUntimedChange(kind,id,date,occurrenceSource=date,planDate="",planToken=""){
+async function saveUntimedChange(kind,id,date,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
   if(kind==="habit"){
-    const habit=state?.habitTemplates.find(item=>item.id===id),scope=habitOverride(state,date,id)?"day":await askHabitScope("change",habit,date);
+    const sourceDate=occurrenceSource||date,habit=state?.habitTemplates.find(item=>item.id===id),scope=forcedScope||(habitOverride(state,sourceDate,id)?"day":await askHabitScope("change",habit,sourceDate));
     if(!habit||!scope)return;
-    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,date,id,true);override.startMinute=null;delete override.duration}else{delete target.startMinute;const override=habitOverride(current,date,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,date,id)}}});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,sourceDate,id,true);override.startMinute=null;delete override.duration}else{delete target.startMinute;const override=habitOverride(current,sourceDate,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,sourceDate,id)}}});
     return
   }
   if(kind==="task"){
@@ -901,7 +926,7 @@ async function saveUntimedChange(kind,id,date,occurrenceSource=date,planDate="",
     if(!task)return;
     if(task.recurrence?.frequency){
       const sourceDate=occurrenceSource||task.date,existing=taskOverride(state,sourceDate,id);
-      const movedDate=(date||null)!==(sourceDate||null),scope=existing||movedDate?"day":await askTaskScope(task,sourceDate);
+      const scope=forcedScope||(existing?"day":await askTaskScope(task,sourceDate));
       if(!scope)return;
       await write(current=>{
         clearMovedPlan(current,planDate,planToken);
@@ -917,6 +942,8 @@ async function saveUntimedChange(kind,id,date,occurrenceSource=date,planDate="",
         }
         delete target.notionStart;
         delete target.notionEnd;
+        target.date=date||target.date;
+        if(target.recurrence&&date)target.recurrence.anchorDate=date;
         current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==id);
         clearTaskTimingOverrides(current,id)
       });
@@ -928,49 +955,57 @@ async function saveUntimedChange(kind,id,date,occurrenceSource=date,planDate="",
   const event=state?.events.find(item=>item.id===id);
   if(!event)return;
   if(event.recurrence?.frequency){
-    const sourceDate=occurrenceSource||date||key(new Date(event.start)),existing=eventOverride(state,sourceDate,id),movedDate=(date||null)!==(sourceDate||null),scope=existing||movedDate?"day":await askEventScope("change",event,sourceDate);
+    const sourceDate=occurrenceSource||date||key(new Date(event.start)),existing=eventOverride(state,sourceDate,id),scope=forcedScope||(existing?"day":await askEventScope("change",event,sourceDate));
     if(!scope)return;
-    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.events.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=eventOverride(current,sourceDate,id,true);override.date=date;override.allDay=true;delete override.startMinute;delete override.duration;return}const baseDate=key(new Date(target.start)),noon=new Date(`${baseDate}T12:00:00`);target.start=noon.toISOString();target.end=noon.toISOString();target.allDay=true});
+    await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.events.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=eventOverride(current,sourceDate,id,true);override.date=date;override.allDay=true;delete override.startMinute;delete override.duration;return}const baseDate=date||key(new Date(target.start)),noon=new Date(`${baseDate}T12:00:00`);target.start=noon.toISOString();target.end=noon.toISOString();target.allDay=true;if(target.recurrence)target.recurrence.anchorDate=baseDate});
     return
   }
   await write(s=>{clearMovedPlan(s,planDate,planToken);const target=s.events.find(x=>x.id===id);if(!target)return;const noon=new Date(`${date}T12:00:00`);target.start=noon.toISOString();target.end=noon.toISOString();target.allDay=true})
 }
-async function saveDateOnlyChange(kind,id,date,occurrenceSource=date,planDate="",planToken=""){
+async function saveDateOnlyChange(kind,id,date,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
+  let scope=forcedScope,sourceDate=occurrenceSource||date;
+  if(kind==="task"){
+    const task=state?.tasks.find(item=>item.id===id);
+    if(!task)return;
+    sourceDate=occurrenceSource||task.date||date;
+    if(task.recurrence?.frequency&&!scope)scope=taskOverride(state,sourceDate,id)?"day":await askTaskScope(task,sourceDate);
+    if(task.recurrence?.frequency&&scope==="all"&&!date){showToast("반복 전체는 언젠가로 옮길 수 없어요. ‘이 할일만’을 선택해 주세요.");return}
+  }else if(kind==="event"){
+    const event=state?.events.find(item=>item.id===id);
+    if(!event)return;
+    sourceDate=occurrenceSource||key(new Date(event.start));
+    if(event.recurrence?.frequency&&!scope)scope=eventOverride(state,sourceDate,id)?"day":await askEventScope("change",event,sourceDate)
+  }
+  if(!scope)scope="all";
   await write(s=>{
     clearMovedPlan(s,planDate,planToken);
     if(kind==="habit")return;
     if(kind==="task"){
       const task=s.tasks.find(x=>x.id===id);
       if(!task)return;
-      if(task.recurrence?.frequency){
-        taskOverride(s,occurrenceSource||task.date,id,true).date=date||null;
+      if(task.recurrence?.frequency&&scope==="day"){
+        taskOverride(s,sourceDate||task.date,id,true).date=date||null;
         return
       }
       task.date=date;
+      if(task.recurrence)task.recurrence.anchorDate=date;
       if(task.notionStart){
-        const oldStart=new Date(task.notionStart);
-        const oldEnd=new Date(task.notionEnd||task.notionStart);
-        const duration=Math.max(SLOT*60000,oldEnd-oldStart);
-        const start=new Date(`${date}T${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`);
+        const oldStart=new Date(task.notionStart),oldEnd=new Date(task.notionEnd||task.notionStart),duration=Math.max(SLOT*60000,oldEnd-oldStart),start=new Date(`${date}T${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`);
         task.notionStart=start.toISOString();
-        task.notionEnd=new Date(start.getTime()+duration).toISOString();
+        task.notionEnd=new Date(start.getTime()+duration).toISOString()
       }
       s.timeBlocks.filter(x=>x.taskId===id).forEach(x=>x.date=date);
-      return;
+      return
     }
     const event=s.events.find(x=>x.id===id);
     if(!event)return;
-    if(event.recurrence?.frequency){eventOverride(s,occurrenceSource||key(new Date(event.start)),id,true).date=date;return}
-    const oldStart=new Date(event.start);
-    const oldEnd=new Date(event.end||event.start);
-    const duration=Math.max(0,oldEnd-oldStart);
-    const clock=event.allDay?"12:00:00":`${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`;
-    const start=new Date(`${date}T${clock}`);
+    if(event.recurrence?.frequency&&scope==="day"){eventOverride(s,sourceDate,id,true).date=date;return}
+    const oldStart=new Date(event.start),oldEnd=new Date(event.end||event.start),duration=Math.max(0,oldEnd-oldStart),clock=event.allDay?"12:00:00":`${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`,start=new Date(`${date}T${clock}`);
     event.start=start.toISOString();
     event.end=new Date(start.getTime()+duration).toISOString();
-  });
+    if(event.recurrence)event.recurrence.anchorDate=date
+  })
 }
-
 function wireControlsV2(){
   const DRAG_MOUSE_DISTANCE=6,TOUCH_SCROLL_DISTANCE=10,TOUCH_HOLD_MS=450;
   let gesture=null;
@@ -1015,24 +1050,25 @@ function wireControlsV2(){
     $$(".uw-month-cell").forEach(cell=>cell.classList.toggle("uw-range-selected",cell.dataset.date>=first&&cell.dataset.date<=last));
   };
   const plannerDropAt=(g,pointed,clientY)=>{
+    const dateAllowed=date=>Boolean(date)&&(g.kind!=="habit"||date===g.date);
     const timelineAllDay=pointed?.closest(".uw-all-day[data-uw-all-day-drop]");
     if(timelineAllDay){
       const date=timelineAllDay.dataset.date||timelineAllDay.closest(".uw-day")?.dataset.date;
-      if(date===g.date){timelineAllDay.classList.add("uw-drop-target");return{dropType:"time-block-unassigned",date}}
+      if(dateAllowed(date)){timelineAllDay.classList.add("uw-drop-target");return{dropType:"time-block-unassigned",date}}
       return null
     }
     const timeline=pointed?.closest(".uw-timeline");
     if(timeline){
       const day=timeline.closest(".uw-day"),date=day?.dataset.date;
-      if(!date||date!==g.date)return null;
+      if(!dateAllowed(date))return null;
       const lane=timeline.querySelector(".uw-time-lane"),rect=lane?.getBoundingClientRect();
       if(!lane||!rect)return null;
       const minute=START+((clientY-rect.top)/SLOT_H)*SLOT,templates=effectiveTimeBlockTemplatesForDate(state,date),block=templates.find(candidate=>minute>=Number(candidate.startMinute)&&minute<Number(candidate.endMinute));
       if(!block)return null;
       const blockId=String(block.id),planItem=pointed?.closest(".uw-time-block-plan-item[data-time-block-token]");
-      if(planItem&&planItem.dataset.timeBlockToken!==g.token){
+      if(planItem&&planItem.dataset.timeBlockToken!==g.planToken){
         const targetBlockId=planItem.dataset.timeBlockBlockId||blockId,afterAnchor=planItem.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR,bounds=planItem.getBoundingClientRect(),before=clientY<bounds.top+bounds.height/2;
-        const peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.token&&row.dataset.timeBlockBlockId===targetBlockId&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor).sort((a,b)=>(+a.dataset.timeBlockOrder||1)-(+b.dataset.timeBlockOrder||1));
+        const peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.planToken&&row.dataset.timeBlockBlockId===targetBlockId&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor).sort((a,b)=>(+a.dataset.timeBlockOrder||1)-(+b.dataset.timeBlockOrder||1));
         const peerIndex=peers.indexOf(planItem),order=(peerIndex<0?peers.length:peerIndex)+(before?1:2);
         planItem.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
         return{dropType:"time-block",date,blockId:targetBlockId,afterAnchor,order}
@@ -1043,20 +1079,20 @@ function wireControlsV2(){
         if(exactBlock){
           const exactRows=[...timeline.querySelectorAll('.uw-time-entry[data-time-block-anchor]')].filter(row=>{const m=+row.dataset.time;return m>=Number(exactBlock.startMinute)&&m<Number(exactBlock.endMinute)}).sort((a,b)=>(+a.dataset.time||0)-(+b.dataset.time||0)||String(a.dataset.timeBlockAnchor).localeCompare(String(b.dataset.timeBlockAnchor)));
           const bounds=exact.getBoundingClientRect(),before=clientY<bounds.top+bounds.height/2,index=exactRows.indexOf(exact),afterAnchor=before?(index>0?exactRows[index-1].dataset.timeBlockAnchor:TIME_BLOCK_START_ANCHOR):exact.dataset.timeBlockAnchor;
-          const peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.token&&row.dataset.timeBlockBlockId===String(exactBlock.id)&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor);
+          const peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.planToken&&row.dataset.timeBlockBlockId===String(exactBlock.id)&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor);
           exact.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
           return{dropType:"time-block",date,blockId:String(exactBlock.id),afterAnchor,order:peers.length+1}
         }
       }
       const exactBefore=[...timeline.querySelectorAll('.uw-time-entry[data-time-block-anchor]')].filter(row=>{const m=+row.dataset.time;return m>=Number(block.startMinute)&&m<Number(block.endMinute)&&m<=minute}).sort((a,b)=>(+a.dataset.time||0)-(+b.dataset.time||0)||String(a.dataset.timeBlockAnchor).localeCompare(String(b.dataset.timeBlockAnchor)));
-      const afterAnchor=exactBefore.length?exactBefore.at(-1).dataset.timeBlockAnchor:TIME_BLOCK_START_ANCHOR,peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.token&&row.dataset.timeBlockBlockId===blockId&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor);
+      const afterAnchor=exactBefore.length?exactBefore.at(-1).dataset.timeBlockAnchor:TIME_BLOCK_START_ANCHOR,peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.planToken&&row.dataset.timeBlockBlockId===blockId&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor);
       timeline.querySelector('.uw-time-block-plan-rail')?.classList.add('uw-time-block-drop-bottom');
       return{dropType:"time-block",date,blockId,afterAnchor,order:peers.length+1}
     }
     const unassignedSection=pointed?.closest(".uw-time-block-v2-section.unassigned");
     if(unassignedSection){
       const list=unassignedSection.querySelector("[data-uw-time-block-unassigned]"),date=list?.dataset.date||unassignedSection.closest(".uw-time-block-v2-day")?.dataset.date;
-      if(!list||date!==g.date)return null;
+      if(!list||!dateAllowed(date))return null;
       list.classList.add("uw-drop-target");
       return{dropType:"time-block-unassigned",date}
     }
@@ -1064,9 +1100,9 @@ function wireControlsV2(){
     const list=pointed?.closest("[data-uw-time-block-drop-list]")||blockSection?.querySelector("[data-uw-time-block-drop-list]");
     if(!list)return null;
     const date=list.dataset.date||blockSection?.closest(".uw-time-block-v2-day")?.dataset.date,blockId=list.dataset.timeBlockId||blockSection?.dataset.timeBlockId;
-    if(!date||date!==g.date||!blockId)return null;
+    if(!dateAllowed(date)||!blockId)return null;
     const rows=[...list.querySelectorAll(".uw-time-block-v2-item")],row=pointed?.closest(".uw-time-block-v2-item");
-    const bucketRows=anchor=>rows.filter(candidate=>candidate.dataset.timeBlockToken&&candidate.dataset.timeBlockToken!==g.token&&(candidate.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===anchor);
+    const bucketRows=anchor=>rows.filter(candidate=>candidate.dataset.timeBlockToken&&candidate.dataset.timeBlockToken!==g.planToken&&(candidate.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===anchor);
     if(row&&list.contains(row)){
       const rect=row.getBoundingClientRect(),before=clientY<rect.top+rect.height/2;
       if(row.dataset.timeBlockAnchor){
@@ -1081,7 +1117,7 @@ function wireControlsV2(){
       }
       if(row.dataset.timeBlockToken){
         const afterAnchor=row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR;
-        if(row.dataset.timeBlockToken===g.token){
+        if(row.dataset.timeBlockToken===g.planToken){
           row.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
           return{dropType:"time-block",date,blockId,afterAnchor:g.currentAfterAnchor||afterAnchor,order:g.currentOrder||1}
         }
@@ -1143,8 +1179,8 @@ function wireControlsV2(){
       g.currentAfterAnchor=item.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR;
       g.currentOrder=Math.max(1,+item.dataset.timeBlockOrder||1);
       g.start=Number.isFinite(+item.dataset.time)?+item.dataset.time:null;
-      g.canUseTimeBlock=Boolean(g.date&&(g.kind==="task"||g.kind==="habit"||g.kind==="event"));
-      const derivedPlanToken=g.canUseTimeBlock?timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource},g.date):"";
+      g.canUseTimeBlock=Boolean(g.kind==="task"||g.kind==="habit"||g.kind==="event");
+      const derivedPlanToken=g.canUseTimeBlock&&g.date?timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource},g.date):"";
       g.planToken=item.dataset.timeBlockToken||derivedPlanToken;
       g.planDate=item.dataset.timeBlockToken?g.date:"";
       g.duration=+item.dataset.duration||SLOT;
@@ -1196,8 +1232,20 @@ function wireControlsV2(){
     }
     clearDropIndicators();
     const pointed=document.elementFromPoint(e.clientX,e.clientY);
-    const planSurface=g.canUseTimeBlock&&g.planToken&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section");
+    const sideTab=pointed?.closest("[data-uw-side-tab]");
+    if(sideTab&&g.kind==="task"){
+      const requested=sideTab.dataset.uwSideTab;
+      if(requested&&requested!==homeSideTab){homeSideTab=requested;renderSideTab()}
+      if(requested==="someday"){
+        sideTab.classList.add("uw-drop-target");g.validTarget=true;g.dropType="someday";g.nextDate="";g.nextStart=null;
+        if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}
+        return
+      }
+    }
+    const planSurface=g.canUseTimeBlock&&pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section");
     if(planSurface){
+      const targetDate=planSurface.dataset.date||planSurface.closest("[data-date]")?.dataset.date||planSurface.querySelector?.("[data-date]")?.dataset.date||"";
+      if(!g.planToken&&targetDate)g.planToken=timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource||targetDate},targetDate);
       const target=plannerDropAt(g,pointed,e.clientY);
       g.validTarget=Boolean(target);
       g.dropType=target?.dropType||null;
@@ -1215,7 +1263,7 @@ function wireControlsV2(){
     let drop=null;
     g.validTarget=false;
     g.dropType=null;
-    if(lane){
+    if(lane&&(g.kind!=="habit"||lane.closest(".uw-day")?.dataset.date===g.date)){
       g.nextDate=lane.closest(".uw-day")?.dataset.date||g.date;
       g.nextStart=minuteAt(lane,e.clientY);
       g.dropType="time";
@@ -1225,7 +1273,7 @@ function wireControlsV2(){
       g.nextStart=null;
       g.dropType="someday";
       drop=someday;
-    }else if(allDay){
+    }else if(allDay&&(g.kind!=="habit"||(allDay.dataset.date||g.date)===g.date)){
       g.nextDate=allDay.dataset.date||g.date;
       g.nextStart=null;
       g.dropType="all-day";
@@ -1263,22 +1311,30 @@ function wireControlsV2(){
       return;
     }
     if(!g.validTarget)return;
+    const scope=await dragMoveScope(g.kind,g.id,g.occurrenceSource,g.date);
+    if(!scope)return;
+    const recurring=recurringDragItem(g.kind,g.id),seriesMove=scope==="all"&&recurring,dateChanged=(g.nextDate||"")!==(g.date||"");
+    if(seriesMove&&g.dropType==="someday"){showToast("반복 전체는 언젠가로 옮길 수 없어요. ‘이 할일만’을 선택해 주세요.");return}
     if(g.dropType==="time-block-unassigned"&&g.planToken){
-      if(g.planDate)await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));
-      else await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken);
+      if(g.planDate&&!seriesMove&&!dateChanged)await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));
+      else await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
       return
     }
     if(g.dropType==="time-block"&&g.planToken&&g.nextBlockId){
-      if(g.start!==null||g.kind==="event"){
+      if(g.start!==null||g.kind==="event"||seriesMove){
         const targetBlock=effectiveTimeBlockTemplatesForDate(state,g.nextDate).find(block=>String(block.id)===String(g.nextBlockId));
-        if(targetBlock)await saveTimedChange(g.kind,g.id,g.nextDate,Number(targetBlock.startMinute),g.duration,g.occurrenceSource,g.planDate,g.planToken);
-      }else await write(next=>placeTimeBlockOccurrence(next,g.nextDate,g.planToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));
+        if(targetBlock)await saveTimedChange(g.kind,g.id,g.nextDate,Number(targetBlock.startMinute),g.duration,g.occurrenceSource,g.planDate,g.planToken,scope);
+      }else{
+        const placementToken=dateChanged&&!recurring?timeBlockOccurrenceToken(g.kind,{id:g.id},g.nextDate):g.planToken;
+        if(dateChanged)await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
+        await write(next=>placeTimeBlockOccurrence(next,g.nextDate,placementToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder))
+      }
       return
     }
-    if(g.dropType==="all-day"&&g.planToken&&g.nextDate===g.planDate){await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));return}
-    if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration,g.occurrenceSource,g.planDate,g.planToken);
-    else if(g.dropType==="all-day"||g.dropType==="someday")await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken);
-    else await saveDateOnlyChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken);
+    if(g.dropType==="all-day"&&g.planToken&&g.nextDate===g.planDate&&!seriesMove){await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));return}
+    if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration,g.occurrenceSource,g.planDate,g.planToken,scope);
+    else if(g.dropType==="all-day"||g.dropType==="someday")await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
+    else await saveDateOnlyChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
   },{capture:true});
   document.addEventListener("pointercancel",()=>clear(gesture));
   document.addEventListener("contextmenu",e=>{if(gesture?.active){e.preventDefault();e.stopImmediatePropagation()}},true);
@@ -1289,7 +1345,7 @@ function wireHabitForm(){
   const startInput=$("#habitPageStartDate"),endInput=$("#habitPageEndDate"),periodButton=$("#habitPagePeriodButton"),periodPanel=$("#habitPagePeriodPanel"),periodLabel=$("#habitPagePeriodLabel");
   if(startInput&&!startInput.value)startInput.value=todayKey();
   const shortDate=value=>{if(!value)return"";const d=fromKey(value);return`${d.getMonth()+1}/${d.getDate()}`};
-  const refreshPeriodLabel=()=>{if(!periodLabel)return;const startDate=startInput?.value||todayKey(),endDate=endInput?.value||"";periodLabel.textContent=endDate?`${shortDate(startDate)}–${shortDate(endDate)}`:startDate===todayKey()?"오늘부터":`${shortDate(startDate)}부터`};
+  const refreshPeriodLabel=()=>{if(!periodLabel)return;const startDate=startInput?.value||todayKey(),endDate=endInput?.value||"",label=endDate?`${shortDate(startDate)}–${shortDate(endDate)}`:startDate===todayKey()?"오늘부터":`${shortDate(startDate)}부터`;periodLabel.textContent=label;periodButton.title=`습관 날짜 · ${label}`;periodButton.setAttribute("aria-label",`습관 날짜 · ${label}`)};
   const closePeriod=()=>{if(periodPanel)periodPanel.hidden=true;periodButton?.setAttribute("aria-expanded","false")};
   const closeRepeat=()=>{const panel=$("#habitPageRepeatPanel"),button=$("#habitPageRepeatButton");if(panel)panel.hidden=true;button?.setAttribute("aria-expanded","false")};
   endInput?.addEventListener("input",()=>{endInput.setCustomValidity("");refreshPeriodLabel()});
@@ -1300,10 +1356,10 @@ function wireHabitForm(){
   const control=$("#habitPageRepeatControl");
   const installRepeat=()=>{
     if(!control)return;
-    control.innerHTML=`<button class="uw-habit-repeat-button active" id="habitPageRepeatButton" type="button" aria-expanded="false" title="반복 설정">↻ <span>매일</span></button><div class="uw-habit-repeat-pop" id="habitPageRepeatPanel" hidden>${recurrenceEditorMarkup({recurrence:{frequency:"daily",interval:1}},"daily",false,false)}<div class="uw-habit-time-plan"><button class="uw-habit-time-add" id="habitPageTimeAdd" type="button">＋ 시간 추가</button><div class="uw-habit-time-fields" id="habitPageTimeFields" hidden><label><span>시간</span><input id="habitPageTime" type="time" step="1800" aria-label="습관 시간"></label><label><span>길이</span><select id="habitPageDuration" aria-label="습관 길이"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option></select></label><button class="uw-habit-time-remove" id="habitPageTimeRemove" type="button">시간 제거</button></div></div></div>`;
+    control.innerHTML=`<button class="uw-habit-repeat-button uw-habit-tool-button active" id="habitPageRepeatButton" type="button" aria-expanded="false" title="반복 설정" aria-label="반복 설정 · 매일"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 2.8 20.5 6 17 9.2"></path><path d="M3.5 10V8.5A2.5 2.5 0 0 1 6 6h14"></path><path d="m7 21.2-3.5-3.2L7 14.8"></path><path d="M20.5 14v1.5A2.5 2.5 0 0 1 18 18H4"></path></svg><span hidden>매일</span></button><div class="uw-habit-repeat-pop" id="habitPageRepeatPanel" hidden>${recurrenceEditorMarkup({recurrence:{frequency:"daily",interval:1}},"daily",false,false)}<div class="uw-habit-time-plan"><button class="uw-habit-time-add" id="habitPageTimeAdd" type="button">＋ 시간 추가</button><div class="uw-habit-time-fields" id="habitPageTimeFields" hidden><label><span>시간</span><input id="habitPageTime" type="time" step="1800" aria-label="습관 시간"></label><label><span>길이</span><select id="habitPageDuration" aria-label="습관 길이"><option value="30">30분</option><option value="60">1시간</option><option value="90">1시간 30분</option><option value="120">2시간</option></select></label><button class="uw-habit-time-remove" id="habitPageTimeRemove" type="button">시간 제거</button></div></div></div>`;
     const panel=$("#habitPageRepeatPanel"),button=$("#habitPageRepeatButton"),timeAdd=$("#habitPageTimeAdd"),timeFields=$("#habitPageTimeFields"),timeInput=$("#habitPageTime"),durationInput=$("#habitPageDuration"),timeRemove=$("#habitPageTimeRemove");
     wireRecurrenceEditor(panel,startInput?.value||todayKey());
-    const refreshLabel=()=>{const recurrence=recurrenceFromEditor(panel,startInput?.value||todayKey(),{includeUntil:false});const label=recurrenceLabel({recurrence})||"매일";$("span",button).textContent=label;button.classList.toggle("active",!!recurrence)};
+    const refreshLabel=()=>{const recurrence=recurrenceFromEditor(panel,startInput?.value||todayKey(),{includeUntil:false});const label=recurrenceLabel({recurrence})||"매일";$("span",button).textContent=label;button.title=`반복 설정 · ${label}`;button.setAttribute("aria-label",`반복 설정 · ${label}`);button.classList.toggle("active",!!recurrence)};
     const showTimeFields=show=>{if(timeFields)timeFields.hidden=!show;if(timeAdd)timeAdd.hidden=show;if(show)requestAnimationFrame(()=>{try{timeInput?.showPicker()}catch{timeInput?.focus()}})};
     button.addEventListener("click",()=>{const open=panel.hidden;closePeriod();panel.hidden=!open;button.setAttribute("aria-expanded",String(open))});
     timeAdd?.addEventListener("click",()=>showTimeFields(true));
@@ -1325,7 +1381,26 @@ function wireHabitForm(){
     finally{button.disabled=false;if(button.textContent!=="다시 시도")button.textContent=original}
   })
 }
+function wireEnterToSave(){
+  if(document.documentElement.dataset.uwEnterSave)return;document.documentElement.dataset.uwEnterSave="1";
+  document.addEventListener("keydown",event=>{
+    if(event.key!=="Enter"||event.shiftKey||event.isComposing||event.keyCode===229||event.defaultPrevented)return;
+    const target=event.target instanceof HTMLInputElement?event.target:null;
+    if(!target||target.disabled||target.readOnly||target.closest(".uw-task-repeat-pop,.uw-habit-repeat-pop,.uw-habit-period-pop"))return;
+    const allowed=new Set(["text","search","email","password","url","tel","date","time","number"]);
+    if(!allowed.has(target.type))return;
+    const form=target.closest("form"),submit=form?.querySelector('button[type="submit"]:not(:disabled),input[type="submit"]:not(:disabled)');
+    if(form){event.preventDefault();submit?form.requestSubmit(submit):form.requestSubmit();return}
+    const clickMap={newEventGroupName:"addEventGroupBtn",blockDetail:"saveBlockBtn"},buttonId=clickMap[target.id];
+    if(buttonId){event.preventDefault();document.getElementById(buttonId)?.click();return}
+    if(target.matches("[data-template-title],[data-template-start],[data-template-end]")){
+      const saveButton=target.closest("#timeBlockSettingsSection")?.querySelector("#saveTimeBlockTemplatesBtn")||target.closest("#timeBlockV2SettingsSection")?.querySelector("#saveTimeBlockV2Btn")||document.querySelector("#saveTimeBlockV2Btn,#saveTimeBlockTemplatesBtn");
+      if(saveButton){event.preventDefault();saveButton.click();return}
+    }
+    if(target.matches("[data-event-group-name],[data-project-plan-title]")){event.preventDefault();target.blur()}
+  })
+}
 function wireOverdueActions(){document.addEventListener("click",async event=>{const view=event.target.closest("[data-uw-overdue-view]"),move=event.target.closest("[data-uw-overdue-move]");if(!view&&!move)return;event.preventDefault();event.stopImmediatePropagation();if(view){overdueExpanded=!overdueExpanded;renderOverdue();return}move.disabled=true;move.textContent="이동 중…";await write(current=>{const today=todayKey(),ids=new Set();current.tasks.forEach(task=>{if(!task.done&&task.date&&task.date<today&&!task.recurrence?.frequency){ids.add(task.id);task.date=today}});(current.timeBlocks||[]).forEach(block=>{if(ids.has(block.taskId)&&block.date<today)block.date=today})});overdueExpanded=false},true)}
 async function renderAll(){if(rendering)return;rendering=true;try{await read();if(!state)return;applyColors();renderHome();renderSchedulePage();renderTasks();renderHabits()}catch(e){console.error("통합 화면 렌더링 실패",e)}finally{rendering=false}}
-async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireHabitForm();wireOverdueActions();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();document.addEventListener("onekan:state-changed",event=>{if(event.detail?.source!=="unified")scheduleRender(40)});await renderAll();updateCurrentTimeLines();setInterval(updateCurrentTimeLines,60000)}
+async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireEnterToSave();wireHabitForm();wireOverdueActions();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();document.addEventListener("onekan:state-changed",event=>{if(event.detail?.source!=="unified")scheduleRender(40)});await renderAll();updateCurrentTimeLines();setInterval(updateCurrentTimeLines,60000)}
 supabase.auth.onAuthStateChange((_e,session)=>{user=session?.user||null;if(user)setTimeout(init,300)});const {data:{session}}=await supabase.auth.getSession();if(session?.user){user=session.user;setTimeout(init,300)}

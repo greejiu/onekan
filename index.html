@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="./css/style.css?v=20" />
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
-  <link rel="stylesheet" href="./css/unified-workspace.css?v=42" />
+  <link rel="stylesheet" href="./css/unified-workspace.css?v=43" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -117,7 +117,7 @@
           <input id="habitPageTitle" placeholder="새 습관" aria-label="새 습관" required />
           <label class="uw-habit-icon-field" title="영역"><span aria-hidden="true">◉</span><select id="habitPageGroup" aria-label="습관 영역"></select></label>
           <div class="uw-habit-period-control" id="habitPagePeriodControl">
-            <button class="uw-habit-period-button" id="habitPagePeriodButton" type="button" aria-expanded="false" title="습관 기간 설정"><span aria-hidden="true">▦</span><span id="habitPagePeriodLabel">오늘부터</span></button>
+            <button class="uw-habit-period-button uw-habit-tool-button" id="habitPagePeriodButton" type="button" aria-expanded="false" title="습관 날짜 설정" aria-label="습관 날짜 설정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg><span id="habitPagePeriodLabel" hidden>오늘부터</span></button>
             <div class="uw-habit-period-pop" id="habitPagePeriodPanel" hidden>
               <strong>기간</strong>
               <label><span>시작일</span><input id="habitPageStartDate" type="date" aria-label="습관 시작일" /></label>
@@ -270,10 +270,10 @@
   <script type="module" src="./js/interaction-fixes.js?v=6"></script>
   <script type="module" src="./js/app.js?v=36"></script>
   <script type="module" src="./js/context-menu.js?v=22"></script>
-  <script type="module" src="./js/workspace-pages.js?v=11"></script>
+  <script type="module" src="./js/workspace-pages.js?v=12"></script>
   <script type="module" src="./js/appearance.js?v=4"></script>
   <script type="module" src="./js/time-block-v2-settings.js?v=4"></script>
-  <script type="module" src="./js/unified-workspace.js?v=52"></script>
+  <script type="module" src="./js/unified-workspace.js?v=53"></script>
   <script type="module" src="./js/work-management.js?v=12"></script>
   <script type="module" src="./js/project-planning.js?v=5"></script>
   <script type="module" src="./js/work-status-inline-add.js?v=5"></script>
