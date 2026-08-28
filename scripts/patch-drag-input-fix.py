@@ -11,9 +11,9 @@ if old not in u:
     raise SystemExit('timed list planning attrs not found')
 u=u.replace(old,new,1)
 
-if './js/unified-workspace.js?v=54' not in i:
+if './js/unified-workspace.js?v=55' not in i:
     raise SystemExit('unexpected JS cache version')
-i=i.replace('./js/unified-workspace.js?v=54','./js/unified-workspace.js?v=55',1)
+i=i.replace('./js/unified-workspace.js?v=55','./js/unified-workspace.js?v=56',1)
 
 u_path.write_text(u,encoding='utf-8')
 i_path.write_text(i,encoding='utf-8')
