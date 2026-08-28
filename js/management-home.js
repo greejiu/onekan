@@ -63,7 +63,6 @@ async function writeState(mutator) {
     .upsert({ user_id: user.id, data: state }, { onConflict: "user_id" });
   if (error) throw error;
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management-home" } }));
-  $("#reloadCloudBtn")?.click();
   scheduleRender(90);
   return true;
 }
@@ -409,10 +408,18 @@ function wireEvents() {
 
 ensureStyle();
 wireEvents();
-const observer = new MutationObserver((mutations) => {
-  if (mutations.some((mutation) => mutation.type === "childList" && !mutation.target.closest?.("[data-management-home-item]"))) scheduleRender(35);
-});
-observer.observe(document.body, { childList: true, subtree: true });
+const homeRoot = $("#page-home");
+if (homeRoot) {
+  const observer = new MutationObserver((mutations) => {
+    if (mutations.some((mutation) => mutation.type === "childList" && !mutation.target.closest?.("[data-management-home-item]"))) scheduleRender(35);
+  });
+  observer.observe(homeRoot, { childList: true, subtree: true });
+}
+const settingsRoot = $("#page-settings");
+if (settingsRoot) {
+  const settingsObserver = new MutationObserver(() => ensureColorSetting());
+  settingsObserver.observe(settingsRoot, { childList: true, subtree: true });
+}
 document.addEventListener("onekan:state-changed", (event) => {
   if (event.detail?.source !== "management-home") scheduleRender(80);
 });
