@@ -35,6 +35,12 @@ assert.match(u,/return await askTaskScope\(task,sourceDate\)/,'a recurring task 
 assert.match(u,/return await askEventScope\("change",event,sourceDate\)/,'a recurring event drag must always ask for occurrence or series scope');
 assert.match(u,/return await askHabitScope\("change",habit,sourceDate\)/,'a habit drag must always ask for occurrence or series scope');
 assert.doesNotMatch(u,/Override\(state,sourceDate,id\)\?"day":await ask(?:Habit|Task|Event)Scope/,'an existing date override must not silently force a day-only move');
+assert.match(u,/function freezeCompletedTaskOccurrences.*freezeTaskOccurrence/,'completed recurring tasks must be snapshotted before a series change');
+assert.match(u,/function freezeCompletedHabitOccurrences.*freezeHabitOccurrence/,'completed habits must be snapshotted before a series change');
+assert.match(u,/if\(next&&habit\)freezeHabitOccurrence/,'completing a habit must freeze that date immediately');
+assert.match(u,/if\(next\)freezeTaskOccurrence\(s,t,occurrence\)/,'completing a recurring task must freeze that occurrence immediately');
+assert.match(u,/current\.tasks\.push\(task\);habitOverride\(current,editDate,target\.id,true\)\.hidden=true/,'renaming one habit occurrence must create a one-day task and hide only that habit occurrence');
+assert.doesNotMatch(u,/clearTaskTimingOverrides\(current,id\)/,'a series move must preserve every existing task date override');
 assert.match(u,/if\(kind==="habit"&&\(!frequency\|\|frequency==="none"\)\)return"매일"/,'legacy habits without recurrence metadata must still show the repeat badge');
 assert.match(u,/uw-habit-name uw-item[^`]+uw-repeat-badge[^`]+recurrenceLabel\(h,"habit"\)/,'the habit history list must show the same repeat badge as planner cards');
 assert.match(u,/const sideTab=pointed\?\.closest\("\[data-uw-side-tab\]"\)/,'shared drag must detect upcoming and someday side tabs');
@@ -55,7 +61,7 @@ assert.match(c,/\.uw-time-block-plan-item \.uw-item-title\{font-size:11px\}/,'pr
 assert.match(c,/\.uw-time-block-v2-list \.uw-time-block-v2-item\{min-height:28px;padding:4px 6px\}/,'time-block list cards must stay compact');
 assert.doesNotMatch(c,/\.uw-time-block-v2-item\.fixed-anchor[^\{]*\{grid-column:1\/-1\}/,'timed cards must use the same two-column grid as all-day cards');
 assert.match(c,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-time-block-v2-item\.plan-draggable\{min-height:36px/,'touch cards must stay compact while preserving a usable hit area');
-assert.match(i,/unified-workspace\.js\?v=60/);
+assert.match(i,/unified-workspace\.js\?v=61/);
 assert.match(i,/workspace-pages\.js\?v=12/);
 assert.match(i,/context-menu\.js\?v=22/);
 assert.match(i,/unified-workspace\.css\?v=44/);
