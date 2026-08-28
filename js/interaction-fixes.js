@@ -1,6 +1,6 @@
 import "./auth-guard.js?v=1";
 import "./notes.js?v=1";
-import "./notes-board-view.js?v=2";
+import "./notes-board-view.js?v=3";
 import "./notes-interactions-v2.js?v=2";
 import "./habit-area-check-colors.js?v=1";
 
