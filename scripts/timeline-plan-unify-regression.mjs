@@ -26,7 +26,8 @@ assert.doesNotMatch(c,/\.uw-time-block-plan-item\{[^}]*border-style:dashed/,'pro
 assert.match(c,/\.uw-time-block-plan-item\{min-height:18px;padding:2px 4px;font-size:9px;pointer-events:auto;overflow:hidden\}/,'projected cards should match normal timeline card sizing');
 assert.match(c,/\.uw-time-block-plan-item \.uw-item-title\{font-size:11px\}/,'projected title size should match normal item title');
 assert.match(c,/\.uw-time-block-v2-list \.uw-time-block-v2-item\{min-height:28px;padding:4px 6px\}/,'time-block list cards must stay compact');
+assert.doesNotMatch(c,/\.uw-time-block-v2-item\.fixed-anchor[^\{]*\{grid-column:1\/-1\}/,'timed cards must use the same two-column grid as all-day cards');
 assert.match(c,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-time-block-v2-item\.plan-draggable\{min-height:36px/,'touch cards must stay compact while preserving a usable hit area');
 assert.match(i,/unified-workspace\.js\?v=51/);
-assert.match(i,/unified-workspace\.css\?v=41/);
+assert.match(i,/unified-workspace\.css\?v=42/);
 console.log('timeline plan unify regression: ok');

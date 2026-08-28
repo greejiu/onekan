@@ -337,7 +337,7 @@
 .uw-time-block-v2-head strong{font-size:12px}
 .uw-time-block-v2-head span{font-size:11px;color:var(--muted)}
 .uw-time-block-v2-list{padding:4px 6px;min-height:38px;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
-.uw-time-block-v2-list .uw-time-block-v2-item.fixed-anchor,.uw-time-block-v2-list .uw-time-block-v2-empty{grid-column:1/-1}
+.uw-time-block-v2-list .uw-time-block-v2-empty{grid-column:1/-1}
 .uw-time-block-v2-list.uw-time-block-drop-bottom::after{grid-column:1/-1}
 @media(max-width:700px){.uw-time-block-v2-list{grid-template-columns:minmax(0,1fr)}}
 .uw-time-block-v2-list .uw-time-block-v2-item{min-height:28px;padding:4px 6px}
