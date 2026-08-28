@@ -1,0 +1,93 @@
+name: Harden management history
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/harden-management-history.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Align history with app-day and deletion rules
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          history = Path('js/management-history.js')
+          text = history.read_text()
+          old = '''function dateKey(date = new Date()) {
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+          }'''
+          new = '''function dateKey(date = new Date()) {
+            const value = new Date(date);
+            value.setHours(value.getHours() - 3);
+            return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+          }'''
+          if old in text:
+              text = text.replace(old, new, 1)
+          else:
+              compact_old = 'function dateKey(date = new Date()) {\n  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;\n}'
+              compact_new = 'function dateKey(date = new Date()) {\n  const value = new Date(date);\n  value.setHours(value.getHours() - 3);\n  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;\n}'
+              if compact_old not in text:
+                  raise SystemExit('history dateKey block not found')
+              text = text.replace(compact_old, compact_new, 1)
+          history.write_text(text)
+
+          items = Path('js/management-items.js')
+          text = items.read_text()
+          old_message = 'message: "아직 실행 기록 기능을 붙이기 전이라 항목만 삭제돼요."'
+          new_message = 'message: "항목과 이 항목의 실행 기록도 함께 삭제돼요."'
+          if old_message not in text:
+              raise SystemExit('management delete message not found')
+          text = text.replace(old_message, new_message, 1)
+          old_delete = 'current.managementItems = current.managementItems.filter((entry) => entry.id !== itemId);'
+          new_delete = '''current.managementItems = current.managementItems.filter((entry) => entry.id !== itemId);
+            current.managementHistory = Array.isArray(current.managementHistory)
+              ? current.managementHistory.filter((entry) => entry.itemId !== itemId)
+              : [];'''
+          if old_delete not in text:
+              raise SystemExit('management delete mutation not found')
+          text = text.replace(old_delete, new_delete, 1)
+          items.write_text(text)
+
+          loader = Path('js/interaction-fixes.js')
+          text = loader.read_text()
+          replacements = [
+            ('import "./management-items.js?v=2";', 'import "./management-items.js?v=3";'),
+            ('import "./management-history.js?v=1";', 'import "./management-history.js?v=2";'),
+          ]
+          for old, new in replacements:
+              if old in text:
+                  text = text.replace(old, new, 1)
+              elif new not in text:
+                  raise SystemExit(f'loader target not found: {old}')
+          loader.write_text(text)
+
+          index = Path('index.html')
+          text = index.read_text()
+          old = './js/interaction-fixes.js?v=13'
+          new = './js/interaction-fixes.js?v=14'
+          if old in text:
+              text = text.replace(old, new, 1)
+              index.write_text(text)
+          elif new not in text:
+              raise SystemExit('outer loader target not found')
+          PY
+          node --check js/management-history.js
+          node --check js/management-items.js
+          git rm .github/workflows/harden-management-history.yml
+      - name: Commit hardening
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/management-history.js js/management-items.js js/interaction-fixes.js index.html
+          git commit -m "fix: align management history lifecycle"
+          git push origin main
