@@ -80,6 +80,7 @@ function scheduleDisable() {
 
 document.addEventListener("pointerdown", (event) => {
   if (!event.isPrimary || event.button !== 0 || !isFinePointer(event)) return;
+  if (event.target.closest?.("[data-management-schedule-tool],.management-schedule-popover")) return;
   const itemEl = event.target.closest?.("#page-management .management-item[data-management-item-id]");
   if (!itemEl || event.target.closest("input,select,textarea")) return;
 
