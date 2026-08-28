@@ -1,0 +1,44 @@
+name: Time block V2 stage 3
+on:
+  push:
+    paths:
+      - 'scripts/patch-time-block-v2-stage3.py'
+      - 'scripts/time-block-v2-stage3.mjs'
+      - '.github/workflows/time-block-v2-stage3.yml'
+permissions:
+  contents: write
+jobs:
+  stage3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Apply stage 3 patch
+        run: python scripts/patch-time-block-v2-stage3.py
+      - name: Check JavaScript
+        run: |
+          node --check js/time-block-v2.js
+          node --check js/time-block-v2-settings.js
+          node --check js/unified-workspace.js
+      - name: Run stage 3 regression
+        run: node scripts/time-block-v2-stage3.mjs
+      - name: Verify cache bumps
+        run: |
+          grep -F 'css/unified-workspace.css?v=33' index.html
+          grep -F 'js/time-block-v2-settings.js?v=4' index.html
+          grep -F 'js/unified-workspace.js?v=39' index.html
+          grep -F 'time-block-v2.js?v=3' js/unified-workspace.js
+          grep -F 'time-block-v2.js?v=3' js/time-block-v2-settings.js
+      - name: Commit stage 3
+        run: |
+          if git diff --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/time-block-v2.js js/time-block-v2-settings.js js/unified-workspace.js css/unified-workspace.css index.html
+          git commit -m 'Implement time block V2 date overrides'
+          git push
