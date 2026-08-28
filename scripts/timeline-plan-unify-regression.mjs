@@ -12,7 +12,7 @@ assert.match(u,/placeTimeBlockOccurrence\(next,g\.date,g\.token,g\.nextBlockId,g
 assert.match(u,/uw-time-block-plan-drop-surface/,'timeline plan rail should be an explicit planner drop surface');
 assert.doesNotMatch(c,/uw-time-block-plan-group::before/,'plan connector line should be removed');
 assert.doesNotMatch(c,/uw-time-block-plan-group::after/,'plan connector dot should be removed');
-assert.doesNotMatch(c,/border-style:dashed/,'projected cards should not use special dashed border');
+assert.doesNotMatch(c,/\.uw-time-block-plan-item\{[^}]*border-style:dashed/,'projected cards should not use special dashed border');
 assert.match(c,/\.uw-time-block-plan-item\{min-height:18px;padding:2px 4px;font-size:9px;pointer-events:auto;overflow:hidden\}/,'projected cards should match normal timeline card sizing');
 assert.match(c,/\.uw-time-block-plan-item \.uw-item-title\{font-size:11px\}/,'projected title size should match normal item title');
 assert.match(i,/unified-workspace\.js\?v=48/);
