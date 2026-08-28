@@ -566,8 +566,12 @@ function timeBlockV2TimelinePlan(entries,k,templates,assignments){
   }
   return buildTimeBlockTimelinePlanRows(templates,assignments,occurrences).map(row=>({...row,entry:entryByToken.get(row.token)})).filter(row=>row.entry&&timeBlockV2Assignable(row.entry))
 }
-function timeBlockV2TimelinePlanItemMarkup(entry,k){
-  return itemMarkup(entry.kind,entry.item,k,true).replace('class="uw-item ','class="uw-item uw-time-block-plan-item ').replace(/<button class="uw-move-handle"[^>]*>↕<\/button>/,'')
+function timeBlockV2TimelinePlanItemMarkup(entry,k,row){
+  const token=row?.token||timeBlockV2EntryToken(entry,k),blockId=row?.blockId||"",afterAnchor=row?.afterAnchor||TIME_BLOCK_START_ANCHOR,order=Math.max(1,Number(row?.order)||1);
+  return itemMarkup(entry.kind,entry.item,k,true)
+    .replace('class="uw-item ','class="uw-item uw-time-block-plan-item uw-time-block-v2-item plan-draggable ')
+    .replace(' draggable="false"',` data-time-block-token="${esc(token)}" data-time-block-block-id="${esc(blockId)}" data-time-block-after-anchor="${esc(afterAnchor)}" data-time-block-order="${order}" draggable="false"`)
+    .replace(/<button class="uw-move-handle"[^>]*>↕<\/button>/,'')
 }
 function timeBlockV2TimelineProjection(rows,k){
   const visible=rows.filter(row=>Number(row.anchorMinute)>=START&&Number(row.anchorMinute)<END),groups=new Map();
@@ -576,7 +580,7 @@ function timeBlockV2TimelineProjection(rows,k){
   const rowHeight=24,gap=3;let cursor=-Infinity;
   for(const group of ordered){group.rows.sort((a,b)=>a.order-b.order||String(a.token).localeCompare(String(b.token)));const ideal=((group.anchorMinute-START)/SLOT)*SLOT_H;group.top=Math.max(0,ideal,Number.isFinite(cursor)?cursor+gap:0);group.anchorOffset=Math.max(0,group.top-ideal);group.height=Math.max(rowHeight,group.rows.length*rowHeight);cursor=group.top+group.height}
   const projectedTokens=new Set(visible.map(row=>row.token));
-  const markup=ordered.map(group=>`<div class="uw-time-block-plan-group" style="top:${group.top}px;--uw-plan-anchor-offset:${group.anchorOffset}px" data-time-block-id="${esc(group.blockId)}" data-after-anchor="${esc(group.afterAnchor)}"><div class="uw-time-block-plan-rows">${group.rows.map(row=>timeBlockV2TimelinePlanItemMarkup(row.entry,k)).join("")}</div></div>`).join("");
+  const markup=ordered.map(group=>`<div class="uw-time-block-plan-group" style="top:${group.top}px;--uw-plan-anchor-offset:${group.anchorOffset}px" data-time-block-id="${esc(group.blockId)}" data-after-anchor="${esc(group.afterAnchor)}"><div class="uw-time-block-plan-rows">${group.rows.map(row=>timeBlockV2TimelinePlanItemMarkup(row.entry,k,row)).join("")}</div></div>`).join("");
   return{markup,projectedTokens,height:Math.max(timelineHeight(),Number.isFinite(cursor)?cursor+4:timelineHeight()),hasRows:visible.length>0}
 }
 
@@ -584,7 +588,7 @@ function timeBlockV2TimelineProjection(rows,k){
 function plannerDay(d,index=0){
   const k=key(d),items=timelineItemsForDay(k),plannedEntries=items.filter(entry=>entry.kind!=="session"),templates=effectiveTimeBlockTemplatesForDate(state,k),assignments=timeBlockAssignmentsForDate(state,k),planRows=timeBlockV2TimelinePlan(plannedEntries,k,templates,assignments),projection=timeBlockV2TimelineProjection(planRows,k),untimed=items.filter(entry=>!entry.timed&&!projection.projectedTokens.has(timeBlockV2EntryToken(entry,k))),timed=layoutTimedItems(items.filter(entry=>entry.timed&&entry.time>=START&&entry.time<END));
   let labels="",hits="";
-  for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}
+  for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time-block-anchor="${esc(timeBlockV2EntryToken(x,k))}" data-time="${m}"></div>`}
   const blocks=timed.map(x=>x.kind==="session"?sessionBlockMarkup(x,k):`<div class="uw-time-entry uw-item ${itemDoneOn(x.kind,x.item,k)?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${x.item.id}" data-date="${k}"${(x.kind==="task"||x.kind==="event")&&x.item._occurrenceSource?` data-occurrence-source="${x.item._occurrenceSource}"`:""} data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");
   const head=homeDays>1?`<div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>`:"",planClass=projection.hasRows?" uw-has-time-block-plan":"";
   return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}">${head}${allDayPanel(k,untimed)}<div class="uw-timeline${planClass}" style="height:${projection.height}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}<div class="uw-time-exact-lane">${blocks}</div>${projection.hasRows?`<div class="uw-time-block-plan-rail" aria-label="타임블럭 계획">${projection.markup}</div>`:""}</div></div></section>`
@@ -1018,6 +1022,44 @@ function wireControlsV2(){
     $$(".uw-month-cell").forEach(cell=>cell.classList.toggle("uw-range-selected",cell.dataset.date>=first&&cell.dataset.date<=last));
   };
   const plannerDropAt=(g,pointed,clientY)=>{
+    const timelineAllDay=pointed?.closest(".uw-all-day[data-uw-all-day-drop]");
+    if(timelineAllDay){
+      const date=timelineAllDay.dataset.date||timelineAllDay.closest(".uw-day")?.dataset.date;
+      if(date===g.date){timelineAllDay.classList.add("uw-drop-target");return{dropType:"time-block-unassigned",date}}
+      return null
+    }
+    const timeline=pointed?.closest(".uw-timeline");
+    if(timeline){
+      const day=timeline.closest(".uw-day"),date=day?.dataset.date;
+      if(!date||date!==g.date)return null;
+      const lane=timeline.querySelector(".uw-time-lane"),rect=lane?.getBoundingClientRect();
+      if(!lane||!rect)return null;
+      const minute=START+((clientY-rect.top)/SLOT_H)*SLOT,templates=effectiveTimeBlockTemplatesForDate(state,date),block=templates.find(candidate=>minute>=Number(candidate.startMinute)&&minute<Number(candidate.endMinute));
+      if(!block)return null;
+      const blockId=String(block.id),planItem=pointed?.closest(".uw-time-block-plan-item[data-time-block-token]");
+      if(planItem&&planItem.dataset.timeBlockToken!==g.token){
+        const targetBlockId=planItem.dataset.timeBlockBlockId||blockId,afterAnchor=planItem.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR,bounds=planItem.getBoundingClientRect(),before=clientY<bounds.top+bounds.height/2;
+        const peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.token&&row.dataset.timeBlockBlockId===targetBlockId&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor).sort((a,b)=>(+a.dataset.timeBlockOrder||1)-(+b.dataset.timeBlockOrder||1));
+        const peerIndex=peers.indexOf(planItem),order=(peerIndex<0?peers.length:peerIndex)+(before?1:2);
+        planItem.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
+        return{dropType:"time-block",date,blockId:targetBlockId,afterAnchor,order}
+      }
+      const exact=pointed?.closest('.uw-time-entry[data-time-block-anchor]');
+      if(exact&&exact.closest('.uw-timeline')===timeline){
+        const exactMinute=+exact.dataset.time,exactBlock=templates.find(candidate=>exactMinute>=Number(candidate.startMinute)&&exactMinute<Number(candidate.endMinute));
+        if(exactBlock){
+          const exactRows=[...timeline.querySelectorAll('.uw-time-entry[data-time-block-anchor]')].filter(row=>{const m=+row.dataset.time;return m>=Number(exactBlock.startMinute)&&m<Number(exactBlock.endMinute)}).sort((a,b)=>(+a.dataset.time||0)-(+b.dataset.time||0)||String(a.dataset.timeBlockAnchor).localeCompare(String(b.dataset.timeBlockAnchor)));
+          const bounds=exact.getBoundingClientRect(),before=clientY<bounds.top+bounds.height/2,index=exactRows.indexOf(exact),afterAnchor=before?(index>0?exactRows[index-1].dataset.timeBlockAnchor:TIME_BLOCK_START_ANCHOR):exact.dataset.timeBlockAnchor;
+          const peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.token&&row.dataset.timeBlockBlockId===String(exactBlock.id)&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor);
+          exact.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
+          return{dropType:"time-block",date,blockId:String(exactBlock.id),afterAnchor,order:peers.length+1}
+        }
+      }
+      const exactBefore=[...timeline.querySelectorAll('.uw-time-entry[data-time-block-anchor]')].filter(row=>{const m=+row.dataset.time;return m>=Number(block.startMinute)&&m<Number(block.endMinute)&&m<=minute}).sort((a,b)=>(+a.dataset.time||0)-(+b.dataset.time||0)||String(a.dataset.timeBlockAnchor).localeCompare(String(b.dataset.timeBlockAnchor)));
+      const afterAnchor=exactBefore.length?exactBefore.at(-1).dataset.timeBlockAnchor:TIME_BLOCK_START_ANCHOR,peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.token&&row.dataset.timeBlockBlockId===blockId&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor);
+      timeline.querySelector('.uw-time-block-plan-rail')?.classList.add('uw-time-block-drop-bottom');
+      return{dropType:"time-block",date,blockId,afterAnchor,order:peers.length+1}
+    }
     const unassignedSection=pointed?.closest(".uw-time-block-v2-section.unassigned");
     if(unassignedSection){
       const list=unassignedSection.querySelector("[data-uw-time-block-unassigned]"),date=list?.dataset.date||unassignedSection.closest(".uw-time-block-v2-day")?.dataset.date;
