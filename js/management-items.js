@@ -12,6 +12,9 @@ let activeAddGroupId = null;
 let activeEditItemId = null;
 let renderTimer = null;
 let rendering = false;
+let draggedItemId = null;
+let touchDrag = null;
+let touchHoldTimer = null;
 
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -42,7 +45,7 @@ function ensureStyle() {
   if ($('link[data-onekan-management-items-style]')) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = "./css/management-items.css?v=1";
+  link.href = "./css/management-items.css?v=2";
   link.dataset.onekanManagementItemsStyle = "1";
   document.head.appendChild(link);
 }
@@ -66,7 +69,7 @@ function itemFormMarkup(groupId, item = null) {
 
 function itemMarkup(item) {
   if (activeEditItemId === item.id) return itemFormMarkup(item.groupId, item);
-  return `<div class="management-item" data-management-item-id="${esc(item.id)}" data-management-item-group-id="${esc(item.groupId)}">
+  return `<div class="management-item" draggable="true" data-management-item-id="${esc(item.id)}" data-management-item-group-id="${esc(item.groupId)}">
     <button class="management-item-title" data-management-item-edit="${esc(item.id)}" type="button">${esc(item.title)}</button>
   </div>`;
 }
@@ -144,6 +147,135 @@ async function deleteItem(itemId) {
   });
 }
 
+function clearDropTargets() {
+  $$("#page-management .management-group.management-drop-target").forEach((group) => group.classList.remove("management-drop-target"));
+}
+
+function markDropTarget(groupEl) {
+  clearDropTargets();
+  groupEl?.classList.add("management-drop-target");
+}
+
+async function moveItemToGroup(itemId, groupId) {
+  if (!itemId || !groupId) return;
+  await readState();
+  const item = state?.managementItems.find((entry) => entry.id === itemId);
+  const group = state?.managementGroups.find((entry) => entry.id === groupId);
+  if (!item || !group || item.groupId === group.id) return;
+  if (item.sectionId && item.sectionId !== group.sectionId) {
+    showToast("현재는 같은 섹션 안에서만 드래그 이동할 수 있어요.");
+    return;
+  }
+  await writeState((current) => {
+    const targetItem = current.managementItems.find((entry) => entry.id === itemId);
+    const targetGroup = current.managementGroups.find((entry) => entry.id === groupId);
+    if (!targetItem || !targetGroup) return;
+    targetItem.groupId = targetGroup.id;
+    targetItem.sectionId = targetGroup.sectionId;
+  });
+}
+
+function groupFromPoint(x, y) {
+  const target = document.elementFromPoint(x, y);
+  return target?.closest?.("#page-management .management-group") || null;
+}
+
+function resetTouchDrag() {
+  clearTimeout(touchHoldTimer);
+  touchHoldTimer = null;
+  clearDropTargets();
+  if (touchDrag?.itemEl) touchDrag.itemEl.classList.remove("management-item-dragging", "management-touch-dragging");
+  touchDrag = null;
+}
+
+function wireDragEvents() {
+  document.addEventListener("dragstart", (event) => {
+    const item = event.target.closest?.("#page-management .management-item[data-management-item-id]");
+    if (!item) return;
+    draggedItemId = item.dataset.managementItemId || null;
+    if (!draggedItemId) return;
+    item.classList.add("management-item-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", draggedItemId);
+  });
+
+  document.addEventListener("dragend", (event) => {
+    event.target.closest?.(".management-item")?.classList.remove("management-item-dragging");
+    draggedItemId = null;
+    clearDropTargets();
+  });
+
+  document.addEventListener("dragover", (event) => {
+    if (!draggedItemId) return;
+    const group = event.target.closest?.("#page-management .management-group");
+    if (!group) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    markDropTarget(group);
+  });
+
+  document.addEventListener("drop", async (event) => {
+    if (!draggedItemId) return;
+    const group = event.target.closest?.("#page-management .management-group");
+    if (!group) return;
+    event.preventDefault();
+    const itemId = draggedItemId || event.dataTransfer.getData("text/plain");
+    const groupId = group.dataset.managementGroupId || "";
+    draggedItemId = null;
+    clearDropTargets();
+    await moveItemToGroup(itemId, groupId);
+  });
+
+  document.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 1) return;
+    const itemEl = event.target.closest?.("#page-management .management-item[data-management-item-id]");
+    if (!itemEl) return;
+    const touch = event.touches[0];
+    resetTouchDrag();
+    touchDrag = {
+      itemId: itemEl.dataset.managementItemId,
+      itemEl,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      x: touch.clientX,
+      y: touch.clientY,
+      active: false,
+    };
+    touchHoldTimer = setTimeout(() => {
+      if (!touchDrag) return;
+      touchDrag.active = true;
+      touchDrag.itemEl.classList.add("management-item-dragging", "management-touch-dragging");
+      markDropTarget(groupFromPoint(touchDrag.x, touchDrag.y));
+      if (navigator.vibrate) navigator.vibrate(20);
+    }, 420);
+  }, { passive: true });
+
+  document.addEventListener("touchmove", (event) => {
+    if (!touchDrag || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    touchDrag.x = touch.clientX;
+    touchDrag.y = touch.clientY;
+    if (!touchDrag.active) {
+      const moved = Math.hypot(touch.clientX - touchDrag.startX, touch.clientY - touchDrag.startY);
+      if (moved > 8) resetTouchDrag();
+      return;
+    }
+    event.preventDefault();
+    markDropTarget(groupFromPoint(touch.clientX, touch.clientY));
+  }, { passive: false });
+
+  document.addEventListener("touchend", async () => {
+    if (!touchDrag) return;
+    const current = touchDrag;
+    const group = current.active ? groupFromPoint(current.x, current.y) : null;
+    const groupId = group?.dataset.managementGroupId || "";
+    resetTouchDrag();
+    if (current.active && groupId) await moveItemToGroup(current.itemId, groupId);
+  }, { passive: true });
+
+  document.addEventListener("touchcancel", resetTouchDrag, { passive: true });
+}
+
 function wireEvents() {
   document.addEventListener("click", async (event) => {
     if (!event.target.closest("#managementItemContext")) closeContext();
@@ -196,13 +328,7 @@ function wireEvents() {
       const itemId = menu?.dataset.itemId || "";
       const groupId = move.dataset.managementItemMoveGroup;
       closeContext();
-      await writeState((current) => {
-        const item = current.managementItems.find((entry) => entry.id === itemId);
-        const group = current.managementGroups.find((entry) => entry.id === groupId);
-        if (!item || !group) return;
-        item.groupId = group.id;
-        item.sectionId = group.sectionId;
-      });
+      await moveItemToGroup(itemId, groupId);
     }
   });
 
@@ -255,6 +381,7 @@ function wireEvents() {
 ensureStyle();
 ensureContextMenu();
 wireEvents();
+wireDragEvents();
 const observer = new MutationObserver(() => scheduleRender(30));
 observer.observe(document.body, { childList: true, subtree: true });
 document.addEventListener("onekan:state-changed", (event) => {
