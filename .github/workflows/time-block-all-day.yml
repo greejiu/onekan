@@ -1,0 +1,42 @@
+name: Time block all-day semantics
+on:
+  push:
+    paths:
+      - 'scripts/patch-time-block-all-day.py'
+      - 'scripts/time-block-all-day-regression.mjs'
+      - '.github/workflows/time-block-all-day.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  all-day:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply all-day semantics patch
+        run: python scripts/patch-time-block-all-day.py
+      - name: Check JavaScript
+        run: node --check js/unified-workspace.js
+      - name: Run regression
+        run: node scripts/time-block-all-day-regression.mjs
+      - name: Verify cache bump
+        run: grep -q 'unified-workspace.js?v=42' index.html
+      - name: Commit all-day semantics
+        run: |
+          if git diff --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/unified-workspace.js index.html
+          git commit -m 'Rename unassigned time block section to all-day'
+          git push
