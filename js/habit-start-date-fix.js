@@ -13,9 +13,10 @@ if (!window.__onekanHabitStartDateFixInstalled) {
   let pendingPeriodCommit = null;
   let pendingNewHabitPeriod = null;
   let commitRunning = false;
+  let cleanupRunning = false;
 
   const style = document.createElement("style");
-  style.dataset.onekanHabitStartDateFix = "2";
+  style.dataset.onekanHabitStartDateFix = "3";
   style.textContent = `
     .uw-habit-day-check.habit-range-inactive {
       border-color: var(--line, #ddd) !important;
@@ -25,7 +26,8 @@ if (!window.__onekanHabitStartDateFixInstalled) {
       cursor: default !important;
       pointer-events: none !important;
     }
-    .uw-habit-outside-range {
+    .uw-habit-outside-range,
+    .uw-habit-week-row.habit-range-hidden {
       display: none !important;
     }
   `;
@@ -38,6 +40,35 @@ if (!window.__onekanHabitStartDateFixInstalled) {
     return true;
   }
 
+  function normalizeCloud(cloud) {
+    const state = cloud && typeof cloud === "object" ? cloud : {};
+    state.habitTemplates = Array.isArray(state.habitTemplates) ? state.habitTemplates : [];
+    state.habitDays = state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {};
+    return state;
+  }
+
+  function cleanAutomaticFalseRecords(cloud) {
+    const state = normalizeCloud(cloud);
+    const byId = new Map(state.habitTemplates.map((habit) => [habit.id, habit]));
+    let changed = false;
+
+    for (const [date, values] of Object.entries(state.habitDays)) {
+      if (!values || typeof values !== "object") continue;
+      for (const [habitId, value] of Object.entries(values)) {
+        if (value !== false) continue;
+        const habit = byId.get(habitId);
+        if (!habit || isInsideRange(habit, date)) continue;
+        delete values[habitId];
+        changed = true;
+      }
+      if (Object.keys(values).length === 0) {
+        delete state.habitDays[date];
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   async function loadCloudState() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return null;
@@ -47,12 +78,22 @@ if (!window.__onekanHabitStartDateFixInstalled) {
       .eq("user_id", session.user.id)
       .maybeSingle();
     if (error) throw error;
-    const cloud = data?.data && typeof data.data === "object" ? data.data : {};
-    cloud.habitTemplates = Array.isArray(cloud.habitTemplates) ? cloud.habitTemplates : [];
-    return { user: session.user, cloud };
+    return { user: session.user, cloud: normalizeCloud(data?.data) };
+  }
+
+  async function saveCloud(loaded, source = "habit-period-fix") {
+    const { error } = await supabase
+      .from("onekan_state")
+      .upsert({ user_id: loaded.user.id, data: loaded.cloud }, { onConflict: "user_id" });
+    if (error) throw error;
+    habitsById = new Map(loaded.cloud.habitTemplates.map((habit) => [habit.id, habit]));
+    document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source } }));
+    $("#reloadCloudBtn")?.click();
+    scheduleEnforce(100);
   }
 
   async function refreshState() {
+    if (cleanupRunning) return;
     try {
       const loaded = await loadCloudState();
       if (!loaded) {
@@ -60,9 +101,15 @@ if (!window.__onekanHabitStartDateFixInstalled) {
         return;
       }
       habitsById = new Map(loaded.cloud.habitTemplates.map((habit) => [habit.id, habit]));
+      if (cleanAutomaticFalseRecords(loaded.cloud)) {
+        cleanupRunning = true;
+        await saveCloud(loaded, "habit-range-cleanup");
+      }
       scheduleEnforce(0);
     } catch (error) {
       console.error("habit period refresh failed", error);
+    } finally {
+      cleanupRunning = false;
     }
   }
 
@@ -77,9 +124,11 @@ if (!window.__onekanHabitStartDateFixInstalled) {
       const habit = habitsById.get(habitId);
       if (!habit) continue;
 
+      let hasVisibleOccurrence = false;
       for (const check of $$(".uw-habit-day-check[data-date]", row)) {
         const date = check.dataset.date;
         const active = isInsideRange(habit, date);
+        if (active) hasVisibleOccurrence = true;
         check.classList.toggle("habit-range-inactive", !active);
         if (!active) {
           check.disabled = true;
@@ -89,6 +138,7 @@ if (!window.__onekanHabitStartDateFixInstalled) {
           check.setAttribute("aria-label", habit.startDate && date < habit.startDate ? "습관 시작일 이전" : "습관 종료일 이후");
         }
       }
+      row.classList.toggle("habit-range-hidden", !hasVisibleOccurrence);
     }
 
     for (const item of $$(".uw-item[data-uw-kind='habit'][data-id][data-date]")) {
@@ -116,29 +166,39 @@ if (!window.__onekanHabitStartDateFixInstalled) {
     };
   }
 
+  function periodChanged(period) {
+    if (!period) return false;
+    const old = habitsById.get(period.habitId);
+    if (!old) return false;
+    return period.startDate !== (old.startDate || "") || period.endDate !== (old.endDate || "");
+  }
+
   function markPeriodEdit(input) {
-    const form = input.closest(".uw-inline-form");
-    const period = inlineHabitPeriod(form);
+    const period = inlineHabitPeriod(input.closest(".uw-inline-form"));
     if (!period) return;
     pendingPeriodEdit = period;
+  }
+
+  function queuePeriodCommit(period) {
+    if (!period || !periodChanged(period)) return;
+    pendingPeriodCommit = {
+      habitId: period.habitId,
+      startDate: period.startDate,
+      endDate: period.endDate,
+      at: Date.now(),
+    };
   }
 
   function resolvePeriodScopeIfNeeded() {
     const dialog = $("#uwHabitScopeDialog");
     if (!dialog?.open || !pendingPeriodEdit) return;
-    if (!pendingPeriodEdit.form?.isConnected || Date.now() - pendingPeriodEdit.at > 30000) {
-      pendingPeriodEdit = null;
-      return;
-    }
+    if (!pendingPeriodEdit.form?.isConnected || Date.now() - pendingPeriodEdit.at > 30000) return;
 
     const message = $("#uwHabitScopeMessage", dialog);
-    if (message) {
-      message.textContent = "습관 시작일·종료일은 전체 습관에 적용돼요.";
-    }
+    if (message) message.textContent = "습관 시작일·종료일은 전체 습관에 적용돼요.";
 
     const allButton = dialog.querySelector('[data-uw-habit-scope="all"]');
-    if (!allButton) return;
-    requestAnimationFrame(() => allButton.click());
+    if (allButton) requestAnimationFrame(() => allButton.click());
   }
 
   async function persistPendingPeriods() {
@@ -179,20 +239,14 @@ if (!window.__onekanHabitStartDateFixInstalled) {
         }
       }
 
+      if (cleanAutomaticFalseRecords(loaded.cloud)) changed = true;
       if (!changed) return;
-      const { error } = await supabase
-        .from("onekan_state")
-        .upsert({ user_id: loaded.user.id, data: loaded.cloud }, { onConflict: "user_id" });
-      if (error) throw error;
-
-      habitsById = new Map(loaded.cloud.habitTemplates.map((habit) => [habit.id, habit]));
-      document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "habit-period-fix" } }));
-      $("#reloadCloudBtn")?.click();
-      scheduleEnforce(120);
+      await saveCloud(loaded);
     } catch (error) {
       console.error("habit period persist failed", error);
     } finally {
       commitRunning = false;
+      pendingPeriodEdit = null;
     }
   }
 
@@ -204,14 +258,20 @@ if (!window.__onekanHabitStartDateFixInstalled) {
     if (event.target.matches?.(".uw-habit-start-date,.uw-habit-end-date")) markPeriodEdit(event.target);
   }, true);
 
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && event.target.closest?.(".uw-inline-form")) {
+      pendingPeriodEdit = null;
+      pendingPeriodCommit = null;
+    }
+  }, true);
+
   document.addEventListener("submit", (event) => {
     const form = event.target;
     if (form?.matches?.(".uw-inline-form")) {
       const period = inlineHabitPeriod(form);
-      const old = period ? habitsById.get(period.habitId) : null;
-      if (period && old && (period.startDate !== (old.startDate || "") || period.endDate !== (old.endDate || ""))) {
+      if (periodChanged(period)) {
         pendingPeriodEdit = period;
-        pendingPeriodCommit = { habitId: period.habitId, startDate: period.startDate, endDate: period.endDate, at: Date.now() };
+        queuePeriodCommit(period);
       }
       return;
     }
@@ -229,15 +289,21 @@ if (!window.__onekanHabitStartDateFixInstalled) {
   }, true);
 
   document.addEventListener("onekan:state-changed", (event) => {
-    scheduleRefresh(100);
-    if (event.detail?.source === "unified" && (pendingPeriodCommit || pendingNewHabitPeriod)) {
-      setTimeout(persistPendingPeriods, 160);
+    if (event.detail?.source !== "habit-range-cleanup" && event.detail?.source !== "habit-period-fix") {
+      scheduleRefresh(100);
+    }
+    if ((pendingPeriodCommit || pendingNewHabitPeriod) && event.detail?.source !== "habit-period-fix") {
+      setTimeout(persistPendingPeriods, 140);
     }
   });
   supabase.auth.onAuthStateChange(() => scheduleRefresh(120));
 
   const observer = new MutationObserver(() => {
     resolvePeriodScopeIfNeeded();
+    if (pendingPeriodEdit && !pendingPeriodEdit.form?.isConnected && Date.now() - pendingPeriodEdit.at < 30000) {
+      queuePeriodCommit(pendingPeriodEdit);
+      if (pendingPeriodCommit) setTimeout(persistPendingPeriods, 120);
+    }
     scheduleEnforce();
   });
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["open"] });
