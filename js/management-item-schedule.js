@@ -8,10 +8,11 @@ const VALID_UNITS = new Set(["day", "week", "month", "year"]);
 
 let state = null;
 let user = null;
-let openItemId = null;
 let openKind = null;
+let openSourceForm = null;
 let renderTimer = null;
 let rendering = false;
+let pendingSave = null;
 
 function normalizeRepeat(value) {
   if (!value || typeof value !== "object") return null;
@@ -50,25 +51,22 @@ async function readState() {
   return state;
 }
 
-async function writeState(mutator) {
-  await readState();
-  if (!state || !user) return false;
-  mutator(state);
+async function persistState(nextState) {
+  if (!user) return;
   const { error } = await supabase
     .from("onekan_state")
-    .upsert({ user_id: user.id, data: state }, { onConflict: "user_id" });
+    .upsert({ user_id: user.id, data: nextState }, { onConflict: "user_id" });
   if (error) throw error;
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management-schedule" } }));
   $("#reloadCloudBtn")?.click();
   scheduleRender(80);
-  return true;
 }
 
 function ensureStyle() {
   if ($('link[data-onekan-management-schedule-style]')) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = "./css/management-item-schedule.css?v=1";
+  link.href = "./css/management-item-schedule.css?v=2";
   link.dataset.onekanManagementScheduleStyle = "1";
   document.head.appendChild(link);
 }
@@ -105,7 +103,7 @@ function calendarIcon() {
   return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg>';
 }
 
-function scheduleMarkup(item) {
+function metaMarkup(item) {
   const date = item.nextDate || "";
   const time = date ? (item.nextTime || "") : "";
   const repeat = normalizeRepeat(item.repeat);
@@ -113,22 +111,78 @@ function scheduleMarkup(item) {
     date ? `<span class="management-schedule-meta-date">${esc(dateLabel(date, time))}</span>` : "",
     repeat ? `<span class="management-schedule-meta-repeat">↻ ${esc(repeatLabel(repeat))}</span>` : "",
   ].filter(Boolean).join("");
-
-  return `<div class="management-schedule-tools" data-management-schedule-owner="${esc(item.id)}">
-      <button class="management-schedule-tool${date ? " active" : ""}" data-management-schedule-tool="date" data-item-id="${esc(item.id)}" type="button" title="다음 예정일" aria-label="다음 예정일">${calendarIcon()}</button>
-      <button class="management-schedule-tool management-repeat-tool${repeat ? " active" : ""}" data-management-schedule-tool="repeat" data-item-id="${esc(item.id)}" type="button" title="반복 설정" aria-label="반복 설정">↻</button>
-    </div>
-    <div class="management-schedule-meta" data-management-schedule-meta="${esc(item.id)}"${meta ? "" : " hidden"}>${meta}</div>`;
+  return `<div class="management-schedule-meta" data-management-schedule-meta="${esc(item.id)}"${meta ? "" : " hidden"}>${meta}</div>`;
 }
 
 function decorateItem(itemEl, item) {
-  const current = itemEl.querySelector('[data-management-schedule-owner]')?.dataset.managementScheduleOwner;
   const signature = JSON.stringify([item.nextDate || "", item.nextTime || "", normalizeRepeat(item.repeat)]);
-  if (current === item.id && itemEl.dataset.managementScheduleSignature === signature) return;
-
+  if (itemEl.dataset.managementScheduleSignature === signature && itemEl.querySelector(".management-schedule-meta")) {
+    itemEl.querySelectorAll(".management-schedule-tools").forEach((node) => node.remove());
+    return;
+  }
   itemEl.querySelectorAll(".management-schedule-tools,.management-schedule-meta").forEach((node) => node.remove());
-  itemEl.insertAdjacentHTML("beforeend", scheduleMarkup(item));
+  itemEl.insertAdjacentHTML("beforeend", metaMarkup(item));
   itemEl.dataset.managementScheduleSignature = signature;
+}
+
+function hiddenInput(name, value = "") {
+  return `<input type="hidden" name="${name}" value="${esc(value)}">`;
+}
+
+function repeatFromForm(form) {
+  const unit = form.elements.managementRepeatUnit?.value || "";
+  if (!VALID_UNITS.has(unit)) return null;
+  const interval = Math.max(1, Math.min(999, Number.parseInt(form.elements.managementRepeatInterval?.value, 10) || 1));
+  return { interval, unit, basis: "completion" };
+}
+
+function draftFromForm(form) {
+  const date = form.elements.managementNextDate?.value || "";
+  return {
+    nextDate: date,
+    nextTime: date ? (form.elements.managementNextTime?.value || "") : "",
+    repeat: repeatFromForm(form),
+  };
+}
+
+function updateFormTools(form) {
+  const draft = draftFromForm(form);
+  const dateButton = form.querySelector('[data-management-schedule-tool="date"]');
+  const repeatButton = form.querySelector('[data-management-schedule-tool="repeat"]');
+  dateButton?.classList.toggle("active", Boolean(draft.nextDate));
+  repeatButton?.classList.toggle("active", Boolean(draft.repeat));
+  if (dateButton) dateButton.title = draft.nextDate ? `다음 예정 ${dateLabel(draft.nextDate, draft.nextTime)}` : "다음 예정일";
+  if (repeatButton) repeatButton.title = draft.repeat ? `반복 ${repeatLabel(draft.repeat)}` : "반복 설정";
+}
+
+function decorateForm(form, item = null) {
+  if (form.dataset.managementScheduleReady === "1") {
+    updateFormTools(form);
+    return;
+  }
+  const titleInput = form.querySelector('input[type="text"]');
+  if (!titleInput) return;
+
+  form.insertAdjacentHTML("beforeend", [
+    hiddenInput("managementNextDate", item?.nextDate || ""),
+    hiddenInput("managementNextTime", item?.nextTime || ""),
+    hiddenInput("managementRepeatInterval", item?.repeat?.interval || ""),
+    hiddenInput("managementRepeatUnit", item?.repeat?.unit || ""),
+  ].join(""));
+
+  const wrap = document.createElement("div");
+  wrap.className = "management-item-input-wrap";
+  titleInput.parentNode.insertBefore(wrap, titleInput);
+  wrap.appendChild(titleInput);
+  wrap.insertAdjacentHTML("beforeend", `
+    <div class="management-input-schedule-tools" aria-label="관리 일정 설정">
+      <button class="management-schedule-tool" data-management-schedule-tool="date" type="button" aria-label="다음 예정일">${calendarIcon()}</button>
+      <button class="management-schedule-tool management-repeat-tool" data-management-schedule-tool="repeat" type="button" aria-label="반복 설정">↻</button>
+    </div>`);
+
+  form.classList.add("has-management-schedule-input");
+  form.dataset.managementScheduleReady = "1";
+  updateFormTools(form);
 }
 
 async function renderSchedule() {
@@ -138,9 +192,15 @@ async function renderSchedule() {
     await readState();
     if (!state) return;
     const byId = new Map(state.managementItems.map((item) => [item.id, item]));
+
     $$("#page-management .management-item[data-management-item-id]").forEach((itemEl) => {
       const item = byId.get(itemEl.dataset.managementItemId);
       if (item) decorateItem(itemEl, item);
+    });
+
+    $$("#page-management [data-management-item-form]").forEach((form) => {
+      const item = form.dataset.itemId ? byId.get(form.dataset.itemId) : null;
+      decorateForm(form, item || null);
     });
   } catch (error) {
     console.error("management schedule render failed", error);
@@ -157,8 +217,8 @@ function scheduleRender(delay = 35) {
 function closePopover() {
   const pop = $("#managementSchedulePopover");
   if (pop) pop.hidden = true;
-  openItemId = null;
   openKind = null;
+  openSourceForm = null;
 }
 
 function positionPopover(button, pop) {
@@ -166,22 +226,22 @@ function positionPopover(button, pop) {
   const width = Math.min(320, innerWidth - 16);
   pop.style.width = `${width}px`;
   pop.style.left = `${Math.max(8, Math.min(innerWidth - width - 8, rect.right - width))}px`;
-  pop.style.top = `${Math.min(innerHeight - 190, rect.bottom + 7)}px`;
+  pop.style.top = `${Math.max(8, Math.min(innerHeight - 190, rect.bottom + 7))}px`;
 }
 
-function datePanel(item) {
-  return `<form class="management-schedule-form" data-management-date-form data-item-id="${esc(item.id)}">
+function datePanel(draft) {
+  return `<form class="management-schedule-form" data-management-date-form>
     <div class="management-schedule-pop-head"><strong>다음 예정</strong><button type="button" data-management-schedule-close aria-label="닫기">×</button></div>
-    <label><span>날짜</span><input name="date" type="date" value="${esc(item.nextDate || "")}"></label>
-    <label><span>시간 <small>선택</small></span><input name="time" type="time" step="1800" value="${esc(item.nextTime || "")}"${item.nextDate ? "" : " disabled"}></label>
+    <label><span>날짜</span><input name="date" type="date" value="${esc(draft.nextDate || "")}"></label>
+    <label><span>시간 <small>선택</small></span><input name="time" type="time" step="1800" value="${esc(draft.nextTime || "")}"${draft.nextDate ? "" : " disabled"}></label>
     <small class="management-schedule-help">시간을 비우면 하루종일 관리 항목으로 사용할 수 있어요.</small>
-    <div class="management-schedule-actions"><button class="ghost-btn danger-text" data-management-date-clear type="button">날짜 지우기</button><span></span><button class="primary-btn" type="submit">저장</button></div>
+    <div class="management-schedule-actions"><button class="ghost-btn danger-text" data-management-date-clear type="button">날짜 지우기</button><span></span><button class="primary-btn" type="submit">적용</button></div>
   </form>`;
 }
 
-function repeatPanel(item) {
-  const repeat = normalizeRepeat(item.repeat) || { interval: 1, unit: "month" };
-  return `<form class="management-schedule-form" data-management-repeat-form data-item-id="${esc(item.id)}">
+function repeatPanel(draft) {
+  const repeat = normalizeRepeat(draft.repeat) || { interval: 1, unit: "month" };
+  return `<form class="management-schedule-form" data-management-repeat-form>
     <div class="management-schedule-pop-head"><strong>반복</strong><button type="button" data-management-schedule-close aria-label="닫기">×</button></div>
     <div class="management-repeat-fields">
       <input name="interval" type="number" min="1" max="999" inputmode="numeric" value="${repeat.interval}" aria-label="반복 간격">
@@ -193,62 +253,93 @@ function repeatPanel(item) {
       </select>
     </div>
     <small class="management-schedule-help">체크한 실제 날짜를 기준으로 다음 예정일을 잡아요.</small>
-    <div class="management-schedule-actions"><button class="ghost-btn danger-text" data-management-repeat-clear type="button">반복 없음</button><span></span><button class="primary-btn" type="submit">저장</button></div>
+    <div class="management-schedule-actions"><button class="ghost-btn danger-text" data-management-repeat-clear type="button">반복 없음</button><span></span><button class="primary-btn" type="submit">적용</button></div>
   </form>`;
 }
 
-async function openPopover(button, itemId, kind) {
-  await readState();
-  const item = state?.managementItems.find((entry) => entry.id === itemId);
+function openPopover(button, kind) {
+  const sourceForm = button.closest("[data-management-item-form]");
   const pop = $("#managementSchedulePopover");
-  if (!item || !pop) return;
-  openItemId = itemId;
+  if (!sourceForm || !pop) return;
+  if (openSourceForm === sourceForm && openKind === kind && !pop.hidden) {
+    closePopover();
+    return;
+  }
+  openSourceForm = sourceForm;
   openKind = kind;
-  pop.innerHTML = kind === "repeat" ? repeatPanel(item) : datePanel(item);
+  const draft = draftFromForm(sourceForm);
+  pop.innerHTML = kind === "repeat" ? repeatPanel(draft) : datePanel(draft);
   pop.hidden = false;
   positionPopover(button, pop);
   requestAnimationFrame(() => pop.querySelector("input,select")?.focus());
 }
 
-async function saveDate(form) {
-  const itemId = form.dataset.itemId || "";
-  const date = form.elements.date?.value || "";
-  const time = date ? (form.elements.time?.value || "") : "";
-  await writeState((current) => {
-    const item = current.managementItems.find((entry) => entry.id === itemId);
-    if (!item) return;
-    item.nextDate = date;
-    item.nextTime = time;
-  });
-  closePopover();
+function setDateDraft(date, time = "") {
+  if (!openSourceForm?.isConnected) return;
+  openSourceForm.elements.managementNextDate.value = date || "";
+  openSourceForm.elements.managementNextTime.value = date ? (time || "") : "";
+  openSourceForm.dataset.managementScheduleDirty = "1";
+  updateFormTools(openSourceForm);
 }
 
-async function saveRepeat(form) {
-  const itemId = form.dataset.itemId || "";
-  const interval = Math.max(1, Math.min(999, Number.parseInt(form.elements.interval?.value, 10) || 1));
-  const unit = VALID_UNITS.has(form.elements.unit?.value) ? form.elements.unit.value : "month";
-  await writeState((current) => {
-    const item = current.managementItems.find((entry) => entry.id === itemId);
+function setRepeatDraft(repeat) {
+  if (!openSourceForm?.isConnected) return;
+  const normalized = normalizeRepeat(repeat);
+  openSourceForm.elements.managementRepeatInterval.value = normalized?.interval || "";
+  openSourceForm.elements.managementRepeatUnit.value = normalized?.unit || "";
+  openSourceForm.dataset.managementScheduleDirty = "1";
+  updateFormTools(openSourceForm);
+}
+
+async function applyPendingSave() {
+  const pending = pendingSave;
+  pendingSave = null;
+  if (!pending || Date.now() - pending.capturedAt > 5000) return;
+
+  try {
+    await readState();
+    if (!state || !user) return;
+    let item = pending.itemId ? state.managementItems.find((entry) => entry.id === pending.itemId) : null;
+    if (!item) {
+      const candidates = state.managementItems.filter((entry) => entry.groupId === pending.groupId && String(entry.title || "").trim() === pending.title);
+      item = candidates.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0] || null;
+    }
     if (!item) return;
-    item.repeat = { interval, unit, basis: "completion" };
-  });
-  closePopover();
+
+    item.nextDate = pending.nextDate;
+    item.nextTime = pending.nextDate ? pending.nextTime : "";
+    item.repeat = pending.repeat;
+    await persistState(state);
+  } catch (error) {
+    console.error("management schedule staged save failed", error);
+    showToast("날짜·반복 설정 저장 중 오류가 났어요.");
+  }
+}
+
+function captureMainFormSubmit(event) {
+  const form = event.target.closest?.("[data-management-item-form]");
+  if (!form || form.dataset.managementScheduleDirty !== "1") return;
+  const draft = draftFromForm(form);
+  const title = form.querySelector('input[type="text"]')?.value.trim() || "";
+  if (!title) return;
+  pendingSave = {
+    itemId: form.dataset.itemId || "",
+    groupId: form.dataset.groupId || "",
+    title,
+    nextDate: draft.nextDate,
+    nextTime: draft.nextTime,
+    repeat: draft.repeat,
+    capturedAt: Date.now(),
+  };
 }
 
 function wireEvents() {
-  document.addEventListener("click", async (event) => {
+  document.addEventListener("click", (event) => {
     const tool = event.target.closest("[data-management-schedule-tool]");
     if (tool) {
       event.preventDefault();
       event.stopPropagation();
-      const itemId = tool.dataset.itemId || "";
-      const kind = tool.dataset.managementScheduleTool || "date";
-      if (openItemId === itemId && openKind === kind && !$("#managementSchedulePopover")?.hidden) {
-        closePopover();
-      } else {
-        try { await openPopover(tool, itemId, kind); }
-        catch (error) { console.error("management schedule open failed", error); showToast("설정을 여는 중 오류가 났어요."); }
-      }
+      openPopover(tool, tool.dataset.managementScheduleTool || "date");
       return;
     }
 
@@ -259,26 +350,14 @@ function wireEvents() {
 
     const dateClear = event.target.closest("[data-management-date-clear]");
     if (dateClear) {
-      const form = dateClear.closest("[data-management-date-form]");
-      const itemId = form?.dataset.itemId || "";
-      await writeState((current) => {
-        const item = current.managementItems.find((entry) => entry.id === itemId);
-        if (!item) return;
-        item.nextDate = "";
-        item.nextTime = "";
-      });
+      setDateDraft("", "");
       closePopover();
       return;
     }
 
     const repeatClear = event.target.closest("[data-management-repeat-clear]");
     if (repeatClear) {
-      const form = repeatClear.closest("[data-management-repeat-form]");
-      const itemId = form?.dataset.itemId || "";
-      await writeState((current) => {
-        const item = current.managementItems.find((entry) => entry.id === itemId);
-        if (item) item.repeat = null;
-      });
+      setRepeatDraft(null);
       closePopover();
       return;
     }
@@ -296,21 +375,28 @@ function wireEvents() {
     if (!event.target.value) time.value = "";
   });
 
-  document.addEventListener("submit", async (event) => {
+  document.addEventListener("submit", (event) => {
     const dateForm = event.target.closest("[data-management-date-form]");
     if (dateForm) {
       event.preventDefault();
-      try { await saveDate(dateForm); }
-      catch (error) { console.error("management date save failed", error); showToast("날짜 저장 중 오류가 났어요."); }
+      const date = dateForm.elements.date?.value || "";
+      const time = date ? (dateForm.elements.time?.value || "") : "";
+      setDateDraft(date, time);
+      closePopover();
       return;
     }
+
     const repeatForm = event.target.closest("[data-management-repeat-form]");
     if (repeatForm) {
       event.preventDefault();
-      try { await saveRepeat(repeatForm); }
-      catch (error) { console.error("management repeat save failed", error); showToast("반복 저장 중 오류가 났어요."); }
+      const interval = Math.max(1, Math.min(999, Number.parseInt(repeatForm.elements.interval?.value, 10) || 1));
+      const unit = VALID_UNITS.has(repeatForm.elements.unit?.value) ? repeatForm.elements.unit.value : "month";
+      setRepeatDraft({ interval, unit, basis: "completion" });
+      closePopover();
     }
   });
+
+  document.addEventListener("submit", captureMainFormSubmit, true);
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && event.target.closest("#managementSchedulePopover")) {
@@ -329,6 +415,10 @@ wireEvents();
 const observer = new MutationObserver(() => scheduleRender(30));
 observer.observe(document.body, { childList: true, subtree: true });
 document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source === "management-items" && pendingSave) {
+    void applyPendingSave();
+    return;
+  }
   if (event.detail?.source !== "management-schedule") scheduleRender(60);
 });
 supabase.auth.onAuthStateChange((_event, session) => {
