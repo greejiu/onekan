@@ -1,0 +1,40 @@
+name: Time block drag stage 5
+on:
+  push:
+    paths:
+      - 'scripts/run-time-block-drag-stage5.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  drag-stage5:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply patch
+        run: python scripts/patch-time-block-drag-stage5.py
+      - name: Check JavaScript
+        run: |
+          node --check js/unified-workspace.js
+          node --check js/time-block-v2.js
+      - name: Run regression
+        run: node scripts/time-block-drag-stage5-regression.mjs
+      - name: Commit stage 5
+        run: |
+          if git diff --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/unified-workspace.js js/time-block-v2.js css/unified-workspace.css index.html
+          git commit -m 'Add direct drag planning for time blocks'
+          git push
