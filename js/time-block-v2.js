@@ -1,9 +1,14 @@
 export const TIME_BLOCK_SYSTEM_VERSION = 2;
 export const TIME_BLOCK_BASELINE_DATE = "1970-01-01";
+export const TIME_BLOCK_START_ANCHOR = "block-start";
 
 function cleanDateKey(value, fallback = TIME_BLOCK_BASELINE_DATE) {
   const text = String(value || "");
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : fallback;
+}
+
+function validDateKey(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
 }
 
 function cleanTemplate(template, effectiveFrom = TIME_BLOCK_BASELINE_DATE) {
@@ -29,6 +34,16 @@ function sameTemplateShape(a, b) {
     && Boolean(a.deleted) === Boolean(b.deleted);
 }
 
+function cleanAssignment(value) {
+  if (!value || !value.blockId) return null;
+  const order = Math.max(1, Math.floor(Number(value.order) || 1));
+  return {
+    blockId: String(value.blockId),
+    afterAnchor: String(value.afterAnchor || TIME_BLOCK_START_ANCHOR),
+    order,
+  };
+}
+
 export function ensureTimeBlockV2State(state, options = {}) {
   if (!state || typeof state !== "object") return false;
   let changed = false;
@@ -38,6 +53,10 @@ export function ensureTimeBlockV2State(state, options = {}) {
   }
   if (!Array.isArray(state.timeBlockTemplateVersions)) {
     state.timeBlockTemplateVersions = [];
+    changed = true;
+  }
+  if (!state.timeBlockAssignments || typeof state.timeBlockAssignments !== "object" || Array.isArray(state.timeBlockAssignments)) {
+    state.timeBlockAssignments = {};
     changed = true;
   }
   if (!state.timeBlockTemplateVersions.length) {
@@ -135,4 +154,64 @@ export function validateTimeBlockTemplates(templates) {
     }
   }
   return { ok: true, templates: normalized };
+}
+
+export function timeBlockOccurrenceToken(kind, item, dateKey) {
+  if (!kind || !item?.id || !validDateKey(dateKey)) return "";
+  const sourceDate = validDateKey(item._occurrenceSource) ? item._occurrenceSource : dateKey;
+  return `${String(kind)}:${String(item.id)}:${sourceDate}`;
+}
+
+export function timeBlockAssignmentsForDate(state, dateKey) {
+  if (!state || !validDateKey(dateKey)) return {};
+  ensureTimeBlockV2State(state);
+  const raw = state.timeBlockAssignments?.[dateKey];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const result = {};
+  for (const [token, value] of Object.entries(raw)) {
+    const cleaned = cleanAssignment(value);
+    if (cleaned) result[token] = cleaned;
+  }
+  return result;
+}
+
+export function timeBlockAssignment(state, dateKey, token) {
+  if (!token) return null;
+  return timeBlockAssignmentsForDate(state, dateKey)[token] || null;
+}
+
+export function setTimeBlockAssignment(state, dateKey, token, value) {
+  if (!state || !validDateKey(dateKey) || !token) return false;
+  ensureTimeBlockV2State(state);
+  const cleaned = cleanAssignment(value);
+  if (!cleaned) return false;
+  state.timeBlockAssignments[dateKey] ||= {};
+  const current = cleanAssignment(state.timeBlockAssignments[dateKey][token]);
+  if (current && current.blockId === cleaned.blockId && current.afterAnchor === cleaned.afterAnchor && current.order === cleaned.order) return false;
+  state.timeBlockAssignments[dateKey][token] = cleaned;
+  return true;
+}
+
+export function assignTimeBlockOccurrence(state, dateKey, token, blockId, afterAnchor = TIME_BLOCK_START_ANCHOR) {
+  if (!state || !validDateKey(dateKey) || !token || !blockId) return false;
+  const assignments = timeBlockAssignmentsForDate(state, dateKey);
+  let maxOrder = 0;
+  for (const [otherToken, value] of Object.entries(assignments)) {
+    if (otherToken === token) continue;
+    if (value.blockId === String(blockId) && value.afterAnchor === String(afterAnchor || TIME_BLOCK_START_ANCHOR)) {
+      maxOrder = Math.max(maxOrder, Number(value.order) || 0);
+    }
+  }
+  return setTimeBlockAssignment(state, dateKey, token, {
+    blockId: String(blockId),
+    afterAnchor: String(afterAnchor || TIME_BLOCK_START_ANCHOR),
+    order: maxOrder + 1,
+  });
+}
+
+export function clearTimeBlockAssignment(state, dateKey, token) {
+  if (!state || !validDateKey(dateKey) || !token || !state.timeBlockAssignments?.[dateKey]?.[token]) return false;
+  delete state.timeBlockAssignments[dateKey][token];
+  if (!Object.keys(state.timeBlockAssignments[dateKey]).length) delete state.timeBlockAssignments[dateKey];
+  return true;
 }
