@@ -2,7 +2,7 @@ if (!window.__onekanHomeTimelineDynamicColumnsInstalled) {
   window.__onekanHomeTimelineDynamicColumnsInstalled = true;
 
   const style = document.createElement("style");
-  style.dataset.onekanHomeTimelineDynamicColumns = "1";
+  style.dataset.onekanHomeTimelineDynamicColumns = "2";
   style.textContent = `
     /* Home timeline: don't reserve a permanent left/right half for exact vs planned items. */
     #page-home .uw-has-time-block-plan .uw-time-exact-lane {
@@ -56,14 +56,13 @@ if (!window.__onekanHomeTimelineDynamicColumnsInstalled) {
     if (rows) rows.style.setProperty("--uw-plan-columns", String(weight));
 
     // Projection previously pushed groups downward because rows were stacked vertically.
-    // Once rows become columns, restore the group's real anchor position.
+    // Once rows become columns, restore the group's actual anchor position.
     const currentTop = topOf(group);
     const oldOffset = px(group.style.getPropertyValue("--uw-plan-anchor-offset"), 0);
     const anchorTop = Math.max(0, currentTop - oldOffset);
     group.style.setProperty("top", `${anchorTop}px`, "important");
     group.style.setProperty("--uw-plan-anchor-offset", "0px");
 
-    // Measure after switching the group's rows to horizontal columns.
     const measuredHeight = Math.max(
       18,
       rows?.offsetHeight || 0,
@@ -75,7 +74,6 @@ if (!window.__onekanHomeTimelineDynamicColumnsInstalled) {
       top: anchorTop,
       bottom: anchorTop + measuredHeight,
       weight,
-      kind: "plan",
     };
   }
 
@@ -87,7 +85,6 @@ if (!window.__onekanHomeTimelineDynamicColumnsInstalled) {
       top,
       bottom: top + height,
       weight: 1,
-      kind: "exact",
     };
   }
 
@@ -112,19 +109,26 @@ if (!window.__onekanHomeTimelineDynamicColumnsInstalled) {
     return clusters;
   }
 
-  function contiguousFreeStart(laneEnds, weight, top) {
-    const maxStart = laneEnds.length - weight;
-    for (let start = 0; start <= maxStart; start += 1) {
+  function reserveContiguousLanes(laneEnds, weight, top) {
+    // Reuse every available lane before creating another one. A two-item planning
+    // group may use one free existing lane plus one new lane, so 1+2 becomes 3 columns,
+    // never an unnecessary 4 columns.
+    for (let start = 0; start <= laneEnds.length; start += 1) {
       let free = true;
       for (let index = start; index < start + weight; index += 1) {
-        if ((laneEnds[index] ?? -Infinity) > top + 0.5) {
+        if (index < laneEnds.length && laneEnds[index] > top + 0.5) {
           free = false;
           break;
         }
       }
-      if (free) return start;
+      if (!free) continue;
+      while (laneEnds.length < start + weight) laneEnds.push(-Infinity);
+      return start;
     }
-    return -1;
+
+    const start = laneEnds.length;
+    while (laneEnds.length < start + weight) laneEnds.push(-Infinity);
+    return start;
   }
 
   function layoutCluster(cluster) {
@@ -132,11 +136,7 @@ if (!window.__onekanHomeTimelineDynamicColumnsInstalled) {
     const ordered = [...cluster].sort((a, b) => a.top - b.top || b.weight - a.weight || b.bottom - a.bottom);
 
     for (const unit of ordered) {
-      let lane = contiguousFreeStart(laneEnds, unit.weight, unit.top);
-      if (lane < 0) {
-        lane = laneEnds.length;
-        for (let count = 0; count < unit.weight; count += 1) laneEnds.push(-Infinity);
-      }
+      const lane = reserveContiguousLanes(laneEnds, unit.weight, unit.top);
       for (let index = lane; index < lane + unit.weight; index += 1) laneEnds[index] = unit.bottom;
       unit.lane = lane;
     }
@@ -161,7 +161,7 @@ if (!window.__onekanHomeTimelineDynamicColumnsInstalled) {
 
     if (!exactEntries.length && !planGroups.length) return;
 
-    // Start from full width every time so a single item always occupies one full column.
+    // Reset first: one item at a time should always regain the full timeline width.
     for (const entry of exactEntries) {
       entry.style.setProperty("left", "1px", "important");
       entry.style.setProperty("width", "calc(100% - 2px)", "important");
