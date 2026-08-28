@@ -832,7 +832,8 @@ async function dragMoveScope(kind,id,occurrenceSource,date){
     const habit=state?.habitTemplates.find(item=>item.id===id),sourceDate=occurrenceSource||date;
     if(!habit||!sourceDate)return null;
     if(!habit.recurrence?.frequency)return "all";
-    return habitOverride(state,sourceDate,id)?"day":await askHabitScope("change",habit,sourceDate)
+    const override=habitOverride(state,sourceDate,id);
+    return override&&Object.keys(override).length?"day":await askHabitScope("change",habit,sourceDate)
   }
   if(kind==="task"){
     const task=state?.tasks.find(item=>item.id===id),sourceDate=occurrenceSource||task?.date||date;
@@ -853,7 +854,7 @@ function recurringDragItem(kind,id){
 }
 async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
   if(kind==="habit"){
-    const sourceDate=occurrenceSource||date,habit=state?.habitTemplates.find(item=>item.id===id),scope=forcedScope||(!habit?.recurrence?.frequency?"all":await askHabitScope("change",habit,sourceDate));
+    const sourceDate=occurrenceSource||date,habit=state?.habitTemplates.find(item=>item.id===id),override=habitOverride(state,sourceDate,id),scope=forcedScope||(!habit?.recurrence?.frequency?"all":override&&Object.keys(override).length?"day":await askHabitScope("change",habit,sourceDate));
     if(!habit||!scope)return;
     await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,sourceDate,id,true);override.startMinute=startMinute;override.duration=duration}else{target.startMinute=startMinute;target.duration=duration;const override=habitOverride(current,sourceDate,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,sourceDate,id)}}});
     return
@@ -917,7 +918,7 @@ function wireDragClickGuard(){
 
 async function saveUntimedChange(kind,id,date,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
   if(kind==="habit"){
-    const sourceDate=occurrenceSource||date,habit=state?.habitTemplates.find(item=>item.id===id),scope=forcedScope||(!habit?.recurrence?.frequency?"all":await askHabitScope("change",habit,sourceDate));
+    const sourceDate=occurrenceSource||date,habit=state?.habitTemplates.find(item=>item.id===id),override=habitOverride(state,sourceDate,id),scope=forcedScope||(!habit?.recurrence?.frequency?"all":override&&Object.keys(override).length?"day":await askHabitScope("change",habit,sourceDate));
     if(!habit||!scope)return;
     await write(current=>{clearMovedPlan(current,planDate,planToken);const target=current.habitTemplates.find(item=>item.id===id);if(!target)return;if(scope==="day"){const override=habitOverride(current,sourceDate,id,true);override.startMinute=null;delete override.duration}else{delete target.startMinute;const override=habitOverride(current,sourceDate,id);if(override){delete override.startMinute;delete override.duration;cleanHabitOverride(current,sourceDate,id)}}});
     return
