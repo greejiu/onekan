@@ -4,7 +4,7 @@ import "./notes-board-view.js?v=3";
 import "./notes-interactions-v2.js?v=2";
 import "./notes-section-controls.js?v=1";
 import "./habit-area-check-colors.js?v=1";
-import "./habit-start-date-fix.js?v=2";
+import "./habit-start-date-fix.js?v=3";
 
 // Compatibility + interaction safeguards loaded before app.js initializes.
 // Safe to load more than once because cached module URLs may coexist during deployment.
