@@ -5,7 +5,7 @@ import {
   setTimeBlockTemplatesForDate,
   timeBlockTemplatesForDate,
   validateTimeBlockTemplates,
-} from "./time-block-v2.js?v=2";
+} from "./time-block-v2.js?v=3";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];

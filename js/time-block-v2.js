@@ -44,6 +44,27 @@ function cleanAssignment(value) {
   };
 }
 
+function cleanDateOverride(value, id) {
+  if (!value || !id || typeof value !== "object" || Array.isArray(value)) return null;
+  const result = {
+    id: String(id),
+    hidden: Boolean(value.hidden),
+    created: Boolean(value.created),
+  };
+  if (Object.prototype.hasOwnProperty.call(value, "title")) result.title = String(value.title || "");
+  const startMinute = Number(value.startMinute);
+  const endMinute = Number(value.endMinute);
+  if (Number.isFinite(startMinute) && Number.isFinite(endMinute) && endMinute > startMinute) {
+    result.startMinute = startMinute;
+    result.endMinute = endMinute;
+  }
+  return result;
+}
+
+function sortTemplates(templates) {
+  return [...templates].sort((a, b) => Number(a.startMinute) - Number(b.startMinute) || Number(a.endMinute) - Number(b.endMinute) || String(a.id).localeCompare(String(b.id)));
+}
+
 export function ensureTimeBlockV2State(state, options = {}) {
   if (!state || typeof state !== "object") return false;
   let changed = false;
@@ -57,6 +78,10 @@ export function ensureTimeBlockV2State(state, options = {}) {
   }
   if (!state.timeBlockAssignments || typeof state.timeBlockAssignments !== "object" || Array.isArray(state.timeBlockAssignments)) {
     state.timeBlockAssignments = {};
+    changed = true;
+  }
+  if (!state.timeBlockOverrides || typeof state.timeBlockOverrides !== "object" || Array.isArray(state.timeBlockOverrides)) {
+    state.timeBlockOverrides = {};
     changed = true;
   }
   if (!state.timeBlockTemplateVersions.length) {
@@ -214,4 +239,118 @@ export function clearTimeBlockAssignment(state, dateKey, token) {
   delete state.timeBlockAssignments[dateKey][token];
   if (!Object.keys(state.timeBlockAssignments[dateKey]).length) delete state.timeBlockAssignments[dateKey];
   return true;
+}
+
+
+export function timeBlockDateOverridesForDate(state, dateKey) {
+  if (!state || !validDateKey(dateKey)) return {};
+  ensureTimeBlockV2State(state);
+  const raw = state.timeBlockOverrides?.[dateKey];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const result = {};
+  for (const [id, value] of Object.entries(raw)) {
+    const cleaned = cleanDateOverride(value, id);
+    if (cleaned) result[id] = cleaned;
+  }
+  return result;
+}
+
+export function effectiveTimeBlockTemplatesForDate(state, dateKey) {
+  const base = timeBlockTemplatesForDate(state, dateKey);
+  const byId = new Map(base.map((template) => [String(template.id), { ...template }]));
+  const overrides = timeBlockDateOverridesForDate(state, dateKey);
+  for (const [id, override] of Object.entries(overrides)) {
+    if (override.hidden) {
+      byId.delete(id);
+      continue;
+    }
+    const current = byId.get(id);
+    if (current) {
+      const startMinute = Number.isFinite(Number(override.startMinute)) ? Number(override.startMinute) : Number(current.startMinute);
+      const endMinute = Number.isFinite(Number(override.endMinute)) ? Number(override.endMinute) : Number(current.endMinute);
+      byId.set(id, {
+        ...current,
+        title: Object.prototype.hasOwnProperty.call(override, "title") ? override.title : current.title,
+        startMinute,
+        endMinute,
+        _dateOverride: true,
+      });
+      continue;
+    }
+    if (override.created && Number.isFinite(Number(override.startMinute)) && Number.isFinite(Number(override.endMinute)) && Number(override.endMinute) > Number(override.startMinute)) {
+      byId.set(id, {
+        id,
+        title: String(override.title || ""),
+        startMinute: Number(override.startMinute),
+        endMinute: Number(override.endMinute),
+        effectiveFrom: dateKey,
+        _dateOverride: true,
+        _dateCreated: true,
+      });
+    }
+  }
+  return sortTemplates([...byId.values()]);
+}
+
+export function hiddenTimeBlockTemplatesForDate(state, dateKey) {
+  const baseById = new Map(timeBlockTemplatesForDate(state, dateKey).map((template) => [String(template.id), template]));
+  const overrides = timeBlockDateOverridesForDate(state, dateKey);
+  const hidden = [];
+  for (const [id, override] of Object.entries(overrides)) {
+    if (!override.hidden) continue;
+    const base = baseById.get(id);
+    if (!base && !override.created) continue;
+    const startMinute = Number.isFinite(Number(override.startMinute)) ? Number(override.startMinute) : Number(base?.startMinute);
+    const endMinute = Number.isFinite(Number(override.endMinute)) ? Number(override.endMinute) : Number(base?.endMinute);
+    if (!Number.isFinite(startMinute) || !Number.isFinite(endMinute) || endMinute <= startMinute) continue;
+    hidden.push({
+      ...(base || {}),
+      id,
+      title: Object.prototype.hasOwnProperty.call(override, "title") ? override.title : String(base?.title || ""),
+      startMinute,
+      endMinute,
+      _dateOverride: true,
+      ...(override.created ? { _dateCreated: true } : {}),
+    });
+  }
+  return sortTemplates(hidden);
+}
+
+export function setTimeBlockDateOverride(state, dateKey, blockId, value) {
+  if (!state || !validDateKey(dateKey) || !blockId || !value || typeof value !== "object") return false;
+  ensureTimeBlockV2State(state);
+  const cleaned = cleanDateOverride(value, blockId);
+  if (!cleaned) return false;
+  state.timeBlockOverrides[dateKey] ||= {};
+  const previous = cleanDateOverride(state.timeBlockOverrides[dateKey][blockId], blockId);
+  const comparable = (item) => JSON.stringify(item || null);
+  if (comparable(previous) === comparable(cleaned)) return false;
+  const stored = {
+    hidden: cleaned.hidden,
+    created: cleaned.created,
+    ...(Object.prototype.hasOwnProperty.call(cleaned, "title") ? { title: cleaned.title } : {}),
+    ...(Number.isFinite(Number(cleaned.startMinute)) ? { startMinute: Number(cleaned.startMinute) } : {}),
+    ...(Number.isFinite(Number(cleaned.endMinute)) ? { endMinute: Number(cleaned.endMinute) } : {}),
+  };
+  state.timeBlockOverrides[dateKey][String(blockId)] = stored;
+  return true;
+}
+
+export function clearTimeBlockDateOverride(state, dateKey, blockId) {
+  if (!state || !validDateKey(dateKey) || !blockId || !state.timeBlockOverrides?.[dateKey]?.[blockId]) return false;
+  delete state.timeBlockOverrides[dateKey][blockId];
+  if (!Object.keys(state.timeBlockOverrides[dateKey]).length) delete state.timeBlockOverrides[dateKey];
+  return true;
+}
+
+export function clearTimeBlockAssignmentsForBlock(state, dateKey, blockId) {
+  if (!state || !validDateKey(dateKey) || !blockId || !state.timeBlockAssignments?.[dateKey]) return false;
+  let changed = false;
+  for (const [token, assignment] of Object.entries(state.timeBlockAssignments[dateKey])) {
+    if (String(assignment?.blockId || "") !== String(blockId)) continue;
+    delete state.timeBlockAssignments[dateKey][token];
+    changed = true;
+  }
+  if (!Object.keys(state.timeBlockAssignments[dateKey]).length) delete state.timeBlockAssignments[dateKey];
+  return changed;
 }
