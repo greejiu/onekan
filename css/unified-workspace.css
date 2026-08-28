@@ -386,17 +386,15 @@
 @media(max-width:700px){.uw-time-block-plan-rail{left:50%}.uw-has-time-block-plan .uw-time-exact-lane{right:52%}.uw-time-block-plan-item{min-height:24px!important}.uw-time-block-plan-item .uw-item-title{font-size:9px}}
 
 
-/* Time block V2 stage 5: direct planning drag */
+/* Time block V2 stage 5: full-row planning drag */
 .uw-time-block-v2-list{position:relative}
 .uw-time-block-v2-item.fixed-anchor{cursor:default}
-.uw-time-block-v2-item.plan-draggable{cursor:default}
-.uw-time-block-drag-handle{display:inline-grid;place-items:center;width:24px;height:24px;flex:0 0 24px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted);font:inherit;font-size:15px;line-height:1;cursor:grab;touch-action:none;user-select:none}
-.uw-time-block-drag-handle:hover,.uw-time-block-drag-handle:focus-visible{background:color-mix(in srgb,var(--accent) 12%,#fff);color:var(--accent-dark);outline:none}
-.uw-time-block-drag-handle:active{cursor:grabbing}
+.uw-time-block-v2-item.plan-draggable{cursor:grab;user-select:none}
+.uw-time-block-v2-item.plan-draggable.uw-dragging,.uw-time-block-v2-item.plan-draggable.uw-drag-ready{cursor:grabbing}
+.uw-time-block-v2-item.plan-draggable button{cursor:pointer}
 .uw-time-block-v2-item.uw-time-block-drop-before::before,.uw-time-block-v2-item.uw-time-block-drop-after::after{content:"";position:absolute;right:5px;left:5px;z-index:12;height:2px;border-radius:99px;background:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 12%,transparent);pointer-events:none}
 .uw-time-block-v2-item.uw-time-block-drop-before::before{top:-4px}
 .uw-time-block-v2-item.uw-time-block-drop-after::after{bottom:-4px}
 .uw-time-block-v2-list.uw-time-block-drop-bottom::after{content:"";display:block;height:2px;margin:3px 5px 1px;border-radius:99px;background:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 12%,transparent);pointer-events:none}
 .uw-time-block-v2-list[data-uw-time-block-unassigned].uw-drop-target{outline:2px solid var(--accent)!important;outline-offset:-2px;border-radius:7px;background:color-mix(in srgb,var(--accent) 7%,transparent)!important}
-.uw-drag-ghost .uw-time-block-drag-handle{display:none!important}
-@media(hover:none),(pointer:coarse){.uw-time-block-drag-handle{width:32px;height:32px;flex-basis:32px;font-size:18px}.uw-time-block-v2-item.plan-draggable{min-height:42px}.uw-time-block-v2-item.uw-time-block-drop-before::before{top:-5px}.uw-time-block-v2-item.uw-time-block-drop-after::after{bottom:-5px}}
+@media(hover:none),(pointer:coarse){.uw-time-block-v2-item.plan-draggable{min-height:42px;cursor:default}.uw-time-block-v2-item.uw-time-block-drop-before::before{top:-5px}.uw-time-block-v2-item.uw-time-block-drop-after::after{bottom:-5px}}
