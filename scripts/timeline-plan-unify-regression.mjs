@@ -30,9 +30,12 @@ assert.match(m,/press\.element\.closest\("\.uw-drag-ready,\.uw-dragging"\)/,'mob
 assert.match(u,/if\(g\.dropType==="time"\)await saveTimedChange\([^;]+g\.planDate,g\.planToken,scope\)/,'projected plans must move into exact timeline time through the normal save path');
 assert.match(u,/clearMovedPlan\(current,planDate,planToken\)/,'moving a projected plan must clear its old time-block assignment atomically');
 assert.match(u,/const scope=await dragMoveScope\(g\.kind,g\.id,g\.occurrenceSource,g\.date\)/,'every completed item drag must resolve recurrence scope before saving');
-assert.match(u,/return taskOverride\(state,sourceDate,id\)\?"day":await askTaskScope/,'a recurring task drag must ask once unless the occurrence already has an override');
-assert.match(u,/return eventOverride\(state,sourceDate,id\)\?"day":await askEventScope/,'a recurring event drag must ask once unless the occurrence already has an override');
-assert.match(u,/return habitOverride\(state,sourceDate,id\)\?"day":await askHabitScope/,'a habit drag must ask once unless the occurrence already has an override');
+assert.match(u,/return await askTaskScope\(task,sourceDate\)/,'a recurring task drag must always ask for occurrence or series scope');
+assert.match(u,/return await askEventScope\("change",event,sourceDate\)/,'a recurring event drag must always ask for occurrence or series scope');
+assert.match(u,/return await askHabitScope\("change",habit,sourceDate\)/,'a habit drag must always ask for occurrence or series scope');
+assert.doesNotMatch(u,/Override\(state,sourceDate,id\)\?"day":await ask(?:Habit|Task|Event)Scope/,'an existing date override must not silently force a day-only move');
+assert.match(u,/if\(kind==="habit"&&\(!frequency\|\|frequency==="none"\)\)return"매일"/,'legacy habits without recurrence metadata must still show the repeat badge');
+assert.match(u,/uw-habit-name uw-item[^`]+uw-repeat-badge[^`]+recurrenceLabel\(h,"habit"\)/,'the habit history list must show the same repeat badge as planner cards');
 assert.match(u,/const sideTab=pointed\?\.closest\("\[data-uw-side-tab\]"\)/,'shared drag must detect upcoming and someday side tabs');
 assert.match(u,/if\(requested==="someday"\)/,'the someday tab itself must accept task drops');
 assert.match(u,/function wireEnterToSave\(\)/,'single-line inputs must share an Enter-to-save controller');
@@ -51,8 +54,8 @@ assert.match(c,/\.uw-time-block-plan-item \.uw-item-title\{font-size:11px\}/,'pr
 assert.match(c,/\.uw-time-block-v2-list \.uw-time-block-v2-item\{min-height:28px;padding:4px 6px\}/,'time-block list cards must stay compact');
 assert.doesNotMatch(c,/\.uw-time-block-v2-item\.fixed-anchor[^\{]*\{grid-column:1\/-1\}/,'timed cards must use the same two-column grid as all-day cards');
 assert.match(c,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-time-block-v2-item\.plan-draggable\{min-height:36px/,'touch cards must stay compact while preserving a usable hit area');
-assert.match(i,/unified-workspace\.js\?v=53/);
+assert.match(i,/unified-workspace\.js\?v=59/);
 assert.match(i,/workspace-pages\.js\?v=12/);
 assert.match(i,/context-menu\.js\?v=22/);
-assert.match(i,/unified-workspace\.css\?v=43/);
+assert.match(i,/unified-workspace\.css\?v=44/);
 console.log('timeline plan unify regression: ok');
