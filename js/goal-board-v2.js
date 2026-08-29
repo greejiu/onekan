@@ -15,6 +15,7 @@ const archivedDef = { id: "archived", label: "보관", color: "#aaa59d" };
 let state = null;
 let user = null;
 let selectedSection = sessionStorage.getItem("onekan-goal-section") || "all";
+let showDone = sessionStorage.getItem("onekan-goal-done") === "1";
 let showArchived = sessionStorage.getItem("onekan-goal-archive") === "1";
 let rendering = false;
 let renderTimer = null;
@@ -24,7 +25,7 @@ function ensureCss() {
   if ($('link[data-goal-board-v2-css]')) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = "./css/goal-board-v2.css?v=2";
+  link.href = "./css/goal-board-v2.css?v=3";
   link.dataset.goalBoardV2Css = "1";
   document.head.appendChild(link);
 }
@@ -145,11 +146,9 @@ function goalCard(goal) {
     <div class="ok-goal-card-meta">
       <span class="ok-goal-section-badge">${esc(section.name || "미분류")}</span>
       ${deadline ? `<span class="ok-goal-deadline${deadline.overdue ? " overdue" : ""}">${esc(deadline.text)}</span>` : ""}
+      ${projects.length ? `<span class="ok-goal-progress-text">프로젝트 ${done}/${projects.length}</span>` : ""}
     </div>
-    <div class="ok-goal-progress">
-      <small>${projects.length ? `프로젝트 ${done}/${projects.length} 완료` : "연결된 프로젝트 없음"}</small>
-      ${projects.length ? `<div class="ok-goal-progress-track"><div class="ok-goal-progress-value" style="width:${percent}%"></div></div>` : ""}
-    </div>
+    ${projects.length ? `<div class="ok-goal-progress-track"><div class="ok-goal-progress-value" style="width:${percent}%"></div></div>` : ""}
   </article>`;
 }
 
@@ -181,7 +180,7 @@ function ensureToolbar() {
   if (!toolbar) {
     toolbar = document.createElement("div");
     toolbar.className = "ok-goal-v2-toolbar";
-    toolbar.innerHTML = `<div class="ok-goal-v2-toolbar-left"><label for="okGoalSectionSelect">섹션</label><select class="ok-goal-v2-section-select" id="okGoalSectionSelect"></select><button class="ok-goal-v2-section-manage" id="okGoalSectionManage" type="button">섹션 관리</button></div><div class="ok-goal-v2-toolbar-right"><button class="ok-goal-v2-archive-toggle" id="okGoalArchiveToggle" type="button"></button></div>`;
+    toolbar.innerHTML = `<div class="ok-goal-v2-toolbar-left"><label for="okGoalSectionSelect">섹션</label><select class="ok-goal-v2-section-select" id="okGoalSectionSelect"></select><button class="ok-goal-v2-section-manage" id="okGoalSectionManage" type="button">섹션 관리</button></div><div class="ok-goal-v2-toolbar-right"><button class="ok-goal-v2-done-toggle" id="okGoalDoneToggle" type="button"></button><button class="ok-goal-v2-archive-toggle" id="okGoalArchiveToggle" type="button"></button></div>`;
     const oldTabs = $("#goalStatusTabs", page);
     if (oldTabs) oldTabs.before(toolbar);
     else $(".page-head", page)?.after(toolbar);
@@ -195,6 +194,11 @@ function ensureToolbar() {
     $("#okGoalSectionSelect", toolbar)?.addEventListener("change", (event) => {
       selectedSection = event.currentTarget.value || "all";
       sessionStorage.setItem("onekan-goal-section", selectedSection);
+      renderBoard();
+    });
+    $("#okGoalDoneToggle", toolbar)?.addEventListener("click", () => {
+      showDone = !showDone;
+      sessionStorage.setItem("onekan-goal-done", showDone ? "1" : "0");
       renderBoard();
     });
     $("#okGoalArchiveToggle", toolbar)?.addEventListener("click", () => {
@@ -249,6 +253,11 @@ function renderBoard() {
     select.innerHTML = `<option value="all">전체</option>${allSections.map((section) => `<option value="${esc(section.id)}">${esc(section.name)}</option>`).join("")}`;
     select.value = selectedSection;
   }
+  const doneButton = $("#okGoalDoneToggle", toolbar);
+  if (doneButton) {
+    doneButton.textContent = showDone ? "달성 숨기기" : "달성 보기";
+    doneButton.classList.toggle("active", showDone);
+  }
   const archiveButton = $("#okGoalArchiveToggle", toolbar);
   if (archiveButton) {
     archiveButton.textContent = showArchived ? "보관 숨기기" : "보관 보기";
@@ -257,7 +266,7 @@ function renderBoard() {
 
   let goals = (state.projects || []).filter((item) => item?.kind === "goal");
   if (selectedSection !== "all") goals = goals.filter((goal) => goal.goalSectionId === selectedSection);
-  const defs = showArchived ? [...statusDefs, archivedDef] : statusDefs;
+  const defs = [statusDefs[0], statusDefs[1], ...(showDone ? [statusDefs[2]] : []), ...(showArchived ? [archivedDef] : [])];
   const columns = defs.map((definition) => {
     const items = goals.filter((goal) => goal.status === definition.id);
     return `<section class="ok-goal-column" style="--ok-status-color:${definition.color}" data-goal-v2-status="${definition.id}">
@@ -265,7 +274,8 @@ function renderBoard() {
       <div class="ok-goal-column-list">${items.length ? items.map(goalCard).join("") : '<div class="ok-goal-column-empty">여기에 목표가 표시돼요.</div>'}</div>
     </section>`;
   }).join("");
-  root.innerHTML = `<div class="ok-goal-board-scroll"><div class="ok-goal-board-v2" style="--ok-goal-columns:${defs.length}">${columns}</div></div>`;
+  const focusClass = !showDone && !showArchived ? " focus-layout" : "";
+  root.innerHTML = `<div class="ok-goal-board-scroll"><div class="ok-goal-board-v2${focusClass}" style="--ok-goal-columns:${defs.length}">${columns}</div></div>`;
 }
 
 async function addSection() {

@@ -5,7 +5,7 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 const DEFAULT_SECTION_ID = "goal-section-inbox";
-const VALID_STATUSES = new Set(["before", "doing", "done"]);
+const VALID_STATUSES = new Set(["before", "doing"]);
 let saving = false;
 
 function ensureCss() {

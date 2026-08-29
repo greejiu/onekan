@@ -57,3 +57,14 @@
 .ok-goal-section-delete-dialog select{height:36px;padding:5px 9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font:inherit;font-size:11px}
 .ok-goal-section-delete-dialog small{color:var(--muted);font-size:9px}.ok-goal-section-delete-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:3px}
 @media(max-width:700px){#page-goals .ok-goal-v2-toolbar{align-items:stretch;flex-direction:column}#page-goals .ok-goal-v2-toolbar-left,#page-goals .ok-goal-v2-toolbar-right{width:100%}#page-goals .ok-goal-v2-toolbar-left{flex-wrap:wrap}#page-goals .ok-goal-v2-section-select{min-width:0;flex:1;height:38px;font-size:13px}#page-goals .ok-goal-v2-section-manage{height:38px}#page-goals .ok-goal-v2-archive-toggle{width:100%;min-height:38px}#page-goals .ok-goal-section-row-top,#page-goals .ok-goal-section-add-top{align-items:stretch;flex-direction:column}#page-goals .ok-goal-section-name,#page-goals #okGoalSectionNewName{width:100%;height:38px;font-size:13px}#page-goals .ok-goal-section-row-actions{width:100%}#page-goals .ok-goal-section-row-actions button{flex:1}#page-goals #okGoalSectionAddBtn{width:100%;min-height:36px}#page-goals .ok-goal-color-swatch{width:24px;height:24px}#page-goals .ok-goal-board-v2{grid-template-columns:repeat(var(--ok-goal-columns,3),minmax(245px,78vw));min-width:max-content}#page-goals .ok-goal-column{min-height:390px}}
+
+/* Focus layout: active work gets the space, completed states stay optional. */
+#page-goals .ok-goal-v2-done-toggle{min-height:34px;padding:5px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel-soft);color:var(--muted);font:inherit;font-size:11px;cursor:pointer}
+#page-goals .ok-goal-v2-done-toggle.active{background:#fff;color:var(--text);font-weight:700}
+#page-goals .ok-goal-board-v2.focus-layout{grid-template-columns:minmax(220px,1fr) minmax(360px,2fr);min-width:700px}
+#page-goals .ok-goal-card{gap:5px;padding:9px 10px 8px 13px}
+#page-goals .ok-goal-card-title{line-height:1.35}
+#page-goals .ok-goal-card-meta{gap:5px}
+#page-goals .ok-goal-progress-text{margin-left:auto;color:var(--muted);font-size:9px;white-space:nowrap}
+#page-goals .ok-goal-progress-track{height:3px}
+@media(max-width:700px){#page-goals .ok-goal-v2-done-toggle,#page-goals .ok-goal-v2-archive-toggle{flex:1;width:auto;min-height:38px}#page-goals .ok-goal-board-v2.focus-layout{grid-template-columns:minmax(230px,64vw) minmax(280px,88vw);min-width:max-content}}
