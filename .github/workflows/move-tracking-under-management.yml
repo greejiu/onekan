@@ -22,10 +22,8 @@ jobs:
           from pathlib import Path
           p = Path('js/management.js')
           text = p.read_text()
-          old = '''    const goals = nav.querySelector('[data-page="goals"]');
-    nav.insertBefore(button, goals || null);'''
-          new = '''    const tracking = nav.querySelector('[data-page="tracking"]');
-    nav.insertBefore(button, tracking || null);'''
+          old = "    const goals = nav.querySelector('[data-page=\"goals\"]');\n    nav.insertBefore(button, goals || null);"
+          new = "    const tracking = nav.querySelector('[data-page=\"tracking\"]');\n    nav.insertBefore(button, tracking || null);"
           if old not in text:
               raise SystemExit('management nav insertion pattern not found')
           p.write_text(text.replace(old, new, 1))
