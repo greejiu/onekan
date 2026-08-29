@@ -1,0 +1,216 @@
+name: Goal group board layout
+
+on:
+  push:
+    paths:
+      - '.github/workflows/goal-group-board.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Group goals by user groups
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          board = Path('js/goal-board-v2.js')
+          text = board.read_text()
+          text = text.replace('{ id: "doing", label: "진행 중", color: "#88b49a" }', '{ id: "doing", label: "하는 중", color: "#88b49a" }', 1)
+          text = text.replace('let showDone = sessionStorage.getItem("onekan-goal-done") === "1";\n', '', 1)
+          text = text.replace('let showArchived = sessionStorage.getItem("onekan-goal-archive") === "1";\n', '', 1)
+          text = text.replace('./css/goal-board-v2.css?v=3', './css/goal-board-v2.css?v=4', 1)
+
+          old_toolbar = '<div class="ok-goal-v2-toolbar-left"><label for="okGoalSectionSelect">섹션</label><select class="ok-goal-v2-section-select" id="okGoalSectionSelect"></select><button class="ok-goal-v2-section-manage" id="okGoalSectionManage" type="button">섹션 관리</button></div><div class="ok-goal-v2-toolbar-right"><button class="ok-goal-v2-done-toggle" id="okGoalDoneToggle" type="button"></button><button class="ok-goal-v2-archive-toggle" id="okGoalArchiveToggle" type="button"></button></div>'
+          new_toolbar = '<div class="ok-goal-v2-toolbar-left"><label for="okGoalSectionSelect">그룹</label><select class="ok-goal-v2-section-select" id="okGoalSectionSelect"></select><button class="ok-goal-v2-section-manage" id="okGoalSectionManage" type="button">그룹 관리</button></div>'
+          if old_toolbar not in text:
+            raise SystemExit('goal toolbar block not found')
+          text = text.replace(old_toolbar, new_toolbar, 1)
+
+          text = re.sub(r'\n\s*\$\("#okGoalDoneToggle", toolbar\)\?\.addEventListener\("click", \(\) => \{.*?\n\s*\}\);', '', text, count=1, flags=re.S)
+          text = re.sub(r'\n\s*\$\("#okGoalArchiveToggle", toolbar\)\?\.addEventListener\("click", \(\) => \{.*?\n\s*\}\);', '', text, count=1, flags=re.S)
+
+          replacement = r'''function renderStatusColumns(groupId, goals) {
+  const defs = [...statusDefs, archivedDef];
+  return defs.map((definition) => {
+    const items = goals.filter((goal) => goal.status === definition.id);
+    return `<section class="ok-goal-column" style="--ok-status-color:${definition.color}" data-goal-v2-status="${definition.id}" data-goal-v2-group-id="${esc(groupId)}">
+      <div class="ok-goal-column-head"><span></span><strong>${definition.label}</strong><small>${items.length}</small></div>
+      <div class="ok-goal-column-list">${items.length ? items.map(goalCard).join("") : '<div class="ok-goal-column-empty">여기에 목표가 표시돼요.</div>'}</div>
+    </section>`;
+  }).join("");
+}
+
+function renderStatusBoard(groupId, goals, extraClass = "") {
+  const columns = renderStatusColumns(groupId, goals);
+  return `<div class="ok-goal-board-scroll"><div class="ok-goal-board-v2${extraClass}" style="--ok-goal-columns:4">${columns}</div></div>`;
+}
+
+function renderBoard() {
+  const root = $("#goalSections");
+  if (!root || !state) return;
+  const toolbar = ensureToolbar();
+  const allSections = sections();
+  if (selectedSection !== "all" && !allSections.some((section) => section.id === selectedSection)) selectedSection = "all";
+
+  const select = $("#okGoalSectionSelect", toolbar);
+  if (select) {
+    select.innerHTML = `<option value="all">전체</option>${allSections.map((section) => `<option value="${esc(section.id)}">${esc(section.name)}</option>`).join("")}`;
+    select.value = selectedSection;
+  }
+
+  const goals = (state.projects || []).filter((item) => item?.kind === "goal");
+  if (selectedSection === "all") {
+    const blocks = allSections.map((group) => {
+      const groupGoals = goals.filter((goal) => goal.goalSectionId === group.id);
+      return `<section class="ok-goal-group-block" style="--ok-section:${esc(group.color || DEFAULT_SECTION_COLOR)}" data-goal-v2-group-block="${esc(group.id)}">
+        <div class="ok-goal-group-head"><span class="ok-goal-group-dot"></span><strong>${esc(group.name || "미분류")}</strong><small>${groupGoals.length}개</small></div>
+        ${renderStatusBoard(group.id, groupGoals, " grouped-layout")}
+      </section>`;
+    }).join("");
+    root.innerHTML = blocks ? `<div class="ok-goal-group-stack">${blocks}</div>` : '<div class="ok-goal-board-empty">아직 그룹이 없어요.</div>';
+    return;
+  }
+
+  const group = allSections.find((section) => section.id === selectedSection) || allSections[0];
+  if (!group) {
+    root.innerHTML = '<div class="ok-goal-board-empty">아직 그룹이 없어요.</div>';
+    return;
+  }
+  const groupGoals = goals.filter((goal) => goal.goalSectionId === group.id);
+  root.innerHTML = renderStatusBoard(group.id, groupGoals, " single-group-layout");
+}
+
+async function addSection()'''
+          text, count = re.subn(r'function renderBoard\(\) \{.*?\n\}\n\nasync function addSection\(\)', replacement, text, count=1, flags=re.S)
+          if count != 1:
+            raise SystemExit('renderBoard replacement failed')
+
+          # UI terminology only; keep storage keys and class names stable.
+          text = text.replace('섹션 삭제', '그룹 삭제')
+          text = text.replace(' 섹션을 삭제합니다.', ' 그룹을 삭제합니다.')
+          text = text.replace('섹션 이름', '그룹 이름')
+          text = text.replace('섹션 관리', '그룹 관리')
+          text = text.replace('목표를 분류할 섹션과 색상을 정해요.', '목표를 분류할 그룹과 색상을 정해요.')
+          text = text.replace('새 섹션 이름', '새 그룹 이름')
+          text = text.replace('같은 이름의 섹션', '같은 이름의 그룹')
+          text = text.replace(' 섹션을 추가했어요.', ' 그룹을 추가했어요.')
+          text = text.replace(' 섹션을 저장했어요.', ' 그룹을 저장했어요.')
+          text = text.replace('이 섹션에는 목표가 없어요.', '이 그룹에는 목표가 없어요.')
+          text = text.replace('선택한 섹션으로 이동합니다.', '선택한 그룹으로 이동합니다.')
+          text = text.replace(' 섹션을 삭제했어요.', ' 그룹을 삭제했어요.')
+          board.write_text(text)
+
+          quick = Path('js/goal-quick-add.js')
+          q = quick.read_text()
+          q = q.replace('  const status = column.dataset.goalV2Status;\n', '  const status = column.dataset.goalV2Status;\n  const contextualSection = column.dataset.goalV2GroupId || "";\n', 1)
+          old_default = '''  const defaultSection = selected !== "all"
+    ? selected
+    : loaded.state.goalSections.some((section) => section.id === savedQuickSection)
+      ? savedQuickSection
+      : DEFAULT_SECTION_ID;'''
+          new_default = '''  const defaultSection = selected !== "all"
+    ? selected
+    : loaded.state.goalSections.some((section) => section.id === contextualSection)
+      ? contextualSection
+      : loaded.state.goalSections.some((section) => section.id === savedQuickSection)
+        ? savedQuickSection
+        : DEFAULT_SECTION_ID;'''
+          if old_default not in q:
+            raise SystemExit('quick-add default group block not found')
+          q = q.replace(old_default, new_default, 1)
+          q = q.replace('  form.dataset.goalQuickStatus = status;\n', '  form.dataset.goalQuickStatus = status;\n  form.dataset.goalQuickSection = defaultSection;\n', 1)
+          q = q.replace('${selected === "all" ? `<select class="ok-goal-quick-section" aria-label="목표 섹션">${sectionOptions(loaded.state, defaultSection)}</select>` : ""}', '${selected === "all" && !contextualSection ? `<select class="ok-goal-quick-section" aria-label="목표 그룹">${sectionOptions(loaded.state, defaultSection)}</select>` : ""}', 1)
+          q = q.replace('    let sectionId = fixedSection !== "all" ? fixedSection : ($(".ok-goal-quick-section", form)?.value || DEFAULT_SECTION_ID);', '    let sectionId = fixedSection !== "all" ? fixedSection : (form.dataset.goalQuickSection || $(".ok-goal-quick-section", form)?.value || DEFAULT_SECTION_ID);', 1)
+          quick.write_text(q)
+
+          drag = Path('js/goal-status-drag.js')
+          d = drag.read_text()
+          d = d.replace('const VALID_TARGETS = new Set(["before", "doing", "done"]);', 'const VALID_TARGETS = new Set(["before", "doing", "done", "archived"]);', 1)
+          old_visible = '''function visibleTargetAt(x, y) {
+  const element = document.elementFromPoint(x, y);
+  const column = element?.closest?.("#page-goals .ok-goal-column[data-goal-v2-status]");
+  if (!column) return null;
+  const status = column.dataset.goalV2Status || "";
+  return VALID_TARGETS.has(status) ? column : null;
+}'''
+          new_visible = '''function visibleTargetAt(x, y) {
+  const element = document.elementFromPoint(x, y);
+  const column = element?.closest?.("#page-goals .ok-goal-column[data-goal-v2-status]");
+  if (!column) return null;
+  const status = column.dataset.goalV2Status || "";
+  if (!VALID_TARGETS.has(status)) return null;
+  const targetGroupId = column.dataset.goalV2GroupId || "";
+  if (drag?.groupId && targetGroupId && targetGroupId !== drag.groupId) return null;
+  return column;
+}'''
+          if old_visible not in d:
+            raise SystemExit('drag target block not found')
+          d = d.replace(old_visible, new_visible, 1)
+          d = d.replace('    sourceStatus,\n    pointerId:', '    sourceStatus,\n    groupId: column.dataset.goalV2GroupId || "",\n    pointerId:', 1)
+          old_completion = '''    if (nextStatus === "done" && previousStatus !== "done") goal.completedAt = now;
+    if (previousStatus === "done" && nextStatus !== "done") delete goal.completedAt;'''
+          new_completion = '''    if (nextStatus === "done" && previousStatus !== "done") goal.completedAt = goal.completedAt || now;
+    if (["before", "doing"].includes(nextStatus)) delete goal.completedAt;
+    if (nextStatus === "archived") goal.archivedAt = now;
+    else delete goal.archivedAt;'''
+          if old_completion not in d:
+            raise SystemExit('drag completion block not found')
+          d = d.replace(old_completion, new_completion, 1)
+          d = d.replace('const labels = { before: "시작 전", doing: "진행 중", done: "달성" };', 'const labels = { before: "시작 전", doing: "하는 중", done: "달성", archived: "보관" };', 1)
+          drag.write_text(d)
+
+          css = Path('css/goal-board-v2.css')
+          c = css.read_text()
+          additions = '''
+/* Group-first goal board: statuses are fixed, overall view is grouped by user-defined groups. */
+#page-goals .ok-goal-group-stack{display:grid;gap:14px}
+#page-goals .ok-goal-group-block{display:grid;gap:8px;padding:11px;border:1px solid var(--line);border-radius:14px;background:#fff}
+#page-goals .ok-goal-group-head{display:flex;align-items:center;gap:7px;min-height:28px;padding:0 2px}
+#page-goals .ok-goal-group-dot{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:var(--ok-section,#8fa9c4)}
+#page-goals .ok-goal-group-head strong{font-size:13px}
+#page-goals .ok-goal-group-head small{margin-left:auto;color:var(--muted);font-size:9px}
+#page-goals .ok-goal-board-v2.grouped-layout,#page-goals .ok-goal-board-v2.single-group-layout{grid-template-columns:repeat(4,minmax(190px,1fr));min-width:800px}
+#page-goals .ok-goal-group-block .ok-goal-column{min-height:250px;padding:8px}
+#page-goals .ok-goal-group-block .ok-goal-column-list{min-height:165px}
+#page-goals .ok-goal-group-block .ok-goal-section-badge{display:none}
+#page-goals .ok-goal-board-empty{padding:28px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
+@media(max-width:700px){#page-goals .ok-goal-group-stack{gap:10px}#page-goals .ok-goal-group-block{padding:9px}#page-goals .ok-goal-board-v2.grouped-layout,#page-goals .ok-goal-board-v2.single-group-layout{grid-template-columns:repeat(4,minmax(235px,78vw));min-width:max-content}}
+'''
+          if 'Group-first goal board' not in c:
+            c += additions
+          css.write_text(c)
+
+          loader = Path('js/interaction-fixes.js')
+          l = loader.read_text()
+          l = l.replace('import "./goal-board-v2.js?v=3";', 'import "./goal-board-v2.js?v=4";', 1)
+          l = l.replace('import "./goal-quick-add.js?v=2";', 'import "./goal-quick-add.js?v=3";', 1)
+          l = l.replace('import "./goal-status-drag.js?v=1";', 'import "./goal-status-drag.js?v=2";', 1)
+          loader.write_text(l)
+
+          index = Path('index.html')
+          i = index.read_text()
+          i = i.replace('./js/interaction-fixes.js?v=23', './js/interaction-fixes.js?v=24', 1)
+          index.write_text(i)
+          PY
+          node --check js/goal-board-v2.js
+          node --check js/goal-quick-add.js
+          node --check js/goal-status-drag.js
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/goal-group-board.yml
+          git add js/goal-board-v2.js js/goal-quick-add.js js/goal-status-drag.js css/goal-board-v2.css js/interaction-fixes.js index.html
+          git commit -m "feat: group goals by user groups"
+          git push origin main
