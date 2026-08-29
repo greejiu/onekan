@@ -66,8 +66,8 @@ function ensureShell() {
     button.type = "button";
     button.dataset.page = "management";
     button.innerHTML = '<span class="nav-icon">▦</span><span class="nav-label">관리</span>';
-    const goals = nav.querySelector('[data-page="goals"]');
-    nav.insertBefore(button, goals || null);
+    const tracking = nav.querySelector('[data-page="tracking"]');
+    nav.insertBefore(button, tracking || null);
   }
 
   const main = $("main.main");
