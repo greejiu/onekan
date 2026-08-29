@@ -145,9 +145,9 @@ function monthCalendar(){
     return `<section class="uw-task-month-cell uw-month-cell${date.getMonth()!==month?" outside":""}${dateKey===todayKey()?" today":""}" data-habit-date="${dateKey}"><span class="uw-task-day-number">${date.getDate()}</span><div class="uw-list" data-date="${dateKey}" data-task-drop-date="${dateKey}">${rows.slice(0,4).map(task=>itemMarkup(task,{compact:true,date:dateKey})).join("")}${rows.length>4?`<span class="uw-item-time">+${rows.length-4}</span>`:""}${quickAdd(dateKey,true)}</div></section>`
   }).join("")}</div>`
 }
-function boardDay(date){
-  const dateKey=key(date),rows=habitsForDate(dateKey);
-  return `<section class="uw-task-board-day${dateKey===todayKey()?" today":""}"><div class="uw-day-head"><strong>${dayLabel(date,true)}</strong></div><div class="uw-list" data-date="${dateKey}" data-task-drop-date="${dateKey}">${rows.map(task=>itemMarkup(task,{date:dateKey})).join("")}${quickAdd(dateKey)}</div></section>`
+function boardDay(date,showDate=true){
+  const dateKey=key(date),rows=habitsForDate(dateKey),head=showDate?`<div class="uw-day-head"><strong>${dayLabel(date,true)}</strong></div>`:"";
+  return `<section class="uw-task-board-day${dateKey===todayKey()?" today":""}">${head}<div class="uw-list" data-date="${dateKey}" data-task-drop-date="${dateKey}">${rows.map(task=>itemMarkup(task,{date:dateKey})).join("")}${quickAdd(dateKey)}</div></section>`
 }
 
 function habitTimelineTiming(task,date){
@@ -172,22 +172,23 @@ function habitCurrentTimeMarkup(date,start,end){
   const now=new Date(),minute=now.getHours()*60+now.getMinutes(),visible=date===key(now)&&minute>=start&&minute<=end,top=Math.max(0,Math.min(((end-start)/SLOT)*SLOT_H,((minute-start)/SLOT)*SLOT_H));
   return`<div class="uw-current-time${visible?" active":""}" data-current-date="${date}" style="top:${top}px${visible?"":";display:none"}"><span></span></div>`
 }
-function habitTimelineDay(date){
+function habitTimelineDay(date,showDate=true){
   const dateKey=key(date),start=state.ui.timelineRange.start,end=state.ui.timelineRange.end,rows=habitsForDate(dateKey).map(task=>({task,...habitTimelineTiming(task,dateKey)})),untimed=rows.filter(entry=>!entry.timed),timed=layoutHabitTimeline(rows.filter(entry=>entry.timed&&entry.time>=start&&entry.time<end));
   let labels="";for(let minute=start;minute<end;minute+=SLOT){if(minute%60===0)labels+=`<span class="uw-time-label" style="top:${((minute-start)/SLOT)*SLOT_H}px">${pad(minute/60)}:00</span>`}
   const allDay=`<div class="uw-all-day" data-date="${dateKey}" data-uw-all-day-drop><span class="uw-all-day-label">하루종일</span><div class="uw-all-day-list" data-date="${dateKey}" data-task-drop-date="${dateKey}">${untimed.map(entry=>itemMarkup(entry.task,{compact:true,date:dateKey})).join("")||quickAdd(dateKey)}</div></div>`;
-  return`<section class="uw-day${dateKey===todayKey()?" uw-today":""}" data-date="${dateKey}"><div class="uw-day-head"><strong>${dayLabel(date,true)}</strong></div>${allDay}<div class="uw-timeline" style="height:${((end-start)/SLOT)*SLOT_H}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${habitCurrentTimeMarkup(dateKey,start,end)}${timed.map(entry=>habitTimelineBlock(entry,dateKey,start)).join("")}</div></div></section>`
+  const head=showDate?`<div class="uw-day-head"><strong>${dayLabel(date,true)}</strong></div>`:"";
+  return`<section class="uw-day${dateKey===todayKey()?" uw-today":""}" data-date="${dateKey}">${head}${allDay}<div class="uw-timeline" style="height:${((end-start)/SLOT)*SLOT_H}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${habitCurrentTimeMarkup(dateKey,start,end)}${timed.map(entry=>habitTimelineBlock(entry,dateKey,start)).join("")}</div></div></section>`
 }
 function habitTimeline(){
   const count=habitCalendarView==="week"?7:1,start=habitCalendarView==="week"?addDays(habitCursor,-habitCursor.getDay()):habitCursor;
-  return`<div class="uw-task-timeline-scroll"><div class="uw-planner-days" style="--uw-days:${count}">${Array.from({length:count},(_,index)=>habitTimelineDay(addDays(start,index))).join("")}</div></div>`
+  return`<div class="uw-task-timeline-scroll"><div class="uw-planner-days" style="--uw-days:${count}">${Array.from({length:count},(_,index)=>habitTimelineDay(addDays(start,index),count>1)).join("")}</div></div>`
 }
 function weekCalendar(){
   const start=addDays(habitCursor,-habitCursor.getDay());
   return `<div class="uw-task-board-grid" style="--uw-task-days:7">${Array.from({length:7},(_,index)=>boardDay(addDays(start,index))).join("")}</div>`
 }
 function dayCalendar(){
-  return `<div class="uw-task-board-grid" style="--uw-task-days:1">${boardDay(habitCursor)}</div>`
+  return `<div class="uw-task-board-grid" style="--uw-task-days:1">${boardDay(habitCursor,false)}</div>`
 }
 function calendarMarkup(){
   const layout=habitCalendarView==="month"?"board":habitCalendarLayout;
