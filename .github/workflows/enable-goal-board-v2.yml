@@ -35,21 +35,10 @@ jobs:
 
           work = Path('js/work-management.js')
           text = work.read_text()
-          old = '''    if (item.kind === "goal") {
-              item.status = item.status === "done" ? "done" : item.status === "closed" ? "closed" : "doing";
-              if (!["short", "long"].includes(item.goalTerm)) item.goalTerm = "short";
-            } else if (!statusDefs.some((status) => status.id === item.status)) {
-              item.status = "before";
-            }'''
-          new = '''    if (item.kind === "goal") {
-              if (item.status === "closed") item.status = "archived";
-              if (!["before", "doing", "done", "archived"].includes(item.status)) item.status = "doing";
-              if (!["short", "long"].includes(item.goalTerm)) item.goalTerm = "short";
-            } else if (!statusDefs.some((status) => status.id === item.status)) {
-              item.status = "before";
-            }'''
-          if old in text:
-              text = text.replace(old, new, 1)
+          old_line = 'item.status = item.status === "done" ? "done" : item.status === "closed" ? "closed" : "doing";'
+          new_lines = 'if (item.status === "closed") item.status = "archived";\n      if (!["before", "doing", "done", "archived"].includes(item.status)) item.status = "doing";'
+          if old_line in text:
+              text = text.replace(old_line, new_lines, 1)
               work.write_text(text)
           elif 'if (!["before", "doing", "done", "archived"].includes(item.status))' not in text:
               raise SystemExit('work-management migration marker not found')
