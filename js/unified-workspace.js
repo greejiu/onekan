@@ -673,16 +673,10 @@ function scheduleInput(date,compact=false){return`<button class="uw-empty-hit uw
 function scheduleCalendarTitle(){if(calendarView==="month")return`${calendarCursor.getFullYear()}년 ${calendarCursor.getMonth()+1}월`;if(calendarView==="week"){const start=addDays(calendarCursor,-calendarCursor.getDay());return`${dayLabel(start)} – ${dayLabel(addDays(start,6))}`}return dayLabel(calendarCursor,true)}
 function renderScheduleSubnav(){
   const nav=$("#calendarViewSeg");
+  calendarView="month";
   if(!nav)return;
-  if(schedulePageMode==="list"){
-    nav.innerHTML="";
-    nav.hidden=true;
-    return
-  }
-  nav.hidden=false;
-  const month=calendarView==="month";
-  const label=month?"월은 보드 보기":scheduleCalendarLayout==="board"?"타임라인으로 보기":"보드로 보기";
-  nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,text])=>`<button class="${calendarView===id?"active":""}" data-schedule-cal-view="${id}" type="button">${text}</button>`).join("")}</div><button class="uw-layout-toggle" data-schedule-cal-layout-toggle type="button"${month?' disabled title="월 보기는 보드로 고정돼요"':""}>${label}</button></div>`
+  nav.innerHTML="";
+  nav.hidden=true
 }
 function eventDoneAt(event,now=new Date()){
   if(!event?.start)return false;
