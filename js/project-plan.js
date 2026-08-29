@@ -31,6 +31,15 @@ function activeProjects(current = state) {
     .sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ko"));
 }
 
+function taskGroupColor(task, current = state) {
+  const groups = Array.isArray(current?.eventGroups) && current.eventGroups.length
+    ? current.eventGroups
+    : [{ id: "default", color: "#8fa9c4" }];
+  const group = groups.find((item) => item.id === task?.groupId) || groups[0];
+  const color = group?.color || "#8fa9c4";
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : "#8fa9c4";
+}
+
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
   user = session?.user || null;
@@ -71,13 +80,13 @@ function installStyle() {
     .onekan-plan-period button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:inherit;cursor:pointer}
     .onekan-plan-period button:hover{background:var(--panel-soft,#f4f5f6)}
     .onekan-plan-body{display:grid;align-content:start;gap:2px;padding:20px 12px 24px;min-height:390px}
-    .onekan-plan-task{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;align-items:center;gap:6px;min-height:36px;padding:5px 7px;border-radius:8px;cursor:grab;user-select:none}
-    .onekan-plan-task:hover{background:var(--panel-soft,#f6f7f8)}
+    .onekan-plan-task{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;align-items:center;gap:6px;min-height:36px;padding:5px 7px;border:1px solid color-mix(in srgb,var(--uw-group,#8fa9c4) 45%,#fff);border-radius:8px;background:color-mix(in srgb,var(--uw-group,#8fa9c4) 16%,#fff);cursor:grab;user-select:none}
+    .onekan-plan-task:hover{background:color-mix(in srgb,var(--uw-group,#8fa9c4) 23%,#fff)}
     .onekan-plan-task.done{opacity:.52}
     .onekan-plan-task.done strong{text-decoration:line-through}
     .onekan-plan-task.dragging{opacity:.42}
-    .onekan-plan-check{display:grid;place-items:center;width:18px;height:18px;padding:0;border:1.5px solid var(--line-strong,#aeb6c1);border-radius:4px;background:#fff;color:var(--text,#1f2328);font-size:11px;cursor:pointer}
-    .onekan-plan-check.checked{background:var(--panel-soft,#eef1f3)}
+    .onekan-plan-check{display:grid;place-items:center;width:18px;height:18px;padding:0;border:1.5px solid var(--uw-group,#8fa9c4);border-radius:4px;background:#fff;color:#fff;font-size:11px;cursor:pointer}
+    .onekan-plan-check.checked{background:var(--uw-group,#8fa9c4)}
     .onekan-plan-task strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;cursor:text}
     .onekan-plan-task-meta{color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-plan-task-date{position:relative;display:flex;align-items:center;gap:5px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
@@ -134,7 +143,7 @@ function taskMeta(task) {
 function taskRow(task) {
   const meta = taskMeta(task);
   const dateValue = /^\d{4}-\d{2}-\d{2}$/.test(task.date || "") ? task.date : "";
-  return `<div class="onekan-plan-task${task.done ? " done" : ""}" draggable="${!task.done}" data-plan-task-id="${esc(task.id)}" data-task-id="${esc(task.id)}" data-context-kind="task" data-context-id="${esc(task.id)}">
+  return `<div class="onekan-plan-task${task.done ? " done" : ""}" style="--uw-group:${esc(taskGroupColor(task))}" draggable="${!task.done}" data-plan-task-id="${esc(task.id)}" data-task-id="${esc(task.id)}" data-context-kind="task" data-context-id="${esc(task.id)}">
     <button class="onekan-plan-check${task.done ? " checked" : ""}" data-plan-task-check="${esc(task.id)}" type="button" aria-label="완료 전환">${task.done ? "✓" : ""}</button>
     <strong>${esc(task.title || "이름 없는 할일")}</strong>
     ${meta ? `<span class="onekan-plan-task-meta">${esc(meta)}</span>` : ""}
