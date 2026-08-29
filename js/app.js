@@ -1415,6 +1415,87 @@ function renderProjects() {
   }).join("");
 }
 
+const GROUP_DRAG_MOUSE_DISTANCE = 6;
+const GROUP_DRAG_TOUCH_SCROLL_DISTANCE = 10;
+const GROUP_DRAG_TOUCH_HOLD_MS = 450;
+
+function wireEventGroupDrag(groupList) {
+  if (!groupList || groupList.dataset.eventGroupDragInstalled) return;
+  groupList.dataset.eventGroupDragInstalled = "1";
+  let gesture = null;
+
+  const clearGesture = () => {
+    if (!gesture) return;
+    clearTimeout(gesture.timer);
+    gesture.row?.classList.remove("dragging");
+    try { gesture.handle?.releasePointerCapture?.(gesture.pointerId); } catch {}
+    gesture = null;
+  };
+
+  const activate = () => {
+    if (!gesture || gesture.active || !gesture.row?.isConnected) return;
+    gesture.active = true;
+    gesture.row.classList.add("dragging");
+    try { gesture.handle.setPointerCapture?.(gesture.pointerId); } catch {}
+  };
+
+  groupList.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest("[data-event-group-drag]");
+    if (!handle || !event.isPrimary || event.button > 0) return;
+    const row = handle.closest("[data-event-group-id]");
+    if (!row) return;
+    clearGesture();
+    gesture = {
+      handle,
+      row,
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      active: false,
+      moved: false,
+      coarse: event.pointerType !== "mouse" || matchMedia("(hover:none),(pointer:coarse)").matches,
+      timer: null,
+    };
+    if (gesture.coarse) gesture.timer = setTimeout(activate, GROUP_DRAG_TOUCH_HOLD_MS);
+  });
+
+  document.addEventListener("pointermove", (event) => {
+    const current = gesture;
+    if (!current || event.pointerId !== current.pointerId) return;
+    const distance = Math.hypot(event.clientX - current.x, event.clientY - current.y);
+    if (!current.active) {
+      if (current.coarse && distance > GROUP_DRAG_TOUCH_SCROLL_DISTANCE) { clearGesture(); return; }
+      if (!current.coarse && distance >= GROUP_DRAG_MOUSE_DISTANCE) activate();
+      if (!current.active) return;
+    }
+    event.preventDefault();
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".event-group-row");
+    if (!target || target === current.row || target.parentElement !== groupList) return;
+    const before = [...groupList.querySelectorAll("[data-event-group-id]")].map((row) => row.dataset.eventGroupId).join("|");
+    const rect = target.getBoundingClientRect();
+    groupList.insertBefore(current.row, event.clientY > rect.top + rect.height / 2 ? target.nextSibling : target);
+    const after = [...groupList.querySelectorAll("[data-event-group-id]")].map((row) => row.dataset.eventGroupId).join("|");
+    if (before !== after) current.moved = true;
+  }, { passive: false });
+
+  const finishGesture = async (event) => {
+    const current = gesture;
+    if (!current || event.pointerId !== current.pointerId) return;
+    const changed = current.active && current.moved;
+    const ids = changed ? [...groupList.querySelectorAll("[data-event-group-id]")].map((row) => row.dataset.eventGroupId) : [];
+    clearGesture();
+    if (!changed) return;
+    const byId = new Map(state.eventGroups.map((group) => [group.id, group]));
+    state.eventGroups = ids.map((id) => byId.get(id)).filter(Boolean);
+    await save();
+    refreshEventGroupInputs();
+    renderCalendar();
+    renderSettings();
+  };
+  document.addEventListener("pointerup", finishGesture);
+  document.addEventListener("pointercancel", clearGesture);
+}
+
 function renderSettings() {
   const container = $("#habitTemplateList");
   if (container) {
@@ -1439,11 +1520,12 @@ function renderSettings() {
 
   const groupList = $("#eventGroupList");
   if (groupList) {
-    groupList.innerHTML = state.eventGroups.map((group, index) => `<div class="event-group-row" data-event-group-id="${esc(group.id)}">
-      <button class="event-group-drag-handle" type="button" data-event-group-drag aria-label="${esc(group.name)} 순서 이동" title="끌어서 순서 변경"${index === 0 ? " disabled" : ""}>⠿</button>
+    const protectedGroupId = state.eventGroups.find((group) => group.id === "default")?.id || state.eventGroups[0]?.id;
+    groupList.innerHTML = state.eventGroups.map((group) => `<div class="event-group-row" data-event-group-id="${esc(group.id)}">
+      <button class="event-group-drag-handle" type="button" data-event-group-drag aria-label="${esc(group.name)} 순서 이동" title="끌어서 순서 변경">⠿</button>
       <input type="color" value="${safeColor(group.color)}" aria-label="${esc(group.name)} 색" data-event-group-color />
       <input value="${esc(group.name)}" aria-label="영역 이름" data-event-group-name />
-      <button class="ghost-btn danger-text" type="button" data-event-group-delete${index === 0 ? " disabled" : ""}>삭제</button>
+      <button class="ghost-btn danger-text" type="button" data-event-group-delete${group.id === protectedGroupId ? " disabled" : ""}>삭제</button>
     </div>`).join("");
     groupList.querySelectorAll("[data-event-group-name], [data-event-group-color]").forEach((input) => input.addEventListener("change", () => {
       const row = input.closest("[data-event-group-id]");
@@ -1455,64 +1537,18 @@ function renderSettings() {
       refreshEventGroupInputs();
       renderCalendar();
     }));
-    groupList.querySelectorAll("[data-event-group-drag]:not(:disabled)").forEach((handle) => {
-      let draggingRow = null;
-      let pointerId = null;
-      let moved = false;
-      handle.addEventListener("pointerdown", (event) => {
-        if (event.button !== undefined && event.button !== 0) return;
-        draggingRow = handle.closest("[data-event-group-id]");
-        if (!draggingRow) return;
-        pointerId = event.pointerId;
-        moved = false;
-        handle.setPointerCapture?.(pointerId);
-        draggingRow.classList.add("dragging");
-        event.preventDefault();
-      });
-      handle.addEventListener("pointermove", (event) => {
-        if (!draggingRow || event.pointerId !== pointerId) return;
-        const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".event-group-row");
-        if (!target || target === draggingRow || target.parentElement !== groupList) return;
-        const firstRow = groupList.querySelector(".event-group-row");
-        if (target === firstRow) {
-          firstRow.after(draggingRow);
-          moved = true;
-          return;
-        }
-        const rect = target.getBoundingClientRect();
-        groupList.insertBefore(draggingRow, event.clientY > rect.top + rect.height / 2 ? target.nextSibling : target);
-        moved = true;
-      });
-      const finishDrag = (event) => {
-        if (!draggingRow || event.pointerId !== pointerId) return;
-        handle.releasePointerCapture?.(pointerId);
-        draggingRow.classList.remove("dragging");
-        const changed = moved;
-        draggingRow = null;
-        pointerId = null;
-        moved = false;
-        if (!changed) return;
-        const ids = [...groupList.querySelectorAll("[data-event-group-id]")].map((row) => row.dataset.eventGroupId);
-        const byId = new Map(state.eventGroups.map((group) => [group.id, group]));
-        state.eventGroups = ids.map((id) => byId.get(id)).filter(Boolean);
-        save();
-        refreshEventGroupInputs();
-        renderCalendar();
-        renderSettings();
-      };
-      handle.addEventListener("pointerup", finishDrag);
-      handle.addEventListener("pointercancel", finishDrag);
-    });
+    wireEventGroupDrag(groupList);
     groupList.querySelectorAll("[data-event-group-delete]").forEach((button) => button.addEventListener("click", async () => {
       const id = button.closest("[data-event-group-id]")?.dataset.eventGroupId;
-      if (!id || id === state.eventGroups[0]?.id) return;
+      const fallbackGroup = state.eventGroups.find((group) => group.id === "default") || state.eventGroups[0];
+      if (!id || id === fallbackGroup?.id) return;
       const target = state.eventGroups.find((group) => group.id === id);
       const confirmed = await confirmAction({ title: "영역을 삭제할까요?", message: `‘${target?.name || "선택한 영역"}’의 항목은 기본 영역으로 이동해요.` });
       if (!confirmed) return;
-      state.events.forEach((event) => { if (event.groupId === id) event.groupId = state.eventGroups[0].id; });
-      state.tasks.forEach((task) => { if (task.groupId === id) task.groupId = state.eventGroups[0].id; });
-      state.projects.forEach((project) => { if (project.groupId === id) project.groupId = state.eventGroups[0].id; });
-      state.sessions.forEach((session) => { if (session.groupId === id) session.groupId = state.eventGroups[0].id; });
+      state.events.forEach((event) => { if (event.groupId === id) event.groupId = fallbackGroup.id; });
+      state.tasks.forEach((task) => { if (task.groupId === id) task.groupId = fallbackGroup.id; });
+      state.projects.forEach((project) => { if (project.groupId === id) project.groupId = fallbackGroup.id; });
+      state.sessions.forEach((session) => { if (session.groupId === id) session.groupId = fallbackGroup.id; });
       state.eventGroups = state.eventGroups.filter((group) => group.id !== id);
       await save();
       renderSettings();
