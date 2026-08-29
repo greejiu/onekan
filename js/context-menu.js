@@ -198,7 +198,7 @@ function renderGroupChoices(state, target) {
   const available = groupable(target.kind) && groups.length > 0;
   if (groupButton) {
     groupButton.classList.toggle("hidden", !available);
-    groupButton.innerHTML = `${usesProjectGroups ? "그룹" : "영역"} <span class="context-menu-arrow">›</span>`;
+    groupButton.innerHTML = `영역 <span class="context-menu-arrow">›</span>`;
   }
   groupList?.classList.add("hidden");
   if (!available || !groupList) {
@@ -206,7 +206,7 @@ function renderGroupChoices(state, target) {
     return;
   }
   const selectedId = usesProjectGroups ? (item?.projectGroupId || groups[0]?.id) : (item?.groupId || groups[0]?.id);
-  groupList.innerHTML = groups.map((group) => `<button type="button" role="menuitemradio" aria-checked="${group.id === selectedId}" data-context-group-id="${escapeAttr(group.id)}"><span class="context-group-dot" style="--group-color:${escapeAttr(group.color || "#8fa9c4")}"></span><span>${escapeAttr(group.name)}</span>${group.id === selectedId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
+  groupList.innerHTML = groups.map((group) => `<button type="button" role="menuitemradio" aria-checked="${group.id === selectedId}" data-context-group-id="${escapeAttr(group.id)}"><span class="context-group-dot" style="--group-color:${escapeAttr(group.color || "#8fa9c4")}"></span><span>${escapeAttr(usesProjectGroups && group.id === "project-group-inbox" && (!group.name || group.name === "미분류") ? "기본" : group.name)}</span>${group.id === selectedId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
 }
 
 function renderProjectChoices(state, target) {

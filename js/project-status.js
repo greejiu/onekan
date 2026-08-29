@@ -6,6 +6,7 @@ const $$ = (selector, root = document) => [...(root?.querySelectorAll?.(selector
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const DEFAULT_GROUP_ID = "project-group-inbox";
+const DEFAULT_GROUP_LABEL = "기본";
 const DEFAULT_GROUP_COLOR = "#8fa9c4";
 const STATUSES = [
   { id: "before", label: "시작 전" },
@@ -41,16 +42,19 @@ function projectGroupId(project) {
 function groupsOf(current = state) {
   const groups = Array.isArray(current?.projectGroups) ? [...current.projectGroups] : [];
   if (!groups.some((group) => group.id === DEFAULT_GROUP_ID)) {
-    groups.unshift({ id: DEFAULT_GROUP_ID, name: "미분류", color: DEFAULT_GROUP_COLOR, system: true, order: -1 });
+    groups.unshift({ id: DEFAULT_GROUP_ID, name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR, system: true, order: -1 });
   }
-  return groups.sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+  return groups.map((group) => group.id === DEFAULT_GROUP_ID && (!group.name || group.name === "미분류") ? { ...group, name: DEFAULT_GROUP_LABEL } : group).sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
 }
 
 function ensureWritableStructure(current) {
   current.projects = Array.isArray(current.projects) ? current.projects : [];
   current.projectGroups = Array.isArray(current.projectGroups) ? current.projectGroups : [];
-  if (!current.projectGroups.some((group) => group.id === DEFAULT_GROUP_ID)) {
-    current.projectGroups.unshift({ id: DEFAULT_GROUP_ID, name: "미분류", color: DEFAULT_GROUP_COLOR, system: true, order: -1 });
+  const defaultGroup = current.projectGroups.find((group) => group.id === DEFAULT_GROUP_ID);
+  if (!defaultGroup) {
+    current.projectGroups.unshift({ id: DEFAULT_GROUP_ID, name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR, system: true, order: -1 });
+  } else if (!defaultGroup.name || defaultGroup.name === "미분류") {
+    defaultGroup.name = DEFAULT_GROUP_LABEL;
   }
 }
 
@@ -174,7 +178,7 @@ function groupBlock(group, projects, statusId) {
   const items = projects.filter((project) => normalizeStatus(project.status) === statusId && projectGroupId(project) === group.id);
   const collapsed = sessionStorage.getItem(`onekan-project-group-${group.id}`) === "0";
   return `<section class="onekan-project-group${collapsed ? " collapsed" : ""}" data-project-group-drop="${esc(group.id)}" style="--project-group:${esc(group.color || DEFAULT_GROUP_COLOR)}">
-    <div class="onekan-project-group-head" data-project-group-toggle="${esc(group.id)}"><span class="onekan-project-group-chevron">${collapsed ? "▶" : "▼"}</span><span class="onekan-project-group-dot"></span><strong>${esc(group.name || "미분류")}</strong><small>${items.length}개</small></div>
+    <div class="onekan-project-group-head" data-project-group-toggle="${esc(group.id)}"><span class="onekan-project-group-chevron">${collapsed ? "▶" : "▼"}</span><span class="onekan-project-group-dot"></span><strong>${esc(group.name || DEFAULT_GROUP_LABEL)}</strong><small>${items.length}개</small></div>
     <div class="onekan-project-group-body">${items.map(projectRow).join("")}<button class="onekan-project-add" type="button" data-project-add-group="${esc(group.id)}">＋ 프로젝트 추가</button></div>
   </section>`;
 }
@@ -187,7 +191,7 @@ function renderMarkup() {
     return `${toolbar}<div class="onekan-project-board-grid">${STATUSES.map((status) => statusBoard(status, projects)).join("")}</div>`;
   }
   const groups = groupsOf();
-  return `${toolbar}<section class="onekan-project-group-view"><div class="onekan-project-groups">${groups.map((group) => groupBlock(group, projects, activeFilter)).join("")}</div><button class="onekan-project-group-add" type="button" data-project-group-add>＋ 그룹 추가</button></section>`;
+  return `${toolbar}<section class="onekan-project-group-view"><div class="onekan-project-groups">${groups.map((group) => groupBlock(group, projects, activeFilter)).join("")}</div><button class="onekan-project-group-add" type="button" data-project-group-add>＋ 영역 추가</button></section>`;
 }
 
 function ensureDialog() {
@@ -201,12 +205,13 @@ function ensureDialog() {
     <div class="onekan-project-fields">
       <label>이름<input id="onekanProjectTitle" maxlength="120" autocomplete="off" required /></label>
       <label>상태<select id="onekanProjectStatus">${STATUSES.map((status) => `<option value="${status.id}">${status.label}</option>`).join("")}</select></label>
-      <label>그룹<select id="onekanProjectGroup"></select></label>
+      <label>영역<select id="onekanProjectGroup"></select></label>
       <div class="onekan-project-date-row"><label>시작일<input id="onekanProjectStart" type="date" /></label><label>종료일<input id="onekanProjectEnd" type="date" /></label></div>
     </div>
-    <div class="onekan-project-dialog-actions"><button class="soft-btn" value="cancel" type="submit">취소</button><button class="primary-btn" id="onekanProjectSave" type="button">저장</button></div>
+    <div class="onekan-project-dialog-actions"><button class="soft-btn" id="onekanProjectCancel" type="button">취소</button><button class="primary-btn" id="onekanProjectSave" type="button">저장</button></div>
   </form>`;
   document.body.appendChild(dialog);
+  $("#onekanProjectCancel", dialog).addEventListener("click", () => dialog.close());
   $("#onekanProjectSave", dialog).addEventListener("click", saveEditor);
   dialog.addEventListener("close", () => { editingProjectId = null; });
   return dialog;
@@ -216,7 +221,7 @@ function fillGroupSelect(selectedId) {
   const select = $("#onekanProjectGroup");
   if (!select) return;
   const groups = groupsOf();
-  select.innerHTML = groups.map((group) => `<option value="${esc(group.id)}"${group.id === selectedId ? " selected" : ""}>${esc(group.name || "미분류")}</option>`).join("");
+  select.innerHTML = groups.map((group) => `<option value="${esc(group.id)}"${group.id === selectedId ? " selected" : ""}>${esc(group.name || DEFAULT_GROUP_LABEL)}</option>`).join("");
 }
 
 async function openEditor({ projectId = null, status = "doing", groupId = DEFAULT_GROUP_ID, focusPeriod = false } = {}) {
@@ -268,7 +273,7 @@ async function saveEditor() {
 }
 
 async function addGroup() {
-  const name = window.prompt("새 그룹 이름을 입력해 주세요.");
+  const name = window.prompt("새 영역 이름을 입력해 주세요.");
   if (!name?.trim()) return;
   try {
     await writeState((current) => {
@@ -277,8 +282,8 @@ async function addGroup() {
       current.projectGroups = groups;
     }, "project-group-add");
   } catch (error) {
-    console.error("프로젝트 그룹 추가 실패", error);
-    showToast("그룹을 추가하지 못했어요.");
+    console.error("프로젝트 영역 추가 실패", error);
+    showToast("영역을 추가하지 못했어요.");
   }
 }
 
