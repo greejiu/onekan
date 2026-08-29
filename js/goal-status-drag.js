@@ -24,21 +24,31 @@ function distanceFromStart(event) {
   return Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
 }
 
-function visibleTargetAt(x, y) {
+function targetAt(x, y) {
   const element = document.elementFromPoint(x, y);
+  const tab = element?.closest?.("#page-goals [data-goal-board-status]");
+  if (tab) {
+    const status = tab.dataset.goalBoardStatus || "";
+    return VALID_TARGETS.has(status) ? { status, element: tab, kind: "tab" } : null;
+  }
+
   const column = element?.closest?.("#page-goals .ok-goal-column[data-goal-v2-status]");
   if (!column) return null;
   const status = column.dataset.goalV2Status || "";
   if (!VALID_TARGETS.has(status)) return null;
   const targetGroupId = column.dataset.goalV2GroupId || "";
   if (drag?.groupId && targetGroupId && targetGroupId !== drag.groupId) return null;
-  return column;
+  return { status, element: column, kind: "column" };
 }
 
 function clearTarget() {
-  document.querySelectorAll("#page-goals .ok-goal-column.ok-goal-drag-over").forEach((column) => {
-    column.classList.remove("ok-goal-drag-over");
-  });
+  document.querySelectorAll("#page-goals .ok-goal-column.ok-goal-drag-over").forEach((column) => column.classList.remove("ok-goal-drag-over"));
+  document.querySelectorAll("#page-goals [data-goal-board-status].ok-goal-tab-drop").forEach((tab) => tab.classList.remove("ok-goal-tab-drop"));
+}
+
+function markTarget(target) {
+  if (!target?.element) return;
+  target.element.classList.add(target.kind === "tab" ? "ok-goal-tab-drop" : "ok-goal-drag-over");
 }
 
 function updateGhost(x, y) {
@@ -112,7 +122,7 @@ async function moveGoal(goalId, nextStatus) {
     if (saveError) throw saveError;
 
     document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "goal-status-drag" } }));
-    const labels = { before: "시작 전", doing: "하는 중", done: "달성", archived: "보관" };
+    const labels = { before: "시작 전", doing: "하는 중", done: "완료", archived: "보관" };
     showToast?.(`‘${goal.title || "목표"}’을 ${labels[nextStatus]}으로 이동했어요.`);
   } catch (error) {
     console.error("목표 상태 이동 실패", error);
@@ -175,8 +185,7 @@ function handlePointerMove(event) {
   event.preventDefault();
   updateGhost(event.clientX, event.clientY);
   clearTarget();
-  const target = visibleTargetAt(event.clientX, event.clientY);
-  target?.classList.add("ok-goal-drag-over");
+  markTarget(targetAt(event.clientX, event.clientY));
 }
 
 async function handlePointerUp(event) {
@@ -187,8 +196,8 @@ async function handlePointerUp(event) {
   }
 
   event.preventDefault();
-  const target = visibleTargetAt(event.clientX, event.clientY);
-  const nextStatus = target?.dataset.goalV2Status || "";
+  const target = targetAt(event.clientX, event.clientY);
+  const nextStatus = target?.status || "";
   const goalId = drag.goalId;
   const sourceStatus = drag.sourceStatus;
   cleanupDrag();
