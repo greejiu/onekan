@@ -223,7 +223,7 @@ function renderProjectChoices(state, target) {
     return;
   }
   const selectedId = item?.projectId || "";
-  if (button) button.innerHTML = `${selectedId ? "프로젝트 변경" : "프로젝트 추가"} <span class="context-menu-arrow">›</span>`;
+  if (button) button.innerHTML = `프로젝트 연결 <span class="context-menu-arrow">›</span>`;
   const normalize = (value) => {
     const raw = String(value ?? "").trim().toLowerCase();
     if (["done", "완료", "달성", "complete", "completed"].includes(raw)) return "done";
@@ -490,7 +490,7 @@ async function changeTargetProject(projectId) {
     });
   } catch (error) {
     console.error(error);
-    showToast("프로젝트를 변경하지 못했어요.");
+    showToast("프로젝트를 연결하지 못했어요.");
   }
 }
 
