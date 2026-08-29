@@ -15,8 +15,8 @@ replaceOnce(
 );
 
 replaceOnce(
-`<button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정">▣</button>`,
-`<button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button>`,
+'<button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정">▣</button>',
+'<button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button>',
 'project period button icon'
 );
 
