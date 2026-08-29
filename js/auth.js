@@ -31,6 +31,24 @@ function setAppStatus(text, isError = false) {
   }
 }
 
+async function recoverLoadedState(user) {
+  try {
+    const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
+    if (error) throw error;
+    if (data?.data && typeof data.data === "object") {
+      const sharedState = JSON.parse(JSON.stringify(data.data));
+      window.__ONEKAN_APP_STATE__ = sharedState;
+      document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "auth-recovery", state: sharedState } }));
+    }
+    setAppStatus("저장됨");
+    return true;
+  } catch (error) {
+    console.error("클라우드 상태 복구 확인 실패", error);
+    setAppStatus("데이터 불러오기 실패", true);
+    return false;
+  }
+}
+
 function friendlyAuthError(error, action) {
   const code = error?.code ?? "";
   const text = String(error?.message ?? "").toLowerCase();
@@ -61,9 +79,6 @@ export function setupAuth({ onLogin, onLogout }) {
   async function activate(user) {
     if (!user) return false;
 
-    // Authentication success and app rendering are separate concerns.
-    // Never leave a successfully authenticated user stuck on the login screen
-    // just because one later renderer/data initializer throws.
     visibleUserId = user.id;
     showLoggedIn(user);
 
@@ -77,9 +92,8 @@ export function setupAuth({ onLogin, onLogout }) {
         setAppStatus("저장됨");
         return true;
       } catch (error) {
-        console.error("로그인 후 데이터 초기화 실패", error);
-        setAppStatus("데이터 불러오기 실패", true);
-        return false;
+        console.error("로그인 후 화면 초기화 실패", error);
+        return recoverLoadedState(user);
       } finally {
         activationPromise = null;
         activatingUserId = null;
