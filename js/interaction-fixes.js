@@ -1,23 +1,57 @@
 import "./auth-guard.js?v=1";
-import "./management.js?v=5";
-import "./management-section-context.js?v=1";
-import "./management-items.js?v=5";
-import "./management-checklist.js?v=1";
-import "./repeat-hub.js?v=3";
-import "./management-section-item-drag.js?v=3";
-import "./management-item-schedule.js?v=3";
-import "./management-home.js?v=3";
-import "./management-history.js?v=4";
-import "./habit-area-check-colors.js?v=1";
-import "./habit-start-date-fix.js?v=3";
-import "./habit-period-direct-save.js?v=1";
-import "./home-timeline-dynamic-columns.js?v=2";
 
-// Compatibility + interaction safeguards loaded before app.js initializes.
-// Safe to load more than once because cached module URLs may coexist during deployment.
+// Heavy feature modules read the shared Supabase state on startup.
+// Load them only after the core app has finished its first cloud load so they
+// cannot compete with the critical login/data request and leave the UI stuck
+// on “불러오는 중...”.
+const deferredModules = [
+  "./management.js?v=5",
+  "./management-section-context.js?v=1",
+  "./management-items.js?v=5",
+  "./management-checklist.js?v=1",
+  "./repeat-hub.js?v=3",
+  "./management-section-item-drag.js?v=3",
+  "./management-item-schedule.js?v=3",
+  "./management-home.js?v=3",
+  "./management-history.js?v=4",
+  "./habit-area-check-colors.js?v=1",
+  "./habit-start-date-fix.js?v=3",
+  "./habit-period-direct-save.js?v=1",
+  "./home-timeline-dynamic-columns.js?v=2",
+];
 
 if (!window.__onekanInteractionFixesInstalled) {
   window.__onekanInteractionFixesInstalled = true;
+  let deferredLoadStarted = false;
+
+  function coreDataReady() {
+    const app = document.querySelector("#app-section");
+    const sync = document.querySelector("#syncStatus");
+    if (!app || app.classList.contains("hidden")) return false;
+    const text = sync?.textContent?.trim() || "";
+    if (!text || text.includes("불러오는 중") || text.includes("실패")) return false;
+    return text === "저장됨" || text === "저장 중...";
+  }
+
+  async function loadDeferredModules() {
+    if (deferredLoadStarted || !coreDataReady()) return;
+    deferredLoadStarted = true;
+    try {
+      for (const modulePath of deferredModules) {
+        await import(modulePath);
+      }
+    } catch (error) {
+      deferredLoadStarted = false;
+      console.error("deferred feature module load failed", error);
+    }
+  }
+
+  const appSection = document.querySelector("#app-section");
+  const syncStatus = document.querySelector("#syncStatus");
+  const readinessObserver = new MutationObserver(() => loadDeferredModules());
+  if (appSection) readinessObserver.observe(appSection, { attributes: true, attributeFilter: ["class"] });
+  if (syncStatus) readinessObserver.observe(syncStatus, { childList: true, characterData: true, subtree: true });
+  window.addEventListener("load", () => setTimeout(loadDeferredModules, 250), { once: true });
 
   function ensureLegacyCompatibilityNodes() {
     const host = document.createElement("div");
