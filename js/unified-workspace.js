@@ -685,7 +685,8 @@ function scheduleList(){
   if(!rows.length)return '<div class="uw-schedule-list"><div class="empty">표시할 일정이 없어요.</div></div>';
   if(scheduleListTab==="all"){
     const ordered=[...rows].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||manualOrderValue(a.item)-manualOrderValue(b.item)||new Date(a.item.start)-new Date(b.item.start)||String(a.item.title||"").localeCompare(String(b.item.title||""),"ko"));
-    return `<div class="uw-schedule-list"><div class="uw-list uw-task-main-list uw-flat-all-list">${ordered.map(row=>itemMarkup("event",row.item,row.date,false,false,dayLabel(fromKey(row.date)))).join("")}</div></div>`
+    const add=`<div class="uw-list uw-task-main-list" data-uw-add-kind="event" data-date="${todayKey()}" data-task-drop-date="${todayKey()}">${scheduleInput(todayKey())}</div>`;
+    return `<div class="uw-schedule-list">${add}<div class="uw-list uw-task-main-list uw-flat-all-list">${ordered.map(row=>itemMarkup("event",row.item,row.date,false,false,dayLabel(fromKey(row.date)))).join("")}</div></div>`
   }
   const groups=new Map();
   rows.forEach(row=>{if(!groups.has(row.date))groups.set(row.date,[]);groups.get(row.date).push(row.item)});
