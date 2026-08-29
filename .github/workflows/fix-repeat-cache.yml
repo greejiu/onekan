@@ -1,0 +1,32 @@
+name: Fix repeat cache
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-repeat-cache.yml'
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refresh repeat module cache keys
+        run: |
+          sed -i 's#./repeat-hub.js?v=2#./repeat-hub.js?v=3#' js/interaction-fixes.js
+          sed -i 's#./js/interaction-fixes.js?v=30#./js/interaction-fixes.js?v=31#' index.html
+          node --check js/repeat-hub.js
+          node --check js/interaction-fixes.js
+      - name: Commit cache fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/interaction-fixes.js index.html
+          git commit -m 'fix: refresh repeat hub cache after rollback' || true
+          git push
+      - name: Remove one-shot workflow
+        run: |
+          git pull --rebase
+          git rm .github/workflows/fix-repeat-cache.yml
+          git commit -m 'chore: remove repeat cache fix workflow'
+          git push
