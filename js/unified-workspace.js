@@ -60,7 +60,7 @@ function normalize(s){
   normalizeCompletionRepeats(s);
   return s
 }
-async function read(){const {data:{session}}=await supabase.auth.getSession();user=session?.user||null;if(!user)return null;const {data,error}=await supabase.from("onekan_state").select("data").eq("user_id",user.id).maybeSingle();if(error)throw error;state=normalize(data?.data);return state}
+async function read(){if(!user){const {data:{session}}=await supabase.auth.getSession();user=session?.user||null}if(!user)return null;const {data,error}=await supabase.from("onekan_state").select("data").eq("user_id",user.id).maybeSingle();if(error)throw error;state=normalize(data?.data);return state}
 async function write(mutator){await read();if(!state||!user)return;mutator(state);const {error}=await supabase.from("onekan_state").upsert({user_id:user.id,data:state},{onConflict:"user_id"});if(error)throw error;document.dispatchEvent(new CustomEvent("onekan:state-changed",{detail:{source:"unified"}}));$("#reloadCloudBtn")?.click();scheduleRender(130)}
 function scheduleRender(ms=60){clearTimeout(renderTimer);renderTimer=setTimeout(renderAll,ms)}
 function group(item){return state.eventGroups.find(g=>g.id===item.groupId)||state.eventGroups[0]}
@@ -1586,4 +1586,4 @@ function renderInitialCalendarShells(){
 }
 async function renderAll(){if(rendering)return;rendering=true;try{await read();if(!state)return;applyColors();renderHome();renderSchedulePage();renderTasks();renderHabits()}catch(e){console.error("통합 화면 렌더링 실패",e)}finally{rendering=false}}
 async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireEnterToSave();wireHabitForm();wireOverdueActions();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();document.addEventListener("onekan:state-changed",event=>{if(event.detail?.source!=="unified")scheduleRender(40)});renderInitialCalendarShells();await renderAll();updateCurrentTimeLines();setInterval(updateCurrentTimeLines,60000)}
-supabase.auth.onAuthStateChange((_e,session)=>{user=session?.user||null;if(user)queueMicrotask(init)});const {data:{session}}=await supabase.auth.getSession();if(session?.user){user=session.user;queueMicrotask(init)}
+supabase.auth.onAuthStateChange((_e,session)=>{user=session?.user||null;if(user)setTimeout(init,0)});const {data:{session}}=await supabase.auth.getSession();if(session?.user){user=session.user;setTimeout(init,0)}
