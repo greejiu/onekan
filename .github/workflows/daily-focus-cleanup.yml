@@ -1,0 +1,85 @@
+name: Daily focus cleanup
+
+on:
+  push:
+    paths:
+      - '.github/workflows/daily-focus-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove repeat surfaces safely
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app = Path('js/app.js')
+          text = app.read_text()
+          marker = 'function habitOccursOnDate(habit, targetKey) {\n'
+          replacement = marker + '  if (window.__ONEKAN_DAILY_FOCUS_MODE__) return false;\n'
+          if replacement not in text:
+              if marker not in text:
+                  raise SystemExit('habitOccursOnDate marker not found')
+              text = text.replace(marker, replacement, 1)
+          marker = 'function ensureHabitDay() {\n'
+          replacement = marker + '  if (window.__ONEKAN_DAILY_FOCUS_MODE__) return;\n'
+          if replacement not in text:
+              if marker not in text:
+                  raise SystemExit('ensureHabitDay marker not found')
+              text = text.replace(marker, replacement, 1)
+          app.write_text(text)
+
+          unified = Path('js/unified-workspace.js')
+          text = unified.read_text()
+          marker = 'function habitActiveOn(habit,date){'
+          replacement = marker + 'if(window.__ONEKAN_DAILY_FOCUS_MODE__)return false;'
+          if replacement not in text:
+              if marker not in text:
+                  raise SystemExit('habitActiveOn marker not found')
+              text = text.replace(marker, replacement, 1)
+          unified.write_text(text)
+
+          index = Path('index.html')
+          text = index.read_text()
+          habit_nav = '        <button class="nav-item" data-page="habits" type="button"><span class="nav-icon">♡</span><span class="nav-label">습관</span></button>\n'
+          text = text.replace(habit_nav, '', 1)
+          text = text.replace('<section class="page" id="page-habits">', '<section class="page" id="page-habits" hidden>', 1)
+          text = text.replace('./js/interaction-fixes.js?v=32', './js/interaction-fixes.js?v=33', 1)
+          text = text.replace('./js/app.js?v=37', './js/app.js?v=38', 1)
+          text = text.replace('./js/unified-workspace.js?v=61', './js/unified-workspace.js?v=62', 1)
+          marker = '  <script type="module" src="./js/unified-workspace.js?v=62"></script>\n'
+          daily = '  <script type="module" src="./js/daily-focus-mode.js?v=1"></script>\n'
+          if daily not in text:
+              if marker not in text:
+                  raise SystemExit('unified workspace script marker not found')
+              text = text.replace(marker, marker + daily, 1)
+          index.write_text(text)
+          PY
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check js/app.js
+          node --check js/unified-workspace.js
+          node --check js/interaction-fixes.js
+          node --check js/daily-focus-mode.js
+
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html js/app.js js/unified-workspace.js
+          git commit -m "chore: focus app on daily planning" || exit 0
+          git push
+
+      - name: Remove one-shot workflow
+        run: |
+          rm -f .github/workflows/daily-focus-cleanup.yml
+          git add -u .github/workflows/daily-focus-cleanup.yml
+          git commit -m "chore: remove daily focus cleanup workflow" || exit 0
+          git push
