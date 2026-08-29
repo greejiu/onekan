@@ -47,6 +47,7 @@ async function readState() {
   state.habitTemplates = Array.isArray(state.habitTemplates) ? state.habitTemplates : [];
   state.habitDays = state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
+  state.projectGroups = Array.isArray(state.projectGroups) ? state.projectGroups : [];
   state.sessions = Array.isArray(state.sessions) ? state.sessions : [];
   return { user: session.user, state };
 }
@@ -57,6 +58,7 @@ async function writeState(mutator) {
   mutator(current.state);
   const { error } = await supabase.from("onekan_state").upsert({ user_id: current.user.id, data: current.state }, { onConflict: "user_id" });
   if (error) throw error;
+  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "context-menu" } }));
   $("#reloadCloudBtn")?.click();
   return true;
 }
@@ -182,15 +184,22 @@ function renderGroupChoices(state, target) {
   const menu = $("#globalContextMenu");
   const groupButton = menu?.querySelector('[data-context-action="groups"]');
   const groupList = $("#contextGroupList");
-  const groups = Array.isArray(state?.eventGroups) ? state.eventGroups : [];
+  const item = getItem(state, target);
+  const usesProjectGroups = target.kind === "project" && item?.kind === "project";
+  const groups = usesProjectGroups
+    ? (Array.isArray(state?.projectGroups) ? state.projectGroups : [])
+    : (Array.isArray(state?.eventGroups) ? state.eventGroups : []);
   const available = groupable(target.kind) && groups.length > 0;
-  groupButton?.classList.toggle("hidden", !available);
+  if (groupButton) {
+    groupButton.classList.toggle("hidden", !available);
+    groupButton.innerHTML = `${usesProjectGroups ? "그룹" : "영역"} <span class="context-menu-arrow">›</span>`;
+  }
   groupList?.classList.add("hidden");
   if (!available || !groupList) {
     if (groupList) groupList.innerHTML = "";
     return;
   }
-  const selectedId = getItem(state, target)?.groupId || groups[0]?.id;
+  const selectedId = usesProjectGroups ? (item?.projectGroupId || groups[0]?.id) : (item?.groupId || groups[0]?.id);
   groupList.innerHTML = groups.map((group) => `<button type="button" role="menuitemradio" aria-checked="${group.id === selectedId}" data-context-group-id="${escapeAttr(group.id)}"><span class="context-group-dot" style="--group-color:${escapeAttr(group.color || "#8fa9c4")}"></span><span>${escapeAttr(group.name)}</span>${group.id === selectedId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
 }
 
@@ -260,6 +269,7 @@ function editableTitleElement(root) {
     ".day-timed-main strong",
     ".multi-entry strong",
     ".project-row strong",
+    ".onekan-project-title",
     ".template-row > span",
   ].join(",")) || root.querySelector("strong");
 }
@@ -337,7 +347,7 @@ async function deleteTarget() {
   try {
     const loaded = await readState();
     const item = loaded ? getItem(loaded.state, target) : null;
-    const labels = { task: "할일", event: "일정", timeBlock: "시간 계획", habit: "습관", project: item?.kind === "goal" ? "목표" : "작업", session: "시간 기록" };
+    const labels = { task: "할일", event: "일정", timeBlock: "시간 계획", habit: "습관", project: item?.kind === "goal" ? "목표" : "프로젝트", session: "시간 기록" };
     const label = labels[target.kind] || "항목";
     const title = item?.title || item?.detail || item?.sourceTitle || "선택한 항목";
     const confirmed = await confirmAction({ title: `${label}을 삭제할까요?`, message: `‘${title}’\n삭제한 내용은 되돌릴 수 없어요.` });
@@ -412,13 +422,19 @@ async function changeTargetGroup(groupId) {
   if (!target || !groupable(target.kind) || !groupId) return;
   try {
     await writeState((state) => {
-      if (!state.eventGroups?.some((group) => group.id === groupId)) return;
       const item = getItem(state, target);
-      if (item) item.groupId = groupId;
+      if (!item) return;
+      if (target.kind === "project" && item.kind === "project") {
+        if (!state.projectGroups?.some((group) => group.id === groupId)) return;
+        item.projectGroupId = groupId;
+      } else {
+        if (!state.eventGroups?.some((group) => group.id === groupId)) return;
+        item.groupId = groupId;
+      }
     });
   } catch (error) {
     console.error(error);
-    showToast("영역을 변경하지 못했어요.");
+    showToast(target.kind === "project" ? "그룹을 변경하지 못했어요." : "영역을 변경하지 못했어요.");
   }
 }
 

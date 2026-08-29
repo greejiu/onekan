@@ -151,7 +151,7 @@ function periodText(project) {
 }
 
 function projectRow(project) {
-  return `<div class="onekan-project-row" draggable="true" data-project-status-id="${esc(project.id)}">
+  return `<div class="onekan-project-row" draggable="true" data-project-status-id="${esc(project.id)}" data-context-kind="project" data-context-id="${esc(project.id)}">
     <span class="onekan-project-title" data-project-edit="${esc(project.id)}">${esc(project.title || "이름 없는 프로젝트")}</span>
     <span class="onekan-project-period"><span>${esc(periodText(project))}</span><button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정">▣</button></span>
   </div>`;
@@ -336,9 +336,11 @@ function wireRoot(root) {
     if (!row) return;
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/onekan-project-id", row.dataset.projectStatusId);
+    window.__onekanSuppressItemClickUntil = Date.now() + 700;
     row.classList.add("dragging");
   });
   root.addEventListener("dragend", (event) => {
+    window.__onekanSuppressItemClickUntil = Date.now() + 700;
     event.target.closest("[data-project-status-id]")?.classList.remove("dragging");
     clearDropState();
   });
@@ -359,6 +361,7 @@ function wireRoot(root) {
     const target = event.target.closest("[data-project-status-drop],[data-project-group-drop]");
     if (!projectId || !target) return;
     event.preventDefault();
+    window.__onekanSuppressItemClickUntil = Date.now() + 700;
     clearDropState();
     if (target.dataset.projectStatusDrop) await moveProject(projectId, { status: target.dataset.projectStatusDrop });
     else if (target.dataset.projectGroupDrop) await moveProject(projectId, { status: activeFilter === "all" ? null : activeFilter, groupId: target.dataset.projectGroupDrop });
