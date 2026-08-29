@@ -64,7 +64,10 @@ assert.match(c,/\.uw-time-block-v2-list \.uw-time-block-v2-item\{min-height:28px
 assert.doesNotMatch(c,/\.uw-time-block-v2-item\.fixed-anchor[^\{]*\{grid-column:1\/-1\}/,'timed cards must use the same two-column grid as all-day cards');
 assert.match(c,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-time-block-v2-item\.plan-draggable\{min-height:36px/,'touch cards must stay compact while preserving a usable hit area');
 assert.match(c,/#page-home #homeLeftColumn\{[\s\S]*?height:auto;[\s\S]*?overflow:visible;/,'the home planner must keep its original natural height without an internal scrollbar');
-assert.match(c,/#page-home #homeRightColumn\{[\s\S]*?grid-template-rows:minmax\(0,1fr\) minmax\(0,1fr\);[\s\S]*?height:100%;/,'both open home side cards must split the left column height evenly');
+assert.match(c,/#page-home \.uw-home-layout\{\s*align-items:start;/,'the home grid must not stretch the natural-height left column');
+assert.match(c,/#page-home #homeRightColumn\{[\s\S]*?grid-template-rows:minmax\(0,1fr\) minmax\(0,1fr\);[\s\S]*?height:auto;/,'the side column must wait for the measured left column height');
+assert.match(u,/new ResizeObserver\(syncHomeColumnHeight\)/,'the right column height must follow the rendered left column height');
+assert.match(u,/right\.style\.height=`\$\{height\}px`/,'the measured left height must be applied only to the right column');
 assert.match(c,/#page-home #homeRightColumn:has\(\.uw-upcoming-card:not\(\[open\]\)\)\{\s*grid-template-rows:auto minmax\(0,1fr\);/,'collapsing upcoming must let someday fill the remaining height');
 assert.match(c,/#page-home #homeRightColumn:has\(\.uw-someday-card:not\(\[open\]\)\)\{\s*grid-template-rows:minmax\(0,1fr\) auto;/,'collapsing someday must let upcoming fill the remaining height');
 assert.match(c,/#page-home #homeRightColumn \.uw-side-toggle\[open\]\{\s*overflow:hidden;/,'open side cards must clip content to their fixed grid row');
@@ -75,8 +78,8 @@ assert.doesNotMatch(u,/upcomingGroups\(limit=7,horizon=366\)/,'home upcoming mus
 assert.doesNotMatch(u,/uw-date-label[^`]+uw-icon-btn[^`]+data-uw-add-kind/,'upcoming date rows must not show redundant plus buttons');
 assert.doesNotMatch(u,/uw-someday-add uw-empty-hit/,'someday must not show the redundant add button');
 assert.doesNotMatch(i,/id="addTimeBlockBtn"/,'home planner must not show a non-working bottom add button');
-assert.match(i,/unified-workspace\.js\?v=81/);
+assert.match(i,/unified-workspace\.js\?v=82/);
 assert.match(i,/workspace-pages\.js\?v=12/);
 assert.match(i,/context-menu\.js\?v=28/);
-assert.match(i,/unified-workspace\.css\?v=51/);
+assert.match(i,/unified-workspace\.css\?v=52/);
 console.log('timeline plan unify regression: ok');
