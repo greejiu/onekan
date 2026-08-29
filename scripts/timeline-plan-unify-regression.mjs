@@ -68,9 +68,10 @@ assert.match(c,/#page-home #homeRightColumn\{[\s\S]*?grid-template-rows:minmax\(
 assert.match(c,/#page-home #homeRightColumn:has\(\.uw-upcoming-card:not\(\[open\]\)\)\{\s*grid-template-rows:auto minmax\(0,1fr\);/,'collapsing upcoming must let someday fill the remaining height');
 assert.match(c,/#page-home #homeRightColumn:has\(\.uw-someday-card:not\(\[open\]\)\)\{\s*grid-template-rows:minmax\(0,1fr\) auto;/,'collapsing someday must let upcoming fill the remaining height');
 assert.match(c,/#page-home #homeRightColumn \.uw-side-toggle\[open\]\{\s*overflow:hidden;/,'open side cards must clip content to their fixed grid row');
-assert.match(c,/#page-home #homeRightColumn \.uw-side-toggle \.card-body\{[\s\S]*?min-height:0;[\s\S]*?overflow-y:auto;/,'side card bodies must shrink and scroll instead of overflowing the card');
+assert.match(c,/#page-home #homeRightColumn \.uw-side-toggle \.card-body\{[\s\S]*?height:calc\(100% - 53px\);[\s\S]*?max-height:calc\(100% - 53px\);[\s\S]*?overflow-y:scroll;/,'side card bodies must have an explicit scroll viewport inside details');
+assert.match(c,/#page-home #homeRightColumn \.uw-side-toggle \.card-body::-webkit-scrollbar\{\s*width:9px;/,'side card scrollbar must remain visibly styled');
 assert.match(i,/unified-workspace\.js\?v=79/);
 assert.match(i,/workspace-pages\.js\?v=12/);
 assert.match(i,/context-menu\.js\?v=28/);
-assert.match(i,/unified-workspace\.css\?v=48/);
+assert.match(i,/unified-workspace\.css\?v=49/);
 console.log('timeline plan unify regression: ok');
