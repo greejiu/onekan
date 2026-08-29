@@ -1,7 +1,7 @@
 // 오늘한칸을 '오늘 할일 배치 + 시간 계획'에 집중시키는 가벼운 UI 정리 모듈.
-// 기존 습관/관리/반복 데이터는 삭제하지 않는다.
+// 기존 습관/관리 데이터는 삭제하지 않고, 반복 탭은 반복 할일·일정 관리용으로 유지한다.
 
-const HIDDEN_PAGE_IDS = ["page-habits", "page-repeat", "page-management"];
+const HIDDEN_PAGE_IDS = ["page-habits", "page-management"];
 
 
 function hideLegacyPages() {
@@ -15,7 +15,7 @@ function hideLegacyPages() {
 
 function removeLegacyNav() {
   document
-    .querySelectorAll('.sidebar .nav [data-page="habits"], .sidebar .nav [data-page="repeat"], .sidebar .nav [data-page="management"]')
+    .querySelectorAll('.sidebar .nav [data-page="habits"], .sidebar .nav [data-page="management"]')
     .forEach((button) => button.remove());
 }
 
@@ -78,7 +78,7 @@ applyDailyFocusMode();
 
 document.addEventListener("onekan:state-changed", () => requestAnimationFrame(() => applyDailyFocusMode()));
 
-for (const selector of ["#page-home", "#page-calendar", "#page-tasks", "#page-tracking", "#page-settings", ".sidebar .nav"]) {
+for (const selector of ["#page-home", "#page-calendar", "#page-tasks", "#page-repeat", "#page-tracking", "#page-settings", ".sidebar .nav"]) {
   const root = document.querySelector(selector);
   if (!root) continue;
   const observer = new MutationObserver(() => applyDailyFocusMode(root));
