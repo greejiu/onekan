@@ -1,0 +1,38 @@
+name: Finalize simple goals
+
+on:
+  push:
+    paths:
+      - '.github/workflows/finalize-simple-goals.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate and update cache
+        run: |
+          node --check js/project-direction-tabs.js
+          sed -i 's/<h1 class="page-title">프로젝트 현황<\/h1>/<h1 class="page-title">프로젝트<\/h1>/' index.html
+          sed -i 's#./js/project-direction-tabs.js?v=1#./js/project-direction-tabs.js?v=2#' index.html
+          grep -q '<h1 class="page-title">프로젝트</h1>' index.html
+          grep -q 'project-direction-tabs.js?v=2' index.html
+          git diff --check
+      - name: Commit feature
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html js/project-direction-tabs.js
+          git diff --cached --quiet || git commit -m 'feat: add simple goals'
+          git push
+      - name: Remove workflow
+        run: |
+          git rm .github/workflows/finalize-simple-goals.yml
+          git commit -m 'chore: remove simple goals workflow'
+          git push
