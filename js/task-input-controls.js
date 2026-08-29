@@ -10,6 +10,7 @@ function installStyle(){
   style.textContent=`
     .uw-inline-form.uw-task-compact-input{position:relative;overflow:visible!important;display:flex;align-items:center;gap:5px}
     .uw-inline-form.uw-task-compact-input>input[type="text"]{min-width:0;flex:1}
+    .uw-inline-form .uw-project-select{display:none!important}
     .uw-task-input-tools{display:flex;align-items:center;gap:3px;flex:none;margin-left:auto}
     .uw-task-input-tool{display:inline-grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
     .uw-task-input-tool:hover,.uw-task-input-tool.active,.uw-task-input-tool[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent)}
