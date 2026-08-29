@@ -53,6 +53,7 @@ async function openQuickForm(button) {
   const column = button.closest(".ok-goal-column");
   if (!column) return;
   const status = column.dataset.goalV2Status;
+  const contextualSection = column.dataset.goalV2GroupId || "";
   if (!VALID_STATUSES.has(status)) return;
   closeQuickForms();
 
@@ -70,15 +71,18 @@ async function openQuickForm(button) {
   const savedQuickSection = sessionStorage.getItem("onekan-goal-quick-section") || DEFAULT_SECTION_ID;
   const defaultSection = selected !== "all"
     ? selected
-    : loaded.state.goalSections.some((section) => section.id === savedQuickSection)
-      ? savedQuickSection
-      : DEFAULT_SECTION_ID;
+    : loaded.state.goalSections.some((section) => section.id === contextualSection)
+      ? contextualSection
+      : loaded.state.goalSections.some((section) => section.id === savedQuickSection)
+        ? savedQuickSection
+        : DEFAULT_SECTION_ID;
 
   const form = document.createElement("div");
   form.className = "ok-goal-quick-form";
   form.dataset.goalQuickStatus = status;
+  form.dataset.goalQuickSection = defaultSection;
   form.innerHTML = `<input class="ok-goal-quick-title" type="text" maxlength="120" autocomplete="off" placeholder="새 목표" aria-label="새 목표 제목" />
-    ${selected === "all" ? `<select class="ok-goal-quick-section" aria-label="목표 섹션">${sectionOptions(loaded.state, defaultSection)}</select>` : ""}
+    ${selected === "all" && !contextualSection ? `<select class="ok-goal-quick-section" aria-label="목표 그룹">${sectionOptions(loaded.state, defaultSection)}</select>` : ""}
     <div class="ok-goal-quick-actions"><button class="ok-goal-quick-cancel" type="button">취소</button><button class="ok-goal-quick-save" type="button">추가</button></div>
     <small class="ok-goal-quick-message" aria-live="polite"></small>`;
   button.before(form);
@@ -109,7 +113,9 @@ async function saveQuickForm(form) {
     if (!loaded) return;
     const { session, state } = loaded;
     const fixedSection = currentSectionId();
-    let sectionId = fixedSection !== "all" ? fixedSection : ($(".ok-goal-quick-section", form)?.value || DEFAULT_SECTION_ID);
+    let sectionId = fixedSection !== "all"
+      ? fixedSection
+      : (form.dataset.goalQuickSection || $(".ok-goal-quick-section", form)?.value || DEFAULT_SECTION_ID);
     if (!state.goalSections.some((section) => section.id === sectionId)) sectionId = DEFAULT_SECTION_ID;
     const section = state.goalSections.find((entry) => entry.id === sectionId);
     const fallbackGroupId = state.eventGroups[0]?.id || "default";
@@ -127,7 +133,6 @@ async function saveQuickForm(form) {
       deadline: "",
       createdAt: now,
     };
-    if (status === "done") goal.completedAt = now;
     state.projects.push(goal);
 
     const { error } = await supabase.from("onekan_state").upsert({ user_id: session.user.id, data: state }, { onConflict: "user_id" });
