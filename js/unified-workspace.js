@@ -27,8 +27,8 @@ const todayKey=()=>{const d=new Date();d.setHours(d.getHours()-3);return key(d)}
 let START=360,END=1320;const SLOT=30,SLOT_H=20;
 let user=null,state=null,homeDays=1,homeMode="timeline",homeSideTab="upcoming",homeCursor=fromKey(todayKey()),calendarView="month",calendarCursor=new Date(),renderTimer=null,rendering=false,pendingGroupRecords=[],suppressItemClickUntil=0,overdueExpanded=false,habitScopeResolve=null;
 const selected=new Map();
-let schedulePageMode="list",scheduleCalendarLayout="board";
-let taskPageMode="list",taskListTab="all",taskCalendarView="month",taskCalendarLayout="board",taskCalendarCursor=fromKey(todayKey()),habitCursor=fromKey(todayKey());
+let schedulePageMode="calendar",scheduleCalendarLayout="board";
+let taskPageMode="calendar",taskListTab="all",taskCalendarView="week",taskCalendarLayout="board",taskCalendarCursor=fromKey(todayKey()),habitCursor=fromKey(todayKey());
 
 function normalize(s){
   s=s&&typeof s==="object"?s:{};
