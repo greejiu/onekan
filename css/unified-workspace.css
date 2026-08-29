@@ -369,13 +369,31 @@
   cursor:pointer;
 }
 #page-home #homeRightColumn .uw-side-toggle .card-body{
-  flex:1 1 auto;
+  display:block;
+  flex:0 0 auto;
+  height:calc(100% - 53px);
   min-height:0;
-  max-height:none;
+  max-height:calc(100% - 53px);
+  box-sizing:border-box;
   padding:12px 18px 16px;
-  overflow-y:auto;
+  overflow-x:hidden;
+  overflow-y:scroll;
   overscroll-behavior:contain;
   scrollbar-gutter:stable;
+  scrollbar-width:thin;
+  scrollbar-color:var(--line-strong) transparent;
+}
+#page-home #homeRightColumn .uw-side-toggle .card-body::-webkit-scrollbar{
+  width:9px;
+}
+#page-home #homeRightColumn .uw-side-toggle .card-body::-webkit-scrollbar-track{
+  background:transparent;
+}
+#page-home #homeRightColumn .uw-side-toggle .card-body::-webkit-scrollbar-thumb{
+  border:2px solid transparent;
+  border-radius:999px;
+  background:var(--line-strong);
+  background-clip:padding-box;
 }
 #page-home #homeRightColumn .uw-someday-list{
   min-height:0;
@@ -398,6 +416,7 @@
   #page-home #homeLeftColumn{height:620px}
   #page-home #homeRightColumn{grid-template-rows:auto auto}
   #page-home #homeRightColumn .uw-side-toggle[open]{min-height:320px}
+  #page-home #homeRightColumn .uw-side-toggle .card-body{height:auto;max-height:520px}
 }
 @media(max-width:600px){
   #page-home #homeLeftColumn{height:540px;min-height:0;border-radius:20px}
