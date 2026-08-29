@@ -1541,7 +1541,9 @@ function renderAll() {
   renderCalendar();
   renderTracking();
   renderSettings();
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "app-render" } }));
+  const sharedState = JSON.parse(JSON.stringify(state));
+  window.__ONEKAN_APP_STATE__ = sharedState;
+  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "app-render", state: sharedState } }));
 }
 
 async function initializeForUser(user) {
