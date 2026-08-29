@@ -78,8 +78,8 @@ new_init = '''async function init(){
 assert old_init in uw, 'init target not found'
 uw = uw.replace(old_init, new_init, 1)
 
-assert 'unified-workspace.js?v=76' in index, 'index cache version target not found'
-index = index.replace('unified-workspace.js?v=76', 'unified-workspace.js?v=77', 1)
+assert 'unified-workspace.js?v=77' in index, 'index cache version target not found'
+index = index.replace('unified-workspace.js?v=77', 'unified-workspace.js?v=78', 1)
 
 app_path.write_text(app)
 uw_path.write_text(uw)
