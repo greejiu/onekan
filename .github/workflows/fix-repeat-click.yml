@@ -21,43 +21,8 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Restore task and event repeat input controls
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('js/interaction-fixes.js')
-          text = path.read_text()
-          old = '''// 오늘한칸은 오늘 할일 배치와 시간 계획에 집중한다.
-// 기존 습관/관리/반복 데이터는 Supabase에 그대로 보존하되,
-// 관련 기능 모듈은 더 이상 시작 시 불러오지 않는다.'''
-          new = '''// 오늘한칸은 오늘 할일 배치와 시간 계획에 집중한다.
-// 기존 습관/관리 데이터는 Supabase에 그대로 보존하되 숨긴다.
-// 할일·일정의 반복 입력 도구는 계속 사용한다.'''
-          if old not in text:
-              raise SystemExit('interaction comment token not found')
-          text = text.replace(old, new, 1)
-
-          old = '''const deferredModules = [
-  "./home-timeline-dynamic-columns.js?v=2",
-];'''
-          new = '''const deferredModules = [
-  "./task-input-controls.js?v=2",
-  "./home-timeline-dynamic-columns.js?v=2",
-];'''
-          if old not in text:
-              raise SystemExit('deferred module token not found')
-          text = text.replace(old, new, 1)
-          path.write_text(text)
-
-          index = Path('index.html')
-          text = index.read_text()
-          old = './js/interaction-fixes.js?v=33'
-          new = './js/interaction-fixes.js?v=34'
-          if old not in text:
-              raise SystemExit('interaction cache token not found')
-          index.write_text(text.replace(old, new, 1))
-          PY
+      - name: Refresh repeat controls cache
+        run: perl -0pi -e 's#\./js/interaction-fixes\.js\?v=33#./js/interaction-fixes.js?v=34#' index.html
 
       - name: Check JavaScript syntax
         run: |
@@ -69,6 +34,6 @@ jobs:
           rm .github/workflows/fix-repeat-click.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add js/interaction-fixes.js index.html .github/workflows/fix-repeat-click.yml
-          git commit -m 'fix: restore repeat input controls'
+          git add index.html .github/workflows/fix-repeat-click.yml
+          git commit -m 'fix: refresh repeat controls'
           git push
