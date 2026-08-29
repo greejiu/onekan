@@ -1,0 +1,47 @@
+name: Wire habit history
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/wire-habit-history.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Wire monthly habit history
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text()
+          old = '  <script type="module" src="./js/repeat-overview.js?v=2"></script>'
+          new = old + '\n  <script type="module" src="./js/habit-history-view.js?v=1"></script>'
+          if old not in text:
+              raise SystemExit('repeat overview script token not found')
+          if 'habit-history-view.js' not in text:
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          node --check js/habit-history-view.js
+
+      - name: Commit changes
+        run: |
+          rm .github/workflows/wire-habit-history.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html .github/workflows/wire-habit-history.yml
+          git commit -m 'feat: wire monthly habit history'
+          git push
