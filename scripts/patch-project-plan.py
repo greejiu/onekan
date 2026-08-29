@@ -1,0 +1,74 @@
+from pathlib import Path
+
+index = Path('index.html')
+text = index.read_text()
+old_nav = '''        <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▦</span><span class="nav-label">프로젝트</span></button>
+        <button class="nav-item" data-page="repeat" type="button"><span class="nav-icon">↻</span><span class="nav-label">반복</span></button>'''
+new_nav = '''        <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▦</span><span class="nav-label">프로젝트</span></button>
+        <button class="nav-item" data-page="plan" type="button"><span class="nav-icon">☷</span><span class="nav-label">계획 세우기</span></button>
+        <button class="nav-item" data-page="repeat" type="button"><span class="nav-icon">↻</span><span class="nav-label">반복</span></button>'''
+if old_nav not in text:
+    raise SystemExit('nav marker not found')
+text = text.replace(old_nav, new_nav, 1)
+
+old_page = '''      <section class="page" id="page-projects">
+        <div class="page-head"><div><h1 class="page-title">프로젝트 현황</h1></div></div>
+        <div id="projectStatusRoot"></div>
+      </section>
+
+      <section class="page" id="page-repeat">'''
+new_page = '''      <section class="page" id="page-projects">
+        <div class="page-head"><div><h1 class="page-title">프로젝트 현황</h1></div></div>
+        <div id="projectStatusRoot"></div>
+      </section>
+
+      <section class="page" id="page-plan">
+        <div class="page-head"><div><h1 class="page-title">계획 세우기</h1></div></div>
+        <div id="projectPlanRoot"></div>
+      </section>
+
+      <section class="page" id="page-repeat">'''
+if old_page not in text:
+    raise SystemExit('project page marker not found')
+text = text.replace(old_page, new_page, 1)
+
+if './js/project-plan.js' not in text:
+    text = text.replace('  <script type="module" src="./js/project-status.js?v=2"></script>', '  <script type="module" src="./js/project-status.js?v=2"></script>\n  <script type="module" src="./js/project-plan.js?v=1"></script>', 1)
+text = text.replace('./js/unified-workspace.js?v=67', './js/unified-workspace.js?v=68')
+index.write_text(text)
+
+unified = Path('js/unified-workspace.js')
+text = unified.read_text()
+marker = '  s.sessions=Array.isArray(s.sessions)?s.sessions:[];\n  s.eventGroups='
+if marker not in text:
+    raise SystemExit('normalize marker not found')
+text = text.replace(marker, '  s.sessions=Array.isArray(s.sessions)?s.sessions:[];\n  s.projects=Array.isArray(s.projects)?s.projects:[];\n  s.eventGroups=', 1)
+
+open_marker = 'function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,editId=null,withTime=false,occurrenceSource=null,groupId=null}={}){'
+helper = '''function projectPlanStatus(value){const raw=String(value??"").trim().toLowerCase();if(["before","시작 전","시작전","todo","planned"].includes(raw))return"before";if(["done","완료","달성","complete","completed"].includes(raw))return"done";if(["archived","보관","closed","archive"].includes(raw))return"archived";return"doing"}
+function taskProjectSelectMarkup(old){const selected=old?.projectId||"",projects=(state?.projects||[]).filter(item=>(item?.kind==="project"||!item?.kind)&&(projectPlanStatus(item.status)==="doing"||item.id===selected)).sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),"ko"));return`<select class="uw-project-select" aria-label="프로젝트"><option value="">프로젝트 없음</option>${projects.map(project=>`<option value="${esc(project.id)}"${project.id===selected?" selected":""}>프로젝트 · ${esc(project.title||"이름 없는 프로젝트")}</option>`).join("")}</select>`}
+'''
+if open_marker not in text:
+    raise SystemExit('openInline marker not found')
+text = text.replace(open_marker, helper + open_marker, 1)
+
+repeat_tail = '${canRepeat?recurrenceEditorMarkup(old,frequency,kind!=="habit",kind!=="habit"):""}`;'
+if repeat_tail not in text:
+    raise SystemExit('inline form marker not found')
+text = text.replace(repeat_tail, '${canRepeat?recurrenceEditorMarkup(old,frequency,kind!=="habit",kind!=="habit"):""}${kind==="task"?taskProjectSelectMarkup(old):""}`;', 1)
+
+date_marker = '    const habitEndDate=$(".uw-habit-end-date",form)?.value||"";\n'
+if date_marker not in text:
+    raise SystemExit('commit date marker not found')
+text = text.replace(date_marker, date_marker + '    const selectedProjectId=kind==="task"?($(".uw-project-select",form)?.value||""):"";\n', 1)
+
+target_marker = '        if(!target)return;\n        if(kind==="habit"){'
+if target_marker not in text:
+    raise SystemExit('target marker not found')
+text = text.replace(target_marker, '        if(!target)return;\n        if(kind==="task"){if(selectedProjectId)target.projectId=selectedProjectId;else delete target.projectId}\n        if(kind==="habit"){', 1)
+
+task_marker = '        const task={id:uid(),title:value,date:taskDate,done:false,groupId:defaultGroup,createdAt:new Date().toISOString()};\n'
+if task_marker not in text:
+    raise SystemExit('new task marker not found')
+text = text.replace(task_marker, task_marker + '        if(selectedProjectId)task.projectId=selectedProjectId;\n', 1)
+unified.write_text(text)
