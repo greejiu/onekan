@@ -55,10 +55,10 @@ plan.write_text(text)
 # 3) Cache bumps.
 index = Path('index.html')
 text = index.read_text()
-if './js/context-menu.js?v=24' not in text:
+if './js/context-menu.js?v=25' not in text:
     raise SystemExit('context-menu cache marker not found')
 if './js/project-plan.js?v=1' not in text:
     raise SystemExit('project-plan cache marker not found')
-text = text.replace('./js/context-menu.js?v=24', './js/context-menu.js?v=25', 1)
+text = text.replace('./js/context-menu.js?v=25', './js/context-menu.js?v=26', 1)
 text = text.replace('./js/project-plan.js?v=1', './js/project-plan.js?v=2', 1)
 index.write_text(text)
