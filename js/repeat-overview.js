@@ -47,7 +47,7 @@ function installStyle(){
     .habit-group-heading strong{color:var(--text);font-size:11px}
     .habit-area-dot{width:8px;height:8px;border-radius:50%;background:var(--habit-area,var(--accent))}
     .habit-list{display:grid;padding:3px 9px 9px}
-    .habit-item{--habit-area:var(--accent);display:grid;grid-template-columns:24px 9px minmax(0,1fr) auto;gap:7px;align-items:center;min-height:42px;padding:6px 5px;border-bottom:1px solid var(--line)}
+    .habit-item{--habit-area:var(--accent);display:grid;grid-template-columns:24px 9px minmax(0,1fr) auto 24px;gap:7px;align-items:center;min-height:42px;padding:6px 5px;border-bottom:1px solid var(--line)}
     .habit-item:last-child{border-bottom:0}.habit-item.done{opacity:.55}.habit-item.done .habit-title{text-decoration:line-through}
     .habit-check{display:grid;place-items:center;width:18px;height:18px;padding:0;border:1.5px solid var(--line-strong);border-radius:5px;background:#fff;color:var(--text);font-size:10px;cursor:pointer}
     .habit-check.checked{background:var(--panel-soft)}
@@ -96,6 +96,7 @@ async function writeState(mutator,source="habit-workspace"){
 }
 
 function group(task){return state.eventGroups.find(item=>item.id===task.groupId)||state.eventGroups[0]}
+function manualOrderValue(item){const value=Number(item?.manualOrder);return Number.isFinite(value)?value:1000000000}
 function completionDate(task){
   if(task.completedDate)return task.completedDate;
   if(task.completedAt){const date=new Date(task.completedAt);if(!Number.isNaN(date.getTime()))return key(date)}
@@ -126,19 +127,21 @@ function listHabits(tab){
   else if(tab==="done")rows=rows.filter(task=>task.done);
   return [...rows].sort((a,b)=>{
     const ad=displayDate(a),bd=displayDate(b);
-    if(tab==="upcoming")return String(ad||"9999").localeCompare(String(bd||"9999"))||String(a.title||"").localeCompare(String(b.title||""),"ko");
-    return String(bd||"").localeCompare(String(ad||""))||String(a.title||"").localeCompare(String(b.title||""),"ko")
+    if(tab==="upcoming")return String(ad||"9999").localeCompare(String(bd||"9999"))||manualOrderValue(a)-manualOrderValue(b)||String(a.title||"").localeCompare(String(b.title||""),"ko");
+    return String(bd||"").localeCompare(String(ad||""))||manualOrderValue(a)-manualOrderValue(b)||String(a.title||"").localeCompare(String(b.title||""),"ko")
   })
 }
 function projectName(task){return state.projects.find(project=>project.id===task.projectId)?.title||""}
 
-function itemMarkup(task,{compact=false}={}){
+function itemMarkup(task,{compact=false,manual=false}={}){
   const area=group(task),repeat=repeatLabel(task),project=projectName(task);
-  return `<div class="habit-item uw-item uw-task${task.done?" done":""}${compact?" habit-compact":""}" style="--habit-area:${esc(area?.color||"#8fa9c4")};--uw-group:${esc(area?.color||"#8fa9c4")}" data-context-kind="task" data-context-id="${esc(task.id)}" data-habit-item="1" data-uw-kind="task" data-id="${esc(task.id)}">
+  const manualAttrs=manual?` data-manual-row data-manual-kind="task" data-manual-id="${esc(task.id)}"`:"";
+  return `<div class="habit-item uw-item uw-task${task.done?" done":""}${compact?" habit-compact":""}" style="--habit-area:${esc(area?.color||"#8fa9c4")};--uw-group:${esc(area?.color||"#8fa9c4")}" data-context-kind="task" data-context-id="${esc(task.id)}" data-habit-item="1" data-uw-kind="task" data-id="${esc(task.id)}"${manualAttrs}>
     <button class="habit-check${task.done?" checked":""}" data-habit-complete="${esc(task.id)}" type="button" aria-label="${task.done?"완료 취소":"완료"}">${task.done?"✓":""}</button>
     <span class="habit-dot" aria-hidden="true"></span>
     <span class="habit-title uw-item-title">${esc(task.title||"이름 없는 습관")}</span>
     <span class="habit-meta">${repeat?`<span class="habit-repeat">↻ ${esc(repeat)}</span>`:""}${project?`<span>${esc(project)}</span>`:""}</span>
+    ${manual?'<button class="onekan-manual-handle" data-manual-sort-handle type="button" aria-label="순서 변경">⠿</button>':""}
   </div>`
 }
 function addForm(dateValue="",allowDate=true){
@@ -149,14 +152,14 @@ function listMarkup(){
   const rows=listHabits(habitListTab);
   if(habitListTab==="someday"){
     const grouped=state.eventGroups.map(area=>({area,rows:rows.filter(task=>group(task).id===area.id)})).filter(entry=>entry.rows.length);
-    return `<div class="habit-workspace">${addForm("",false)}<div class="habit-list-groups">${grouped.map(({area,rows:areaRows})=>`<section class="habit-area-group" style="--habit-area:${esc(area.color)}"><div class="habit-group-heading"><span class="habit-area-dot"></span><strong>${esc(area.name)}</strong></div><div class="habit-list">${areaRows.map(task=>itemMarkup(task)).join("")}</div></section>`).join("")||'<div class="habit-empty">언젠가 습관이 없어요.</div>'}</div></div>`
+    return `<div class="habit-workspace">${addForm("",false)}<div class="habit-list-groups">${grouped.map(({area,rows:areaRows})=>`<section class="habit-area-group" style="--habit-area:${esc(area.color)}"><div class="habit-group-heading"><span class="habit-area-dot"></span><strong>${esc(area.name)}</strong></div><div class="habit-list" data-manual-list>${areaRows.map(task=>itemMarkup(task,{manual:true})).join("")}</div></section>`).join("")||'<div class="habit-empty">언젠가 습관이 없어요.</div>'}</div></div>`
   }
   const groups=new Map();
   for(const task of rows){const date=displayDate(task);if(!date)continue;if(!groups.has(date))groups.set(date,[]);groups.get(date).push(task)}
   const dates=[...groups.keys()].sort((a,b)=>habitListTab==="upcoming"?a.localeCompare(b):b.localeCompare(a));
   const undated=habitListTab==="all"?rows.filter(task=>!displayDate(task)):[];
-  const dated=dates.map(date=>`<section class="habit-date-group"><div class="habit-group-heading"><strong>${new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"short"}).format(fromKey(date))}</strong></div><div class="habit-list">${groups.get(date).map(task=>itemMarkup(task)).join("")}</div></section>`).join("");
-  const someday=undated.length?`<section class="habit-date-group"><div class="habit-group-heading"><strong>언젠가</strong></div><div class="habit-list">${undated.map(task=>itemMarkup(task)).join("")}</div></section>`:"";
+  const dated=dates.map(date=>`<section class="habit-date-group"><div class="habit-group-heading"><strong>${new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"short"}).format(fromKey(date))}</strong></div><div class="habit-list" data-manual-list>${groups.get(date).map(task=>itemMarkup(task,{manual:true})).join("")}</div></section>`).join("");
+  const someday=undated.length?`<section class="habit-date-group"><div class="habit-group-heading"><strong>언젠가</strong></div><div class="habit-list" data-manual-list>${undated.map(task=>itemMarkup(task,{manual:true})).join("")}</div></section>`:"";
   const canAdd=habitListTab==="all"||habitListTab==="upcoming";
   return `<div class="habit-workspace">${canAdd?addForm(todayKey(),true):""}<div class="habit-list-groups">${dated}${someday}${!dated&&!someday?'<div class="habit-empty">표시할 습관이 없어요.</div>':""}</div></div>`
 }

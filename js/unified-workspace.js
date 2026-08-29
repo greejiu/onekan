@@ -65,6 +65,7 @@ async function write(mutator){await read();if(!state||!user)return;mutator(state
 function scheduleRender(ms=60){clearTimeout(renderTimer);renderTimer=setTimeout(renderAll,ms)}
 function group(item){return state.eventGroups.find(g=>g.id===item.groupId)||state.eventGroups[0]}
 function groupStyle(item){return `--uw-group:${group(item).color}`}
+function manualOrderValue(item){const value=Number(item?.manualOrder);return Number.isFinite(value)?value:1000000000}
 function applyColors(){
   START=state.ui.timelineRange.start;
   END=state.ui.timelineRange.end;
@@ -368,12 +369,14 @@ function checkMarkup(kind,item,k){
   const occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"";
   return`<button class="uw-check${done?" checked":""}" style="--uw-check-color:${color}" data-uw-check="${kind}" data-id="${item.id}" data-date="${k}"${occurrence} type="button">${done?"✓":""}</button>`
 }
-function itemMarkup(kind,item,k,compact=false){
+function itemMarkup(kind,item,k,compact=false,manual=false){
   const done=itemDoneOn(kind,item,k);
   const time=kind==="event"&&!item.allDay?timeOf(item.start):"";
   const repeat=recurrenceLabel(item,kind);
   const occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"";
-  return`<div class="uw-item uw-${kind}${done?" done":""}${compact?" compact":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
+  const manualAttrs=manual?` data-manual-row data-manual-kind="${kind}" data-manual-id="${esc(item.id)}"`:"";
+  const move=manual?'<button class="onekan-manual-handle" data-manual-sort-handle type="button" aria-label="순서 변경">⠿</button>':'<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button>';
+  return`<div class="uw-item uw-${kind}${done?" done":""}${compact?" compact":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${manualAttrs} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}${move}<button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
 }
 function findAddHost(kind,date,time){const t=time!==null&&time!==undefined?`[data-time="${time}"]`:"";return $(`.uw-list[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t},.uw-all-day-list[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t},.uw-time-hit[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t}`)}
 function recurrenceEditorMarkup(old,frequency,allowNone=true,includeUntil=true){
@@ -682,7 +685,7 @@ function scheduleList(){
   const dates=[...groups.keys()].sort((a,b)=>scheduleListTab==="upcoming"?a.localeCompare(b):b.localeCompare(a));
   if(!dates.length)return '<div class="uw-schedule-list"><div class="empty">표시할 일정이 없어요.</div></div>';
   const canAdd=scheduleListTab==="all"||scheduleListTab==="upcoming";
-  return`<div class="uw-schedule-list">${dates.map(date=>{const items=groups.get(date).sort((a,b)=>new Date(a.start)-new Date(b.start));return`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${items.map(event=>itemMarkup("event",event,date)).join("")}${canAdd?scheduleInput(date):""}</div></section>`}).join("")}</div>`
+  return`<div class="uw-schedule-list">${dates.map(date=>{const items=groups.get(date).sort((a,b)=>manualOrderValue(a)-manualOrderValue(b)||new Date(a.start)-new Date(b.start)||String(a.title||"").localeCompare(String(b.title||""),"ko"));return`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}" data-manual-list>${items.map(event=>itemMarkup("event",event,date,false,true)).join("")}${canAdd?scheduleInput(date):""}</div></section>`}).join("")}</div>`
 }
 function scheduleMonthBoard(){const y=calendarCursor.getFullYear(),m=calendarCursor.getMonth(),first=new Date(y,m,1),start=addDays(first,-first.getDay());return`<div class="uw-task-month-grid">${["일","월","화","수","목","금","토"].map(x=>`<div class="uw-task-dow">${x}</div>`).join("")}${Array.from({length:42},(_,i)=>{const d=addDays(start,i),date=key(d);return`<section class="uw-task-month-cell uw-month-cell${d.getMonth()!==m?" outside":""}${date===todayKey()?" today":""}" data-uw-add-kind="event" data-date="${date}"><span class="uw-task-day-number">${d.getDate()}</span><div class="uw-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date,true)).join("")}${scheduleInput(date,true)}</div></section>`}).join("")}</div>`}
 function scheduleBoardDay(d){const date=key(d);return`<section class="uw-task-board-day${date===todayKey()?" today":""}"><div class="uw-day-head"><strong>${dayLabel(d,true)}</strong></div><div class="uw-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date)).join("")}${scheduleInput(date)}</div></section>`}
@@ -723,14 +726,14 @@ function visibleTasks(tab){
   else rows=[...tasks];
   return rows.sort((a,b)=>{
     const ad=taskListDate(a),bd=taskListDate(b);
-    if(tab==="upcoming")return String(ad||"9999").localeCompare(String(bd||"9999"))||String(a.title||"").localeCompare(String(b.title||""),"ko");
-    return String(bd||"").localeCompare(String(ad||""))||String(a.title||"").localeCompare(String(b.title||""),"ko")
+    if(tab==="upcoming")return String(ad||"9999").localeCompare(String(bd||"9999"))||manualOrderValue(a)-manualOrderValue(b)||String(a.title||"").localeCompare(String(b.title||""),"ko");
+    return String(bd||"").localeCompare(String(ad||""))||manualOrderValue(a)-manualOrderValue(b)||String(a.title||"").localeCompare(String(b.title||""),"ko")
   })
 }
 function renderTasks(){renderTasksV2()}
 
 function taskRowsForDate(k){return taskOccurrencesForDate(k).filter(task=>!task.isHabit).sort((a,b)=>+taskDoneOn(a,k)-+taskDoneOn(b,k)||String(a.notionStart||"").localeCompare(String(b.notionStart||""))||String(a.title).localeCompare(String(b.title),"ko"))}
-function taskListMarkup(tasks,k,compact=false){return tasks.map(task=>{const date=Object.prototype.hasOwnProperty.call(task,"_occurrenceDate")?task._occurrenceDate||"":task.date||k;return itemMarkup("task",task,date,compact)}).join("")}
+function taskListMarkup(tasks,k,compact=false,manual=false){return tasks.map(task=>{const date=Object.prototype.hasOwnProperty.call(task,"_occurrenceDate")?task._occurrenceDate||"":task.date||k;return itemMarkup("task",task,date,compact,manual)}).join("")}
 function taskListInput(date,compact=false){return`<button class="uw-empty-hit uw-task-inline-add" data-uw-add-kind="task" data-date="${date||""}" type="button" aria-label="할일 입력">${compact?"＋":"＋ 할일 입력"}</button>`}
 function taskCalendarTitle(){if(taskCalendarView==="month")return`${taskCalendarCursor.getFullYear()}년 ${taskCalendarCursor.getMonth()+1}월`;if(taskCalendarView==="week"){const start=addDays(taskCalendarCursor,-taskCalendarCursor.getDay());return`${dayLabel(start)} – ${dayLabel(addDays(start,6))}`}return dayLabel(taskCalendarCursor,true)}
 function taskCalendarNav(){return`<div class="uw-task-calendar-nav"><button class="uw-icon-btn" data-task-cal-prev type="button" aria-label="이전 기간">‹</button><strong>${taskCalendarTitle()}</strong><div><button class="uw-task-today" data-task-cal-today type="button">오늘</button><button class="uw-icon-btn" data-task-cal-next type="button" aria-label="다음 기간">›</button></div></div>`}
@@ -775,15 +778,15 @@ function renderTasksV2(){
         .filter(entry=>entry.rows.length);
       const add=`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop>${taskListInput("")}</div>`;
       root.innerHTML=add+(grouped.length
-        ? `<div class="uw-task-grouped-list">${grouped.map(({groupInfo,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:${groupInfo.color}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>${esc(groupInfo.name)}</strong></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-group-id="${groupInfo.id}" data-uw-someday-drop>${taskListMarkup(groupRows,"")}</div></section>`).join("")}</div>`
+        ? `<div class="uw-task-grouped-list">${grouped.map(({groupInfo,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:${groupInfo.color}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>${esc(groupInfo.name)}</strong></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-group-id="${groupInfo.id}" data-uw-someday-drop data-manual-list>${taskListMarkup(groupRows,"",false,true)}</div></section>`).join("")}</div>`
         : '<div class="empty">언젠가 할일이 없어요.</div>');
       return
     }
     const groups=taskDateGroups(rows,taskListTab);
     const undated=taskListTab==="all"?rows.filter(task=>!taskListDate(task)):[];
     const add=taskListTab==="all"?`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="">${taskListInput("")}</div>`:"";
-    const dated=groups.map(({date,rows:groupRows})=>`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="${date}" data-task-drop-date="${date}">${taskListMarkup(groupRows,date)}</div></section>`).join("");
-    const someday=undated.length?`<section class="uw-date-group"><div class="uw-date-label"><span>언젠가</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop>${taskListMarkup(undated,"")}</div></section>`:"";
+    const dated=groups.map(({date,rows:groupRows})=>`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="${date}" data-task-drop-date="${date}" data-manual-list>${taskListMarkup(groupRows,date,false,true)}</div></section>`).join("");
+    const someday=undated.length?`<section class="uw-date-group"><div class="uw-date-label"><span>언젠가</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop data-manual-list>${taskListMarkup(undated,"",false,true)}</div></section>`:"";
     root.innerHTML=add+(dated||someday?`<div class="uw-task-grouped-list">${dated}${someday}</div>`:'<div class="empty">표시할 할일이 없어요.</div>');
     return
   }
