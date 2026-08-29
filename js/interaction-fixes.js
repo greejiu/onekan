@@ -104,7 +104,6 @@ if (!window.__onekanInteractionFixesInstalled) {
   }
 
   .uw-task-month-cell > .uw-list > .uw-task-inline-add { display: none !important; }
-  .uw-task-month-cell .uw-repeat-badge { display: none !important; }
   `;
   document.head.appendChild(interactionStyle);
 }
