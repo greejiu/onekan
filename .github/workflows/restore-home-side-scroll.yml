@@ -1,0 +1,30 @@
+name: Restore home side scrollbar
+on:
+  push:
+    paths:
+      - '.github/scripts/restore-home-side-scroll.py'
+      - '.github/workflows/restore-home-side-scroll.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python .github/scripts/restore-home-side-scroll.py
+      - name: Verify
+        run: |
+          grep -q 'Home right cards: fixed visible internal scrollbar' css/unified-workspace.css
+          grep -q 'overflow-y:scroll!important' css/unified-workspace.css
+          grep -q 'height:0!important' css/unified-workspace.css
+          grep -q 'unified-workspace.css?v=55' index.html
+      - name: Remove helpers
+        run: rm -f .github/scripts/restore-home-side-scroll.py .github/workflows/restore-home-side-scroll.yml
+      - name: Commit result
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: restore visible home side scrollbars' || exit 0
+          git push
