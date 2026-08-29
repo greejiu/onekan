@@ -1435,6 +1435,10 @@ function renderSettings() {
   const groupList = $("#eventGroupList");
   if (groupList) {
     groupList.innerHTML = state.eventGroups.map((group, index) => `<div class="event-group-row" data-event-group-id="${esc(group.id)}">
+      <div class="event-group-order" aria-label="영역 순서">
+        <button class="ghost-btn" type="button" data-event-group-up aria-label="${esc(group.name)} 위로 이동" title="위로"${index <= 1 ? " disabled" : ""}>↑</button>
+        <button class="ghost-btn" type="button" data-event-group-down aria-label="${esc(group.name)} 아래로 이동" title="아래로"${index === 0 || index === state.eventGroups.length - 1 ? " disabled" : ""}>↓</button>
+      </div>
       <input type="color" value="${safeColor(group.color)}" aria-label="${esc(group.name)} 색" data-event-group-color />
       <input value="${esc(group.name)}" aria-label="영역 이름" data-event-group-name />
       <button class="ghost-btn danger-text" type="button" data-event-group-delete${index === 0 ? " disabled" : ""}>삭제</button>
@@ -1446,6 +1450,18 @@ function renderSettings() {
       group.name = row.querySelector("[data-event-group-name]").value.trim() || group.name;
       group.color = safeColor(row.querySelector("[data-event-group-color]").value);
       save();
+      refreshEventGroupInputs();
+      renderCalendar();
+    }));
+    groupList.querySelectorAll("[data-event-group-up], [data-event-group-down]").forEach((button) => button.addEventListener("click", () => {
+      const id = button.closest("[data-event-group-id]")?.dataset.eventGroupId;
+      const index = state.eventGroups.findIndex((group) => group.id === id);
+      if (index < 1) return;
+      const nextIndex = index + (button.hasAttribute("data-event-group-up") ? -1 : 1);
+      if (nextIndex < 1 || nextIndex >= state.eventGroups.length) return;
+      [state.eventGroups[index], state.eventGroups[nextIndex]] = [state.eventGroups[nextIndex], state.eventGroups[index]];
+      save();
+      renderSettings();
       refreshEventGroupInputs();
       renderCalendar();
     }));
