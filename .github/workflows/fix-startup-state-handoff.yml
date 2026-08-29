@@ -23,7 +23,7 @@ jobs:
           grep -q 'function adoptSharedState' js/unified-workspace.js
           grep -q 'const previousState=state' js/unified-workspace.js
           grep -q 'event.detail?.state&&adoptSharedState' js/unified-workspace.js
-          grep -q 'unified-workspace.js?v=77' index.html
+          grep -q 'unified-workspace.js?v=78' index.html
       - name: Remove helpers
         run: rm -f .github/scripts/fix-startup-state-handoff.py .github/workflows/fix-startup-state-handoff.yml
       - name: Commit result
