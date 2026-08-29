@@ -203,6 +203,30 @@ function renderGroupChoices(state, target) {
   groupList.innerHTML = groups.map((group) => `<button type="button" role="menuitemradio" aria-checked="${group.id === selectedId}" data-context-group-id="${escapeAttr(group.id)}"><span class="context-group-dot" style="--group-color:${escapeAttr(group.color || "#8fa9c4")}"></span><span>${escapeAttr(group.name)}</span>${group.id === selectedId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
 }
 
+function renderProjectChoices(state, target) {
+  const menu = $("#globalContextMenu");
+  const button = menu?.querySelector('[data-context-action="projects"]');
+  const list = $("#contextProjectList");
+  const item = getItem(state, target);
+  const available = target.kind === "task";
+  button?.classList.toggle("hidden", !available);
+  list?.classList.add("hidden");
+  if (!available || !list) {
+    if (list) list.innerHTML = "";
+    return;
+  }
+  const selectedId = item?.projectId || "";
+  const normalize = (value) => {
+    const raw = String(value ?? "").trim().toLowerCase();
+    if (["done", "완료", "달성", "complete", "completed"].includes(raw)) return "done";
+    if (["archived", "보관", "closed", "archive"].includes(raw)) return "archived";
+    if (["before", "시작 전", "시작전", "todo", "planned"].includes(raw)) return "before";
+    return "doing";
+  };
+  const projects = (state.projects || []).filter((project) => (project?.kind === "project" || !project?.kind) && (normalize(project.status) === "doing" || project.id === selectedId)).sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ko"));
+  list.innerHTML = `<button type="button" role="menuitemradio" aria-checked="${!selectedId}" data-context-project-id=""><span></span><span>프로젝트 없음</span>${!selectedId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>${projects.map((project) => `<button type="button" role="menuitemradio" aria-checked="${project.id === selectedId}" data-context-project-id="${escapeAttr(project.id)}"><span class="context-group-dot" style="--group-color:#8fa9c4"></span><span>${escapeAttr(project.title || "이름 없는 프로젝트")}</span>${project.id === selectedId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`).join("")}`;
+}
+
 function showMenu(x, y, target, state) {
   currentTarget = target;
   const menu = $("#globalContextMenu");
@@ -215,6 +239,7 @@ function showMenu(x, y, target, state) {
   menu.querySelector('[data-context-action="duplicate"]')?.classList.toggle("hidden", !duplicable(target.kind));
   menu.querySelector('[data-context-action="session-time"]')?.classList.toggle("hidden", target.kind !== "session");
   renderGroupChoices(state, target);
+  renderProjectChoices(state, target);
   menu.classList.add("open");
   menu.style.left = "0px";
   menu.style.top = "0px";
@@ -438,6 +463,23 @@ async function changeTargetGroup(groupId) {
   }
 }
 
+async function changeTargetProject(projectId) {
+  const target = currentTarget;
+  hideMenu();
+  if (!target || target.kind !== "task") return;
+  try {
+    await writeState((state) => {
+      const task = state.tasks.find((item) => item.id === target.id);
+      if (!task) return;
+      if (projectId) task.projectId = projectId;
+      else delete task.projectId;
+    });
+  } catch (error) {
+    console.error(error);
+    showToast("프로젝트를 변경하지 못했어요.");
+  }
+}
+
 async function toggleHabitTarget() {
   const target = currentTarget;
   hideMenu();
@@ -475,6 +517,8 @@ function ensureUI() {
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
     <button type="button" role="menuitem" data-context-action="groups">영역 <span class="context-menu-arrow">›</span></button>
     <div class="context-group-list hidden" id="contextGroupList" role="group"></div>
+    <button type="button" role="menuitem" class="hidden" data-context-action="projects">프로젝트 <span class="context-menu-arrow">›</span></button>
+    <div class="context-group-list hidden" id="contextProjectList" role="group"></div>
     <button type="button" role="menuitem" class="hidden" data-context-action="session-time">기록 변경</button>
     <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;
   document.body.appendChild(menu);
@@ -487,7 +531,7 @@ function ensureUI() {
     .global-context-menu button{display:block;width:100%;min-height:36px;padding:7px 10px;border:0;border-radius:6px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px;text-align:left;cursor:pointer}
     .global-context-menu button:hover,.global-context-menu button:focus-visible{background:var(--hover,#f3f5f7);outline:none}
     .global-context-menu button.danger{color:var(--danger,#c84a4a)}
-    .global-context-menu [data-context-action="groups"]{display:flex;align-items:center;justify-content:space-between}
+    .global-context-menu [data-context-action="groups"],.global-context-menu [data-context-action="projects"]{display:flex;align-items:center;justify-content:space-between}
     .context-menu-arrow{font-size:18px;line-height:1}
     .context-group-list{margin:3px 0;padding:3px;border-top:1px solid var(--line,#d2d7df);border-bottom:1px solid var(--line,#d2d7df);max-height:min(260px,55vh);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-gutter:stable}
     .context-group-list button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
@@ -512,7 +556,15 @@ function ensureUI() {
     else if (action === "duplicate") duplicateTarget();
     else if (action === "session-time") { const target = currentTarget; hideMenu(); if (target?.kind === "session") document.dispatchEvent(new CustomEvent("onekan:edit-session", { detail: { id: target.id } })); }
     else if (action === "groups") {
+      $("#contextProjectList")?.classList.add("hidden");
       $("#contextGroupList")?.classList.toggle("hidden");
+      const rect = menu.getBoundingClientRect();
+      const currentTop = Number.parseFloat(menu.style.top) || 8;
+      menu.style.top = `${Math.max(8, Math.min(currentTop, innerHeight - rect.height - 8))}px`;
+    }
+    else if (action === "projects") {
+      $("#contextGroupList")?.classList.add("hidden");
+      $("#contextProjectList")?.classList.toggle("hidden");
       const rect = menu.getBoundingClientRect();
       const currentTop = Number.parseFloat(menu.style.top) || 8;
       menu.style.top = `${Math.max(8, Math.min(currentTop, innerHeight - rect.height - 8))}px`;
@@ -521,7 +573,9 @@ function ensureUI() {
   });
   menu.addEventListener("click", (event) => {
     const groupButton = event.target.closest("[data-context-group-id]");
-    if (groupButton) changeTargetGroup(groupButton.dataset.contextGroupId);
+    if (groupButton) return changeTargetGroup(groupButton.dataset.contextGroupId);
+    const projectButton = event.target.closest("[data-context-project-id]");
+    if (projectButton) changeTargetProject(projectButton.dataset.contextProjectId || "");
   });
 
 }
