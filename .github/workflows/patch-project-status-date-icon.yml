@@ -1,0 +1,38 @@
+name: Patch project status date icon
+
+on:
+  push:
+    paths:
+      - '.github/scripts/patch-project-status-date-icon.mjs'
+      - '.github/workflows/patch-project-status-date-icon.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch and validate
+        run: |
+          node .github/scripts/patch-project-status-date-icon.mjs
+          node --check js/project-status.js
+      - name: Commit feature
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/project-status.js index.html
+          git commit -m 'ui: use calendar icon for project dates' || exit 0
+          git push
+      - name: Remove patch files
+        run: |
+          git pull --rebase
+          git rm .github/scripts/patch-project-status-date-icon.mjs .github/workflows/patch-project-status-date-icon.yml
+          git commit -m 'chore: remove project date icon patch files' || exit 0
+          git push
