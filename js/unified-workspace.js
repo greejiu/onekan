@@ -28,7 +28,7 @@ const todayKey=()=>{const d=new Date();d.setHours(d.getHours()-3);return key(d)}
 let START=360,END=1320;const SLOT=30,SLOT_H=20;
 let user=null,state=null,homeDays=1,homeMode="list",homeSideTab="upcoming",homeCursor=fromKey(todayKey()),calendarView="month",calendarCursor=new Date(),renderTimer=null,rendering=false,pendingGroupRecords=[],suppressItemClickUntil=0,overdueExpanded=false,habitScopeResolve=null;
 const selected=new Map();
-let schedulePageMode="calendar",scheduleCalendarLayout="board",scheduleListTab="all";
+let schedulePageMode="calendar",scheduleCalendarLayout="board",scheduleListTab="upcoming";
 let taskPageMode="calendar",taskListTab="all",taskCalendarView="week",taskCalendarLayout="board",taskCalendarCursor=fromKey(todayKey()),habitCursor=fromKey(todayKey());
 
 function normalize(s){
@@ -675,9 +675,11 @@ function renderScheduleSubnav(){
   const nav=$("#calendarViewSeg");
   if(!nav)return;
   if(schedulePageMode==="list"){
-    nav.innerHTML=`<div class="uw-task-list-tabs"><div class="seg">${[["all","전체"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>`<button class="${scheduleListTab===id?"active":""}" data-schedule-list-tab="${id}" type="button">${label}</button>`).join("")}</div></div>`;
+    nav.innerHTML="";
+    nav.hidden=true;
     return
   }
+  nav.hidden=false;
   const month=calendarView==="month";
   const label=month?"월은 보드 보기":scheduleCalendarLayout==="board"?"타임라인으로 보기":"보드로 보기";
   nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,text])=>`<button class="${calendarView===id?"active":""}" data-schedule-cal-view="${id}" type="button">${text}</button>`).join("")}</div><button class="uw-layout-toggle" data-schedule-cal-layout-toggle type="button"${month?' disabled title="월 보기는 보드로 고정돼요"':""}>${label}</button></div>`
@@ -707,8 +709,8 @@ function scheduleListRows(tab){
   return rows
 }
 function scheduleList(){
-  if(scheduleListTab==="someday")return '<div class="uw-schedule-list"><div class="empty">날짜 없는 일정이 없어요.</div></div>';
-  const rows=scheduleListRows(scheduleListTab);
+  scheduleListTab="upcoming";
+  const rows=scheduleListRows("upcoming");
   if(!rows.length)return '<div class="uw-schedule-list"><div class="empty">표시할 일정이 없어요.</div></div>';
   if(scheduleListTab==="all"){
     const ordered=[...rows].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||manualOrderValue(a.item)-manualOrderValue(b.item)||new Date(a.item.start)-new Date(b.item.start)||String(a.item.title||"").localeCompare(String(b.item.title||""),"ko"));
