@@ -266,7 +266,7 @@
 
 /* Home dashboard card composition */
 #page-home .uw-home-layout{
-  align-items:stretch;
+  align-items:start;
   gap:22px;
 }
 #page-home #homeLeftColumn{
@@ -323,9 +323,9 @@
   display:grid;
   grid-template-rows:minmax(0,1fr) minmax(0,1fr);
   gap:22px;
-  height:100%;
+  height:auto;
   min-height:0;
-  align-self:stretch;
+  align-self:start;
 }
 #page-home #homeRightColumn:has(.uw-upcoming-card:not([open])){
   grid-template-rows:auto minmax(0,1fr);
