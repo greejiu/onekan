@@ -59,16 +59,17 @@ function installStyle() {
     .onekan-identity-toolbar{display:flex;justify-content:flex-end}
     .onekan-identity-add{height:34px;padding:0 12px;border:1px solid var(--line,#d2d7df);border-radius:9px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
     .onekan-identity-add:hover{background:var(--panel-soft,#f4f5f6)}
-    .onekan-identity-list{display:grid;align-content:start;gap:8px;min-height:360px;padding:10px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:15px;background:#fff}
-    .onekan-identity-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:68px;padding:10px 11px;border:1px solid var(--line,#d2d7df);border-radius:10px;background:var(--panel-soft,#f7f8f9);cursor:grab;user-select:none}
+    .onekan-identity-list{display:grid;align-content:start;min-height:360px;padding:8px 10px 12px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:15px;background:#fff}
+    .onekan-identity-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:52px;padding:7px 8px;border-bottom:1px solid var(--line,#e1e4e8);background:#fff;cursor:grab;user-select:none}
+    .onekan-identity-row:last-child{border-bottom:0}
     .onekan-identity-row:active{cursor:grabbing}
     .onekan-identity-row.onekan-direction-dragging{opacity:.42}
-    .onekan-identity-main{display:grid;gap:5px;min-width:0}
-    .onekan-identity-title{display:block;min-width:0;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:13px;font-weight:500;text-align:left;cursor:pointer}
+    .onekan-identity-main{display:grid;gap:3px;min-width:0}
+    .onekan-identity-title{display:block;min-width:0;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:12px;font-weight:650;text-align:left;cursor:pointer}
     .onekan-identity-title:hover{text-decoration:underline}
     .onekan-identity-goals{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#6d737d);font-size:9px}
 
-    .onekan-identity-empty{display:grid;place-items:center;min-height:320px;padding:24px;color:var(--muted,#6d737d);font-size:11px;line-height:1.7;text-align:center}
+    .onekan-identity-empty{display:grid;place-items:center;min-height:300px;padding:24px;color:var(--muted,#6d737d);font-size:11px;line-height:1.7;text-align:center}
     .onekan-goal-dialog{width:min(430px,calc(100vw - 28px));padding:0;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:14px;background:#fff;color:var(--text,#1f2328);box-shadow:0 20px 60px rgba(15,23,42,.18)}
     .onekan-goal-dialog::backdrop{background:rgba(15,23,42,.2)}
     .onekan-goal-dialog form{display:grid;gap:12px;padding:18px}
