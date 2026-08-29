@@ -85,6 +85,11 @@ function resolveDirect(element) {
   const feature = element.closest("[data-feature-kind][data-feature-id]");
   if (feature) return { kind: feature.dataset.featureKind === "event" ? "event" : "task", id: feature.dataset.featureId };
 
+  // unified-workspace의 집/할일/일정 보기에 표시되는 기존 할일도
+  // 같은 전역 우클릭 메뉴를 사용한다.
+  const unifiedTask = element.closest('[data-uw-kind="task"][data-id]');
+  if (unifiedTask) return { kind: "task", id: unifiedTask.dataset.id };
+
   const todayTask = element.closest("#taskList .row[data-id]");
   if (todayTask) return { kind: "task", id: todayTask.dataset.id };
 
@@ -144,6 +149,7 @@ function resolveByPosition(element, state) {
 function isSupportedSurface(element) {
   return !!element.closest([
     "[data-context-kind][data-context-id]",
+    '[data-uw-kind="task"][data-id]',
     "#taskList .row[data-id]",
     "#featureSomedayList .row[data-task-id]",
     ".time-block[data-block-id]",
