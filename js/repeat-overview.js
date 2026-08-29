@@ -93,7 +93,7 @@ function itemMarkup(task,{compact=false,manual=false,date=""}={}){
     <span class="uw-event-dot" aria-hidden="true"></span>
     <span class="uw-item-title">${esc(task.title||"이름 없는 습관")}</span>
     ${compact?"":`${repeat?`<span class="uw-item-time">↻ ${esc(repeat)}</span>`:""}${project?`<span class="uw-item-time">${esc(project)}</span>`:""}`}
-    ${manual?'<button class="onekan-manual-handle" data-manual-sort-handle type="button" aria-label="순서 변경">⠿</button>':""}
+    <button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button>
   </div>`
 }
 function quickAdd(dateValue="",compact=false){

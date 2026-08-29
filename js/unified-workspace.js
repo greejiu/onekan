@@ -375,7 +375,7 @@ function itemMarkup(kind,item,k,compact=false,manual=false){
   const repeat=recurrenceLabel(item,kind);
   const occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"";
   const manualAttrs=manual?` data-manual-row data-manual-kind="${kind}" data-manual-id="${esc(item.id)}"`:"";
-  const move=manual?'<button class="onekan-manual-handle" data-manual-sort-handle type="button" aria-label="순서 변경">⠿</button>':'<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button>';
+  const move='<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button>';
   return`<div class="uw-item uw-${kind}${done?" done":""}${compact?" compact":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${manualAttrs} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}${move}<button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
 }
 function findAddHost(kind,date,time){const t=time!==null&&time!==undefined?`[data-time="${time}"]`:"";return $(`.uw-list[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t},.uw-all-day-list[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t},.uw-time-hit[data-uw-add-kind="${kind}"][data-date="${date||""}"]${t}`)}
@@ -1084,10 +1084,60 @@ async function saveDateOnlyChange(kind,id,date,occurrenceSource=date,planDate=""
     if(event.recurrence)event.recurrence.anchorDate=date
   })
 }
+function manualListKind(list){
+  if(!list)return"";
+  return list.dataset.uwAddKind||list.querySelector(":scope > .uw-item[data-uw-kind]")?.dataset.uwKind||""
+}
+function sameManualListGroup(source,target,kind){
+  if(!source||!target)return false;
+  const sourceKind=manualListKind(source),targetKind=manualListKind(target);
+  if(sourceKind&&sourceKind!==kind||targetKind&&targetKind!==kind)return false;
+  return(source.dataset.date||"")===(target.dataset.date||"")&&(source.dataset.groupId||"")===(target.dataset.groupId||"")
+}
+function manualDropTarget(g,pointed,list,clientY,groupMove=false){
+  const raw=pointed?.closest("[data-manual-row]");
+  const target=raw&&raw.parentElement===list?raw:null;
+  g.validTarget=true;
+  g.dropType=groupMove?"manual-group":"manual-order";
+  g.nextDate=g.date;
+  g.nextStart=g.start;
+  g.nextManualList=list;
+  g.nextGroupId=groupMove?(list.dataset.groupId||""):"";
+  if(target){
+    g.nextManualTargetId=target.dataset.id||"";
+    if(g.nextManualTargetId===g.id){g.nextManualBefore=null;return}
+    const rect=target.getBoundingClientRect(),before=clientY<rect.top+rect.height/2;
+    g.nextManualBefore=before;
+    target.classList.add(before?"uw-manual-drop-before":"uw-manual-drop-after")
+  }else{
+    g.nextManualTargetId="";
+    g.nextManualBefore=false;
+    list.classList.add("uw-manual-drop-bottom")
+  }
+}
+async function saveManualListOrder(kind,id,list,targetId,before,targetGroupId=""){
+  if(!list)return;
+  const ids=[...list.children]
+    .filter(row=>row.matches?.("[data-manual-row]")&&row.dataset.uwKind===kind)
+    .map(row=>row.dataset.id)
+    .filter(Boolean);
+  const oldIndex=ids.indexOf(id);
+  if(oldIndex>=0)ids.splice(oldIndex,1);
+  if(targetId===id&&!targetGroupId)return;
+  let insertAt=ids.length;
+  if(targetId){const targetIndex=ids.indexOf(targetId);if(targetIndex>=0)insertAt=targetIndex+(before?0:1)}
+  ids.splice(Math.max(0,Math.min(insertAt,ids.length)),0,id);
+  await write(current=>{
+    const entries=kind==="event"?current.events:current.tasks;
+    const moved=entries.find(item=>item.id===id);
+    if(moved&&targetGroupId)moved.groupId=targetGroupId;
+    ids.forEach((rowId,index)=>{const item=entries.find(entry=>entry.id===rowId);if(item)item.manualOrder=(index+1)*1000})
+  })
+}
 function wireControlsV2(){
   const DRAG_MOUSE_DISTANCE=6,TOUCH_SCROLL_DISTANCE=10,TOUCH_HOLD_MS=450;
   let gesture=null;
-  const clearDropIndicators=()=>{$$(".uw-range-selected,.uw-drop-target,.uw-time-block-drop-before,.uw-time-block-drop-after,.uw-time-block-drop-bottom").forEach(x=>x.classList.remove("uw-range-selected","uw-drop-target","uw-time-block-drop-before","uw-time-block-drop-after","uw-time-block-drop-bottom"))};
+  const clearDropIndicators=()=>{$$(".uw-range-selected,.uw-drop-target,.uw-time-block-drop-before,.uw-time-block-drop-after,.uw-time-block-drop-bottom,.uw-manual-drop-before,.uw-manual-drop-after,.uw-manual-drop-bottom").forEach(x=>x.classList.remove("uw-range-selected","uw-drop-target","uw-time-block-drop-before","uw-time-block-drop-after","uw-time-block-drop-bottom","uw-manual-drop-before","uw-manual-drop-after","uw-manual-drop-bottom"))};
   const clear=(g,restore=true)=>{
     clearTimeout(g?.timer);
     g?.preview?.remove();
@@ -1268,6 +1318,11 @@ function wireControlsV2(){
       g.nextDate=g.date;
       g.nextStart=g.start;
       g.dropType=null;
+      g.manualList=item.closest("[data-manual-list]");
+      g.nextManualList=null;
+      g.nextManualTargetId="";
+      g.nextManualBefore=null;
+      g.nextGroupId="";
     }
     if(g.coarse)g.timer=setTimeout(()=>activate(g),TOUCH_HOLD_MS);
   },true);
@@ -1313,6 +1368,21 @@ function wireControlsV2(){
     }
     clearDropIndicators();
     const pointed=document.elementFromPoint(e.clientX,e.clientY);
+    const manualList=pointed?.closest("[data-manual-list]");
+    if(g.manualList&&manualList){
+      if(sameManualListGroup(g.manualList,manualList,g.kind)){
+        manualDropTarget(g,pointed,manualList,e.clientY,false);
+        if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}
+        return
+      }
+      const sameDate=(g.manualList.dataset.date||"")===(manualList.dataset.date||"");
+      const targetGroup=manualList.dataset.groupId||"",sourceGroup=g.manualList.dataset.groupId||"";
+      if(sameDate&&g.kind==="task"&&targetGroup&&targetGroup!==sourceGroup){
+        manualDropTarget(g,pointed,manualList,e.clientY,true);
+        if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}
+        return
+      }
+    }
     const sideTab=pointed?.closest("[data-uw-side-tab]");
     if(sideTab&&g.kind==="task"){
       const requested=sideTab.dataset.uwSideTab;
@@ -1395,6 +1465,10 @@ function wireControlsV2(){
       return;
     }
     if(!g.validTarget)return;
+    if(g.dropType==="manual-order"||g.dropType==="manual-group"){
+      await saveManualListOrder(g.kind,g.id,g.nextManualList,g.nextManualTargetId,g.nextManualBefore===true,g.dropType==="manual-group"?g.nextGroupId:"");
+      return
+    }
     const dateChanged=(g.nextDate||"")!==(g.date||"");
     const directPlanningMove=Boolean(g.planToken&&g.start===null&&(g.kind==="task"||g.kind==="habit")&&!recurringDragItem(g.kind,g.id)&&!dateChanged&&(g.dropType==="time-block"||g.dropType==="time-block-unassigned"));
     if(directPlanningMove){

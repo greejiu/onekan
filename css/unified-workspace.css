@@ -413,3 +413,12 @@
 .uw-timeline .uw-time-entry.uw-item .uw-move-handle{display:none!important}
 .uw-timeline .uw-time-entry.uw-item button{cursor:pointer}
 @media(hover:none),(pointer:coarse){.uw-timeline .uw-time-entry.uw-item{cursor:default}}
+
+
+/* Shared list ordering uses the main drag gesture. */
+[data-manual-row]{cursor:grab;user-select:none}
+[data-manual-row].uw-dragging,[data-manual-row].uw-drag-ready{cursor:grabbing}
+.uw-item.uw-manual-drop-before::before,.uw-item.uw-manual-drop-after::after{content:"";position:absolute;right:4px;left:4px;z-index:15;height:2px;border-radius:999px;background:var(--accent);pointer-events:none}
+.uw-item.uw-manual-drop-before::before{top:-4px}
+.uw-item.uw-manual-drop-after::after{bottom:-4px}
+[data-manual-list].uw-manual-drop-bottom::after{content:"";display:block;height:2px;margin:3px 5px 1px;border-radius:999px;background:var(--accent);pointer-events:none}
