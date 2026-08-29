@@ -69,7 +69,7 @@ function installStyle() {
     .onekan-plan-period button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:inherit;cursor:pointer}
     .onekan-plan-period button:hover{background:var(--panel-soft,#f4f5f6)}
     .onekan-plan-body{display:grid;align-content:start;gap:2px;padding:20px 12px 24px;min-height:390px}
-    .onekan-plan-task{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:6px;min-height:36px;padding:5px 7px;border-radius:8px;cursor:grab;user-select:none}
+    .onekan-plan-task{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;align-items:center;gap:6px;min-height:36px;padding:5px 7px;border-radius:8px;cursor:grab;user-select:none}
     .onekan-plan-task:hover{background:var(--panel-soft,#f6f7f8)}
     .onekan-plan-task.done{opacity:.52}
     .onekan-plan-task.done strong{text-decoration:line-through}
@@ -78,9 +78,14 @@ function installStyle() {
     .onekan-plan-check.checked{background:var(--panel-soft,#eef1f3)}
     .onekan-plan-task strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;cursor:text}
     .onekan-plan-task-meta{color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
+    .onekan-plan-task-date{position:relative;display:flex;align-items:center;gap:5px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
+    .onekan-plan-task-date-button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted,#6d737d);cursor:pointer}
+    .onekan-plan-task-date-button:hover,.onekan-plan-task-date-button.active{background:var(--panel-soft,#f4f5f6);color:var(--accent,#8fa9c4)}
+    .onekan-plan-task-date-button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .onekan-plan-task-date-input{position:absolute!important;right:0;top:100%;width:1px!important;height:1px!important;min-width:1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important}
     .onekan-plan-add{justify-self:start;margin:5px 3px 0;padding:7px 4px;border:0;background:transparent;color:var(--muted,#6d737d);font:inherit;font-size:11px;cursor:pointer}
     .onekan-plan-add:hover{color:var(--text,#1f2328)}
-    .onekan-plan-add-form{display:grid;grid-template-columns:minmax(0,1fr) 132px 92px auto;gap:7px;margin:4px 3px 0}
+    .onekan-plan-add-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin:4px 3px 0}
     .onekan-plan-add-form input{height:34px;min-width:0;padding:0 9px;border:1px solid var(--line,#d2d7df);border-radius:7px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px;outline:none}
     .onekan-plan-add-form input:focus{border-color:var(--accent,#8fa9c4);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#8fa9c4) 12%,transparent)}
     .onekan-plan-add-form button{height:34px;padding:0 10px;border:1px solid var(--line,#d2d7df);border-radius:7px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:11px;cursor:pointer}
@@ -93,7 +98,7 @@ function installStyle() {
     .onekan-plan-date-row label{display:grid;gap:5px;color:var(--muted,#6d737d);font-size:10px}
     .onekan-plan-date-row input{height:36px;padding:0 9px;border:1px solid var(--line,#d2d7df);border-radius:8px;font:inherit;font-size:12px}
     .onekan-plan-dialog-actions{display:flex;justify-content:flex-end;gap:7px}
-    @media(max-width:700px){.onekan-plan-card{min-height:360px}.onekan-plan-top{grid-template-columns:1fr}.onekan-plan-period{justify-content:flex-end;padding:4px 10px 8px}.onekan-plan-task{grid-template-columns:24px minmax(0,1fr)}.onekan-plan-task-meta{grid-column:2}.onekan-plan-date-row{grid-template-columns:1fr}.onekan-plan-add-form{grid-template-columns:minmax(0,1fr) 1fr}.onekan-plan-add-form input[type="text"]{grid-column:1/-1}}
+    @media(max-width:700px){.onekan-plan-card{min-height:360px}.onekan-plan-top{grid-template-columns:1fr}.onekan-plan-period{justify-content:flex-end;padding:4px 10px 8px}.onekan-plan-task{grid-template-columns:24px minmax(0,1fr) auto}.onekan-plan-task-meta{display:none}.onekan-plan-task-date{grid-column:3}.onekan-plan-date-row{grid-template-columns:1fr}.onekan-plan-add-form{grid-template-columns:minmax(0,1fr) auto}}
   `;
   document.head.appendChild(style);
 }
@@ -119,21 +124,19 @@ function projectPeriod(project) {
 }
 
 function taskMeta(task) {
-  const parts = [];
-  if (task.date) parts.push(task.date);
-  if (task.notionStart) {
-    const date = new Date(task.notionStart);
-    parts.push(`${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`);
-  }
-  return parts.join(" · ");
+  if (!task.notionStart) return "";
+  const date = new Date(task.notionStart);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function taskRow(task) {
   const meta = taskMeta(task);
+  const dateValue = /^\d{4}-\d{2}-\d{2}$/.test(task.date || "") ? task.date : "";
   return `<div class="onekan-plan-task${task.done ? " done" : ""}" draggable="${!task.done}" data-plan-task-id="${esc(task.id)}" data-task-id="${esc(task.id)}" data-context-kind="task" data-context-id="${esc(task.id)}">
     <button class="onekan-plan-check${task.done ? " checked" : ""}" data-plan-task-check="${esc(task.id)}" type="button" aria-label="완료 전환">${task.done ? "✓" : ""}</button>
     <strong>${esc(task.title || "이름 없는 할일")}</strong>
     ${meta ? `<span class="onekan-plan-task-meta">${esc(meta)}</span>` : ""}
+    <span class="onekan-plan-task-date">${dateValue ? `<span>${esc(dateValue)}</span>` : ""}<button class="onekan-plan-task-date-button${dateValue ? " active" : ""}" data-plan-task-date-button="${esc(task.id)}" type="button" aria-label="날짜 설정" title="${dateValue ? `날짜: ${esc(dateValue)}` : "날짜 설정"}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button><input class="onekan-plan-task-date-input" data-plan-task-date-input="${esc(task.id)}" type="date" value="${esc(dateValue)}" aria-label="할일 날짜"></span>
   </div>`;
 }
 
@@ -182,7 +185,7 @@ async function saveProjectPeriod() {
 }
 
 function addFormMarkup() {
-  return `<form class="onekan-plan-add-form" data-plan-add-form><input class="onekan-plan-add-title" type="text" maxlength="120" autocomplete="off" placeholder="할일 입력" aria-label="프로젝트 할일 입력"><input class="onekan-plan-add-date" type="date" aria-label="할일 날짜"><input class="onekan-plan-add-time" type="time" aria-label="할일 시간"><button type="submit">추가</button></form>`;
+  return `<form class="onekan-plan-add-form" data-plan-add-form><input class="onekan-plan-add-title" type="text" maxlength="120" autocomplete="off" placeholder="할일 입력" aria-label="프로젝트 할일 입력"><button type="submit">추가</button></form>`;
 }
 
 function renderMarkup() {
@@ -198,27 +201,47 @@ function renderMarkup() {
   return `<section class="onekan-plan-card"><div class="onekan-plan-top"><select class="onekan-plan-project-select" id="onekanPlanProjectSelect" aria-label="진행 중 프로젝트 선택"><option disabled>프로젝트 선택</option>${options}</select><div class="onekan-plan-period"><span>${esc(projectPeriod(project))}</span><button type="button" data-plan-period aria-label="프로젝트 기간 수정" title="프로젝트 기간 수정">▣</button></div></div><div class="onekan-plan-body" id="onekanPlanTaskList">${tasks.length ? tasks.map(taskRow).join("") : '<div class="onekan-plan-empty">이 프로젝트에 연결된 할일이 아직 없어요.</div>'}<button class="onekan-plan-add" data-plan-add type="button">＋ 할일 추가</button></div></section>`;
 }
 
-async function addTask(title, dateValue = "", timeValue = "") {
+async function addTask(title) {
   const value = String(title || "").trim();
-  const taskDate = /^\d{4}-\d{2}-\d{2}$/.test(dateValue || "") ? dateValue : null;
-  const taskTime = /^\d{2}:\d{2}$/.test(timeValue || "") ? timeValue : "";
   if (!value || !selectedProjectId) return;
-  if (taskTime && !taskDate) return showToast("시간을 정하려면 날짜도 함께 선택해 주세요.");
   try {
     await writeState((current) => {
       current.tasks = Array.isArray(current.tasks) ? current.tasks : [];
       const groupId = current.eventGroups?.[0]?.id || "default";
-      const task = { id: uid(), title: value, date: taskDate, done: false, groupId, projectId: selectedProjectId, createdAt: new Date().toISOString() };
-      if (taskDate && taskTime) {
-        const start = new Date(`${taskDate}T${taskTime}:00`);
-        task.notionStart = start.toISOString();
-        task.notionEnd = new Date(start.getTime() + 30 * 60000).toISOString();
-      }
-      current.tasks.push(task);
+      current.tasks.push({ id: uid(), title: value, date: null, done: false, groupId, projectId: selectedProjectId, createdAt: new Date().toISOString() });
     }, "project-plan-task-add");
   } catch (error) {
     console.error("프로젝트 할일 추가 실패", error);
     showToast("할일을 추가하지 못했어요.");
+  }
+}
+
+async function setTaskDate(taskId, dateValue) {
+  const nextDate = /^\d{4}-\d{2}-\d{2}$/.test(dateValue || "") ? dateValue : null;
+  try {
+    await writeState((current) => {
+      const task = current.tasks.find((item) => item.id === taskId);
+      if (!task) return;
+      const oldStart = task.notionStart ? new Date(task.notionStart) : null;
+      const oldEnd = task.notionEnd ? new Date(task.notionEnd) : null;
+      const duration = oldStart && oldEnd && oldEnd > oldStart ? oldEnd - oldStart : 30 * 60000;
+      task.date = nextDate;
+      if (!nextDate) {
+        delete task.notionStart;
+        delete task.notionEnd;
+        return;
+      }
+      if (oldStart && !Number.isNaN(oldStart.getTime())) {
+        const hh = String(oldStart.getHours()).padStart(2, "0");
+        const mm = String(oldStart.getMinutes()).padStart(2, "0");
+        const start = new Date(`${nextDate}T${hh}:${mm}:00`);
+        task.notionStart = start.toISOString();
+        task.notionEnd = new Date(start.getTime() + duration).toISOString();
+      }
+    }, "project-plan-task-date");
+  } catch (error) {
+    console.error("프로젝트 할일 날짜 변경 실패", error);
+    showToast("날짜를 변경하지 못했어요.");
   }
 }
 
@@ -249,6 +272,14 @@ function wireRoot(root) {
   root.addEventListener("click", (event) => {
     const check = event.target.closest("[data-plan-task-check]");
     if (check) return toggleTask(check.dataset.planTaskCheck);
+    const dateButton = event.target.closest("[data-plan-task-date-button]");
+    if (dateButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const input = root.querySelector(`[data-plan-task-date-input="${CSS.escape(dateButton.dataset.planTaskDateButton)}"]`);
+      if (input) { try { input.showPicker(); } catch { input.click(); } }
+      return;
+    }
     if (event.target.closest("[data-plan-period]")) return openProjectPeriod();
     const add = event.target.closest("[data-plan-add]");
     if (add) {
@@ -256,14 +287,18 @@ function wireRoot(root) {
       requestAnimationFrame(() => $("[data-plan-add-form] .onekan-plan-add-title", root)?.focus());
     }
   });
+  root.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-plan-task-date-input]");
+    if (!input) return;
+    event.stopPropagation();
+    setTaskDate(input.dataset.planTaskDateInput, input.value || "");
+  });
   root.addEventListener("submit", (event) => {
     const form = event.target.closest("[data-plan-add-form]");
     if (!form) return;
     event.preventDefault();
     const titleInput = $(".onekan-plan-add-title", form);
-    const dateInput = $(".onekan-plan-add-date", form);
-    const timeInput = $(".onekan-plan-add-time", form);
-    addTask(titleInput?.value, dateInput?.value, timeInput?.value);
+    addTask(titleInput?.value);
   });
   root.addEventListener("dragstart", (event) => {
     const row = event.target.closest("[data-plan-task-id]");
