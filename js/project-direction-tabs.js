@@ -23,7 +23,9 @@ if (!TABS.some((tab) => tab.id === activeTab)) activeTab = "project";
 let goalState = null;
 let goalUser = null;
 let editingGoalId = null;
+let editingIdentityId = null;
 let goalRendering = false;
+let identityRendering = false;
 
 function normalizeGoalStatus(value) {
   const raw = String(value ?? "").trim().toLowerCase();
@@ -57,13 +59,27 @@ function installStyle() {
     .onekan-goal-main{display:grid;gap:3px;min-width:0}
     .onekan-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:12px;font-weight:650;text-align:left;cursor:pointer}
     .onekan-goal-title:hover{text-decoration:underline}
-    .onekan-goal-projects{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#6d737d);font-size:9px}
+    .onekan-goal-projects,.onekan-goal-identity{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#6d737d);font-size:9px}
+    .onekan-goal-identity{color:var(--accent,#8fa9c4)}
     .onekan-goal-status{display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border-radius:999px;background:var(--panel-soft,#f4f5f6);color:var(--muted,#6d737d);font-size:9px;font-weight:700;white-space:nowrap}
     .onekan-goal-period{display:flex;align-items:center;gap:5px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-goal-period button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:inherit;cursor:pointer}
     .onekan-goal-period button:hover{background:var(--panel-soft,#f4f5f6);color:var(--accent,#8fa9c4)}
     .onekan-goal-period svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     .onekan-goal-empty{display:grid;place-items:center;min-height:300px;color:var(--muted,#6d737d);font-size:11px;text-align:center}
+    .onekan-identity-shell{display:grid;gap:12px}
+    .onekan-identity-toolbar{display:flex;justify-content:flex-end}
+    .onekan-identity-add{height:34px;padding:0 12px;border:1px solid var(--line,#d2d7df);border-radius:9px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+    .onekan-identity-add:hover{background:var(--panel-soft,#f4f5f6)}
+    .onekan-identity-list{display:grid;align-content:start;gap:8px;min-height:360px;padding:10px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:15px;background:#fff}
+    .onekan-identity-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:68px;padding:10px 11px;border:1px solid var(--line,#d2d7df);border-radius:10px;background:var(--panel-soft,#f7f8f9)}
+    .onekan-identity-main{display:grid;gap:5px;min-width:0}
+    .onekan-identity-title{min-width:0;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:13px;font-weight:500;text-align:left;cursor:pointer}
+    .onekan-identity-title:hover{text-decoration:underline}
+    .onekan-identity-goals{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#6d737d);font-size:9px}
+    .onekan-identity-goal-add{height:30px;padding:0 9px;border:1px solid var(--line,#d2d7df);border-radius:8px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:10px;cursor:pointer}
+    .onekan-identity-goal-add:hover{border-color:var(--accent,#8fa9c4);color:var(--accent,#8fa9c4)}
+    .onekan-identity-empty{display:grid;place-items:center;min-height:320px;padding:24px;color:var(--muted,#6d737d);font-size:11px;line-height:1.7;text-align:center}
     .onekan-goal-dialog{width:min(430px,calc(100vw - 28px));padding:0;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:14px;background:#fff;color:var(--text,#1f2328);box-shadow:0 20px 60px rgba(15,23,42,.18)}
     .onekan-goal-dialog::backdrop{background:rgba(15,23,42,.2)}
     .onekan-goal-dialog form{display:grid;gap:12px;padding:18px}
@@ -74,7 +90,7 @@ function installStyle() {
     .onekan-goal-date-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
     .onekan-goal-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px}
     .onekan-goal-delete{margin-right:auto;color:#a33}
-    @media(max-width:700px){#page-projects .page-head{align-items:flex-start;flex-direction:column}.onekan-project-direction-tabs{align-self:stretch}.onekan-project-direction-tabs button{flex:1}.onekan-goal-row{grid-template-columns:minmax(0,1fr) auto}.onekan-goal-period{grid-column:1/-1;justify-content:flex-end}.onekan-goal-date-row{grid-template-columns:1fr}}
+    @media(max-width:700px){#page-projects .page-head{align-items:flex-start;flex-direction:column}.onekan-project-direction-tabs{align-self:stretch}.onekan-project-direction-tabs button{flex:1}.onekan-goal-row{grid-template-columns:minmax(0,1fr) auto}.onekan-goal-period{grid-column:1/-1;justify-content:flex-end}.onekan-goal-date-row{grid-template-columns:1fr}.onekan-identity-row{grid-template-columns:minmax(0,1fr)}.onekan-identity-goal-add{justify-self:start}}
   `;
   document.head.appendChild(style);
 }
@@ -114,6 +130,7 @@ async function readGoalState() {
   if (error) throw error;
   goalState = data?.data && typeof data.data === "object" ? data.data : {};
   goalState.directionGoals = Array.isArray(goalState.directionGoals) ? goalState.directionGoals : [];
+  goalState.identities = Array.isArray(goalState.identities) ? goalState.identities : [];
   goalState.projects = Array.isArray(goalState.projects) ? goalState.projects : [];
   return goalState;
 }
@@ -122,6 +139,7 @@ async function writeGoalState(mutator, source = "direction-goals") {
   await readGoalState();
   if (!goalUser || !goalState) return false;
   goalState.directionGoals = Array.isArray(goalState.directionGoals) ? goalState.directionGoals : [];
+  goalState.identities = Array.isArray(goalState.identities) ? goalState.identities : [];
   goalState.projects = Array.isArray(goalState.projects) ? goalState.projects : [];
   mutator(goalState);
   const { error } = await supabase.from("onekan_state").upsert({ user_id: goalUser.id, data: goalState }, { onConflict: "user_id" });
@@ -159,12 +177,43 @@ function linkedProjectText(goalId, projects) {
   return `프로젝트 ${linked.length}개 · ${names.join(", ")}${more}`;
 }
 
-function goalRows(goals, projects = []) {
+function identityName(identityId, identities = []) {
+  return identities.find((identity) => identity.id === identityId)?.title || "";
+}
+
+function linkedGoalText(identityId, goals = []) {
+  const linked = goals.filter((goal) => goal.identityId === identityId);
+  if (!linked.length) return "연결된 목표 없음";
+  const names = linked.slice(0, 3).map((goal) => goal.title || "이름 없는 목표");
+  const more = linked.length > 3 ? ` 외 ${linked.length - 3}개` : "";
+  return `목표 ${linked.length}개 · ${names.join(", ")}${more}`;
+}
+
+function identityRows(identities, goals = []) {
+  return [...identities]
+    .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")) || String(a.title || "").localeCompare(String(b.title || ""), "ko"))
+    .map((identity) => `<div class="onekan-identity-row" data-identity-id="${esc(identity.id)}"><div class="onekan-identity-main"><button class="onekan-identity-title" type="button" data-identity-edit="${esc(identity.id)}">${esc(identity.title || "이름 없는 정체성")}</button><span class="onekan-identity-goals">${esc(linkedGoalText(identity.id, goals))}</span></div><button class="onekan-identity-goal-add" type="button" data-identity-goal-add="${esc(identity.id)}">＋ 목표 추가</button></div>`)
+    .join("");
+}
+
+function goalRows(goals, projects = [], identities = []) {
   const statusOrder = new Map(GOAL_STATUSES.map((item, index) => [item.id, index]));
   return [...goals]
     .sort((a, b) => (statusOrder.get(normalizeGoalStatus(a.status)) ?? 9) - (statusOrder.get(normalizeGoalStatus(b.status)) ?? 9) || String(a.startDate || "9999-99-99").localeCompare(String(b.startDate || "9999-99-99")) || String(a.title || "").localeCompare(String(b.title || ""), "ko"))
-    .map((goal) => `<div class="onekan-goal-row" data-goal-id="${esc(goal.id)}"><div class="onekan-goal-main"><button class="onekan-goal-title" type="button" data-goal-edit="${esc(goal.id)}">${esc(goal.title || "이름 없는 목표")}</button><span class="onekan-goal-projects">${esc(linkedProjectText(goal.id, projects))}</span></div><span class="onekan-goal-status">${esc(statusLabel(goal.status))}</span><span class="onekan-goal-period"><span>${esc(goalPeriod(goal))}</span><button type="button" data-goal-period="${esc(goal.id)}" aria-label="목표 기간 수정" title="목표 기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span></div>`)
+    .map((goal) => {
+      const identity = identityName(goal.identityId, identities);
+      return `<div class="onekan-goal-row" data-goal-id="${esc(goal.id)}"><div class="onekan-goal-main"><button class="onekan-goal-title" type="button" data-goal-edit="${esc(goal.id)}">${esc(goal.title || "이름 없는 목표")}</button>${identity ? `<span class="onekan-goal-identity">정체성 · ${esc(identity)}</span>` : ""}<span class="onekan-goal-projects">${esc(linkedProjectText(goal.id, projects))}</span></div><span class="onekan-goal-status">${esc(statusLabel(goal.status))}</span><span class="onekan-goal-period"><span>${esc(goalPeriod(goal))}</span><button type="button" data-goal-period="${esc(goal.id)}" aria-label="목표 기간 수정" title="목표 기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span></div>`;
+    })
     .join("");
+}
+
+function fillGoalIdentitySelect(selectedId = "") {
+  const select = $("#onekanGoalIdentity");
+  if (!select) return;
+  const identities = goalState?.identities || [];
+  const validSelected = identities.some((identity) => identity.id === selectedId) ? selectedId : "";
+  select.innerHTML = `<option value="">정체성 없음</option>${identities.map((identity) => `<option value="${esc(identity.id)}"${identity.id === validSelected ? " selected" : ""}>${esc(identity.title || "이름 없는 정체성")}</option>`).join("")}`;
+  select.value = validSelected;
 }
 
 function ensureGoalDialog() {
@@ -173,14 +222,14 @@ function ensureGoalDialog() {
   dialog = document.createElement("dialog");
   dialog.id = "onekanGoalEditor";
   dialog.className = "onekan-goal-dialog";
-  dialog.innerHTML = `<form method="dialog" id="onekanGoalForm"><h3 id="onekanGoalDialogTitle">목표 추가</h3><div class="onekan-goal-fields"><label>목표<input id="onekanGoalTitle" maxlength="120" autocomplete="off" placeholder="예: 디자인 분야 취업하기"></label><label>상태<select id="onekanGoalStatus">${GOAL_STATUSES.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}</select></label><div class="onekan-goal-date-row"><label>시작일<input id="onekanGoalStart" type="date"></label><label>종료일<input id="onekanGoalEnd" type="date"></label></div></div><div class="onekan-goal-actions"><button class="ghost-btn onekan-goal-delete" id="onekanGoalDelete" type="button" hidden>삭제</button><button class="soft-btn" value="cancel" type="submit">취소</button><button class="primary-btn" id="onekanGoalSave" type="button">저장</button></div></form>`;
+  dialog.innerHTML = `<form method="dialog" id="onekanGoalForm"><h3 id="onekanGoalDialogTitle">목표 추가</h3><div class="onekan-goal-fields"><label>목표<input id="onekanGoalTitle" maxlength="120" autocomplete="off" placeholder="예: 디자인 분야 취업하기"></label><label>정체성<select id="onekanGoalIdentity"></select></label><label>상태<select id="onekanGoalStatus">${GOAL_STATUSES.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}</select></label><div class="onekan-goal-date-row"><label>시작일<input id="onekanGoalStart" type="date"></label><label>종료일<input id="onekanGoalEnd" type="date"></label></div></div><div class="onekan-goal-actions"><button class="ghost-btn onekan-goal-delete" id="onekanGoalDelete" type="button" hidden>삭제</button><button class="soft-btn" value="cancel" type="submit">취소</button><button class="primary-btn" id="onekanGoalSave" type="button">저장</button></div></form>`;
   document.body.appendChild(dialog);
   $("#onekanGoalSave", dialog)?.addEventListener("click", saveGoal);
   $("#onekanGoalDelete", dialog)?.addEventListener("click", deleteGoal);
   return dialog;
 }
 
-async function openGoalEditor(goalId = null) {
+async function openGoalEditor(goalId = null, preselectedIdentityId = null) {
   try {
     await readGoalState();
     const dialog = ensureGoalDialog();
@@ -188,6 +237,7 @@ async function openGoalEditor(goalId = null) {
     editingGoalId = goal?.id || null;
     $("#onekanGoalDialogTitle", dialog).textContent = editingGoalId ? "목표 수정" : "목표 추가";
     $("#onekanGoalTitle", dialog).value = goal?.title || "";
+    fillGoalIdentitySelect(goal?.identityId || preselectedIdentityId || "");
     $("#onekanGoalStatus", dialog).value = normalizeGoalStatus(goal?.status || "doing");
     $("#onekanGoalStart", dialog).value = /^\d{4}-\d{2}-\d{2}$/.test(goal?.startDate || "") ? goal.startDate : "";
     $("#onekanGoalEnd", dialog).value = /^\d{4}-\d{2}-\d{2}$/.test(goal?.endDate || "") ? goal.endDate : "";
@@ -203,6 +253,7 @@ async function openGoalEditor(goalId = null) {
 async function saveGoal() {
   const dialog = $("#onekanGoalEditor");
   const title = $("#onekanGoalTitle", dialog)?.value.trim() || "";
+  const identityId = $("#onekanGoalIdentity", dialog)?.value || null;
   const status = normalizeGoalStatus($("#onekanGoalStatus", dialog)?.value || "doing");
   const startDate = $("#onekanGoalStart", dialog)?.value || null;
   const endDate = $("#onekanGoalEnd", dialog)?.value || null;
@@ -212,16 +263,19 @@ async function saveGoal() {
   try {
     await writeGoalState((current) => {
       current.directionGoals = Array.isArray(current.directionGoals) ? current.directionGoals : [];
+      current.identities = Array.isArray(current.identities) ? current.identities : [];
+      const validIdentityId = identityId && current.identities.some((identity) => identity.id === identityId) ? identityId : null;
       if (id) {
         const goal = current.directionGoals.find((item) => item.id === id);
         if (!goal) return;
         goal.title = title;
+        goal.identityId = validIdentityId;
         goal.status = status;
         goal.startDate = startDate;
         goal.endDate = endDate;
         goal.updatedAt = new Date().toISOString();
       } else {
-        current.directionGoals.push({ id: uid(), title, status, startDate, endDate, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+        current.directionGoals.push({ id: uid(), title, identityId: validIdentityId, status, startDate, endDate, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       }
     });
     dialog?.close();
@@ -252,6 +306,105 @@ async function deleteGoal() {
   }
 }
 
+function ensureIdentityDialog() {
+  let dialog = $("#onekanIdentityEditor");
+  if (dialog) return dialog;
+  dialog = document.createElement("dialog");
+  dialog.id = "onekanIdentityEditor";
+  dialog.className = "onekan-goal-dialog onekan-identity-dialog";
+  dialog.innerHTML = `<form method="dialog" id="onekanIdentityForm"><h3 id="onekanIdentityDialogTitle">정체성 추가</h3><div class="onekan-goal-fields"><label>정체성 문장<input id="onekanIdentityTitle" maxlength="160" autocomplete="off" placeholder="예: 나는 꾸준히 배우고 결과물을 만드는 사람이다"></label></div><div class="onekan-goal-actions"><button class="ghost-btn onekan-goal-delete" id="onekanIdentityDelete" type="button" hidden>삭제</button><button class="soft-btn" value="cancel" type="submit">취소</button><button class="primary-btn" id="onekanIdentitySave" type="button">저장</button></div></form>`;
+  document.body.appendChild(dialog);
+  $("#onekanIdentitySave", dialog)?.addEventListener("click", saveIdentity);
+  $("#onekanIdentityDelete", dialog)?.addEventListener("click", deleteIdentity);
+  return dialog;
+}
+
+async function openIdentityEditor(identityId = null) {
+  try {
+    await readGoalState();
+    const dialog = ensureIdentityDialog();
+    const identity = identityId ? goalState?.identities?.find((item) => item.id === identityId) : null;
+    editingIdentityId = identity?.id || null;
+    $("#onekanIdentityDialogTitle", dialog).textContent = editingIdentityId ? "정체성 수정" : "정체성 추가";
+    $("#onekanIdentityTitle", dialog).value = identity?.title || "";
+    $("#onekanIdentityDelete", dialog).hidden = !editingIdentityId;
+    dialog.showModal();
+    requestAnimationFrame(() => $("#onekanIdentityTitle", dialog)?.focus());
+  } catch (error) {
+    console.error("정체성 열기 실패", error);
+    showToast("정체성을 불러오지 못했어요.");
+  }
+}
+
+async function saveIdentity() {
+  const dialog = $("#onekanIdentityEditor");
+  const title = $("#onekanIdentityTitle", dialog)?.value.trim() || "";
+  if (!title) return showToast("정체성 문장을 입력해 주세요.");
+  const id = editingIdentityId;
+  try {
+    await writeGoalState((current) => {
+      current.identities = Array.isArray(current.identities) ? current.identities : [];
+      if (id) {
+        const identity = current.identities.find((item) => item.id === id);
+        if (!identity) return;
+        identity.title = title;
+        identity.updatedAt = new Date().toISOString();
+      } else {
+        current.identities.push({ id: uid(), title, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      }
+    }, "direction-identities");
+    dialog?.close();
+    editingIdentityId = null;
+    await renderIdentityView();
+  } catch (error) {
+    console.error("정체성 저장 실패", error);
+    showToast("정체성을 저장하지 못했어요.");
+  }
+}
+
+async function deleteIdentity() {
+  if (!editingIdentityId) return;
+  const id = editingIdentityId;
+  try {
+    await writeGoalState((current) => {
+      current.identities = (current.identities || []).filter((item) => item.id !== id);
+      (current.directionGoals || []).forEach((goal) => {
+        if (goal.identityId === id) goal.identityId = null;
+      });
+    }, "direction-identity-delete");
+    $("#onekanIdentityEditor")?.close();
+    editingIdentityId = null;
+    await renderIdentityView();
+  } catch (error) {
+    console.error("정체성 삭제 실패", error);
+    showToast("정체성을 삭제하지 못했어요.");
+  }
+}
+
+async function renderIdentityView() {
+  const ui = ensureUi();
+  if (!ui || activeTab !== "identity" || identityRendering) return;
+  identityRendering = true;
+  try {
+    ui.secondary.hidden = false;
+    ui.secondary.innerHTML = `<div class="onekan-identity-shell"><div class="onekan-identity-toolbar"><button class="onekan-identity-add" type="button" data-identity-add>＋ 정체성 추가</button></div><div class="onekan-identity-list"><div class="onekan-identity-empty">불러오는 중...</div></div></div>`;
+    const current = await readGoalState();
+    const list = $(".onekan-identity-list", ui.secondary);
+    if (!current) {
+      list.innerHTML = `<div class="onekan-identity-empty">로그인 후 정체성을 관리할 수 있어요.</div>`;
+      return;
+    }
+    const identities = current.identities || [];
+    list.innerHTML = identities.length ? identityRows(identities, current.directionGoals || []) : `<div class="onekan-identity-empty">아직 정체성이 없어요.<br>“나는 어떤 사람으로 살아가고 싶은가?”를 한 문장으로 적어 보세요.</div>`;
+  } catch (error) {
+    console.error("정체성 렌더링 실패", error);
+    const list = $(".onekan-identity-list", ui.secondary);
+    if (list) list.innerHTML = `<div class="onekan-identity-empty">정체성을 불러오지 못했어요.</div>`;
+  } finally {
+    identityRendering = false;
+  }
+}
+
 async function renderGoalView() {
   const ui = ensureUi();
   if (!ui || activeTab !== "goal" || goalRendering) return;
@@ -266,7 +419,7 @@ async function renderGoalView() {
       return;
     }
     const goals = current.directionGoals || [];
-    list.innerHTML = goals.length ? goalRows(goals, current.projects || []) : `<div class="onekan-goal-empty">아직 목표가 없어요.<br>지금 이루고 싶은 것부터 하나만 만들어 보세요.</div>`;
+    list.innerHTML = goals.length ? goalRows(goals, current.projects || [], current.identities || []) : `<div class="onekan-goal-empty">아직 목표가 없어요.<br>지금 이루고 싶은 것부터 하나만 만들어 보세요.</div>`;
   } catch (error) {
     console.error("목표 렌더링 실패", error);
     const list = $(".onekan-goal-list", ui.secondary);
@@ -297,14 +450,14 @@ function render() {
   } else if (activeTab === "goal") {
     renderGoalView();
   } else {
-    ui.secondary.hidden = false;
-    ui.secondary.innerHTML = `<div class="onekan-project-direction-placeholder">정체성은 목표 연결 다음 단계에서 붙일게요.</div>`;
+    renderIdentityView();
   }
 }
 
 function init() {
   installStyle();
   ensureGoalDialog();
+  ensureIdentityDialog();
   render();
   document.addEventListener("click", (event) => {
     const button = event.target.closest("[data-project-direction-tab]");
@@ -322,6 +475,20 @@ function init() {
       openGoalEditor();
       return;
     }
+    if (event.target.closest("[data-identity-add]")) {
+      openIdentityEditor();
+      return;
+    }
+    const identityEdit = event.target.closest("[data-identity-edit]");
+    if (identityEdit) {
+      openIdentityEditor(identityEdit.dataset.identityEdit);
+      return;
+    }
+    const identityGoalAdd = event.target.closest("[data-identity-goal-add]");
+    if (identityGoalAdd) {
+      openGoalEditor(null, identityGoalAdd.dataset.identityGoalAdd);
+      return;
+    }
     const edit = event.target.closest("[data-goal-edit]");
     if (edit) {
       openGoalEditor(edit.dataset.goalEdit);
@@ -332,6 +499,7 @@ function init() {
   });
   document.addEventListener("onekan:state-changed", (event) => {
     if (activeTab === "goal" && event.detail?.source !== "direction-goals") setTimeout(renderGoalView, 80);
+    if (activeTab === "identity" && !String(event.detail?.source || "").startsWith("direction-identit")) setTimeout(renderIdentityView, 80);
   });
 }
 
