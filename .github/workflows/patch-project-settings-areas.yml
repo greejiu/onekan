@@ -1,0 +1,31 @@
+name: Patch project settings areas
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-project-settings-areas.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch and validate
+        run: |
+          python3 scripts/patch-project-settings-areas.py
+          node --check js/project-status.js
+          node --check js/context-menu.js
+          git diff --check
+      - name: Commit feature
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add js/project-status.js js/context-menu.js index.html
+          git commit -m "feat: use shared settings areas for projects"
+          git push
+      - name: Remove patch files
+        run: |
+          git rm .github/workflows/patch-project-settings-areas.yml scripts/patch-project-settings-areas.py
+          git commit -m "chore: remove project area patch files"
+          git push
