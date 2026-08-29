@@ -60,7 +60,7 @@ function installStyle() {
     .onekan-goal-row.onekan-direction-dragging{opacity:.42}
     .onekan-goal-row:last-child{border-bottom:0}
     .onekan-goal-main{display:grid;gap:3px;min-width:0}
-    .onekan-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:12px;font-weight:650;text-align:left;cursor:pointer}
+    .onekan-goal-title{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:12px;font-weight:650;text-align:left;cursor:pointer}
     .onekan-goal-title:hover{text-decoration:underline}
     .onekan-goal-projects,.onekan-goal-identity{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#6d737d);font-size:9px}
     .onekan-goal-identity{color:var(--accent,#8fa9c4)}
@@ -79,7 +79,7 @@ function installStyle() {
     .onekan-identity-row:active{cursor:grabbing}
     .onekan-identity-row.onekan-direction-dragging{opacity:.42}
     .onekan-identity-main{display:grid;gap:5px;min-width:0}
-    .onekan-identity-title{min-width:0;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:13px;font-weight:500;text-align:left;cursor:pointer}
+    .onekan-identity-title{display:block;min-width:0;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:13px;font-weight:500;text-align:left;cursor:pointer}
     .onekan-identity-title:hover{text-decoration:underline}
     .onekan-identity-goals{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#6d737d);font-size:9px}
     .onekan-identity-goal-add{height:30px;padding:0 9px;border:1px solid var(--line,#d2d7df);border-radius:8px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:10px;cursor:pointer}
