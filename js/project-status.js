@@ -54,6 +54,13 @@ function projectGroupId(project, current = state) {
   return groups.some((group) => group.id === project?.groupId) ? project.groupId : (groups[0]?.id || "default");
 }
 
+function projectGroupColor(project, current = state) {
+  const groups = groupsOf(current);
+  const groupId = projectGroupId(project, current);
+  const color = groups.find((group) => group.id === groupId)?.color || DEFAULT_GROUP_COLOR;
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : DEFAULT_GROUP_COLOR;
+}
+
 function ensureWritableStructure(current) {
   current.projects = Array.isArray(current.projects) ? current.projects : [];
   current.directionGoals = Array.isArray(current.directionGoals) ? current.directionGoals : [];
@@ -104,8 +111,8 @@ function installStyle() {
     .onekan-project-board-head strong{font-size:13px}
     .onekan-project-count{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:var(--panel-soft,#f4f5f6);color:var(--muted,#6d737d);font-size:9px;font-weight:700}
     .onekan-project-list{display:grid;align-content:start;gap:2px;padding:0 10px 11px;min-height:190px}
-    .onekan-project-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;min-height:38px;padding:7px 8px;border-radius:8px;cursor:grab;user-select:none}
-    .onekan-project-row:hover{background:var(--panel-soft,#f6f7f8)}
+    .onekan-project-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;min-height:38px;padding:7px 8px;border:1px solid color-mix(in srgb,var(--uw-group,#8fa9c4) 45%,#fff);border-radius:8px;background:color-mix(in srgb,var(--uw-group,#8fa9c4) 16%,#fff);cursor:grab;user-select:none}
+    .onekan-project-row:hover{background:color-mix(in srgb,var(--uw-group,#8fa9c4) 23%,#fff)}
     .onekan-project-row.dragging{opacity:.45}
     .onekan-project-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;cursor:pointer}
     .onekan-project-period{display:flex;align-items:center;gap:6px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
@@ -162,7 +169,7 @@ function periodText(project) {
 }
 
 function projectRow(project) {
-  return `<div class="onekan-project-row" draggable="true" data-project-status-id="${esc(project.id)}" data-context-kind="project" data-context-id="${esc(project.id)}">
+  return `<div class="onekan-project-row" style="--uw-group:${esc(projectGroupColor(project))}" draggable="true" data-project-status-id="${esc(project.id)}" data-context-kind="project" data-context-id="${esc(project.id)}">
     <span class="onekan-project-title" data-project-edit="${esc(project.id)}">${esc(project.title || "이름 없는 프로젝트")}</span>
     <span class="onekan-project-period"><span>${esc(periodText(project))}</span><button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span>
   </div>`;
