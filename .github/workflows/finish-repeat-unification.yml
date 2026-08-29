@@ -1,0 +1,59 @@
+name: Finish repeat unification
+
+on:
+  push:
+    paths:
+      - '.github/workflows/finish-repeat-unification.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Refresh repeat module references
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          interaction = Path('js/interaction-fixes.js')
+          text = interaction.read_text()
+          text = text.replace('import "./repeat-hub.js?v=1";', 'import "./repeat-hub.js?v=2";')
+          interaction.write_text(text)
+
+          index = Path('index.html')
+          text = index.read_text()
+          text = text.replace('./js/interaction-fixes.js?v=29', './js/interaction-fixes.js?v=30')
+          index.write_text(text)
+
+          checklist = Path('js/management-checklist.js')
+          text = checklist.read_text()
+          text = text.replace('마지막 항목을 체크하면 관리 항목이 완료돼요.', '마지막 항목을 체크하면 반복 항목이 완료돼요.')
+          checklist.write_text(text)
+          PY
+      - name: Check JavaScript
+        run: |
+          node --check js/repeat-hub.js
+          node --check js/management-checklist.js
+          node --check js/interaction-fixes.js
+      - name: Commit final repeat unification
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add js/repeat-hub.js css/repeat-hub.css js/interaction-fixes.js js/management-checklist.js index.html
+          git commit -m "feat: unify habits and management as repeat items" || true
+          git pull --rebase origin main
+          git push origin main
+      - name: Remove one-shot workflow
+        run: |
+          git pull --rebase origin main
+          git rm .github/workflows/finish-repeat-unification.yml
+          git commit -m "chore: remove repeat unification workflow"
+          git push origin main
