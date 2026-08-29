@@ -26,6 +26,7 @@ let editingGoalId = null;
 let editingIdentityId = null;
 let goalRendering = false;
 let identityRendering = false;
+let draggedDirection = null;
 
 function normalizeGoalStatus(value) {
   const raw = String(value ?? "").trim().toLowerCase();
@@ -54,7 +55,9 @@ function installStyle() {
     .onekan-goal-add{height:34px;padding:0 12px;border:1px solid var(--line,#d2d7df);border-radius:9px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
     .onekan-goal-add:hover{background:var(--panel-soft,#f4f5f6)}
     .onekan-goal-list{display:grid;align-content:start;min-height:360px;padding:8px 10px 12px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:15px;background:#fff}
-    .onekan-goal-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;min-height:52px;padding:7px 8px;border-bottom:1px solid var(--line,#e1e4e8)}
+    .onekan-goal-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;min-height:52px;padding:7px 8px;border-bottom:1px solid var(--line,#e1e4e8);cursor:grab;user-select:none}
+    .onekan-goal-row:active{cursor:grabbing}
+    .onekan-goal-row.onekan-direction-dragging{opacity:.42}
     .onekan-goal-row:last-child{border-bottom:0}
     .onekan-goal-main{display:grid;gap:3px;min-width:0}
     .onekan-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:12px;font-weight:650;text-align:left;cursor:pointer}
@@ -72,7 +75,9 @@ function installStyle() {
     .onekan-identity-add{height:34px;padding:0 12px;border:1px solid var(--line,#d2d7df);border-radius:9px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
     .onekan-identity-add:hover{background:var(--panel-soft,#f4f5f6)}
     .onekan-identity-list{display:grid;align-content:start;gap:8px;min-height:360px;padding:10px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:15px;background:#fff}
-    .onekan-identity-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:68px;padding:10px 11px;border:1px solid var(--line,#d2d7df);border-radius:10px;background:var(--panel-soft,#f7f8f9)}
+    .onekan-identity-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;min-height:68px;padding:10px 11px;border:1px solid var(--line,#d2d7df);border-radius:10px;background:var(--panel-soft,#f7f8f9);cursor:grab;user-select:none}
+    .onekan-identity-row:active{cursor:grabbing}
+    .onekan-identity-row.onekan-direction-dragging{opacity:.42}
     .onekan-identity-main{display:grid;gap:5px;min-width:0}
     .onekan-identity-title{min-width:0;padding:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:13px;font-weight:500;text-align:left;cursor:pointer}
     .onekan-identity-title:hover{text-decoration:underline}
@@ -189,20 +194,30 @@ function linkedGoalText(identityId, goals = []) {
   return `목표 ${linked.length}개 · ${names.join(", ")}${more}`;
 }
 
+function manualOrder(a, b, fallback) {
+  const aOrder = Number(a?.sortOrder);
+  const bOrder = Number(b?.sortOrder);
+  const aHasOrder = Number.isFinite(aOrder);
+  const bHasOrder = Number.isFinite(bOrder);
+  if (aHasOrder && bHasOrder && aOrder !== bOrder) return aOrder - bOrder;
+  if (aHasOrder !== bHasOrder) return aHasOrder ? -1 : 1;
+  return fallback(a, b);
+}
+
 function identityRows(identities, goals = []) {
   return [...identities]
-    .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")) || String(a.title || "").localeCompare(String(b.title || ""), "ko"))
-    .map((identity) => `<div class="onekan-identity-row" data-identity-id="${esc(identity.id)}"><div class="onekan-identity-main"><button class="onekan-identity-title" type="button" data-identity-edit="${esc(identity.id)}">${esc(identity.title || "이름 없는 정체성")}</button><span class="onekan-identity-goals">${esc(linkedGoalText(identity.id, goals))}</span></div><button class="onekan-identity-goal-add" type="button" data-identity-goal-add="${esc(identity.id)}">＋ 목표 추가</button></div>`)
+    .sort((a, b) => manualOrder(a, b, (left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")) || String(left.title || "").localeCompare(String(right.title || ""), "ko")))
+    .map((identity) => `<div class="onekan-identity-row" draggable="true" data-direction-kind="identity" data-direction-id="${esc(identity.id)}" data-context-kind="identity" data-context-id="${esc(identity.id)}"><div class="onekan-identity-main"><span class="onekan-identity-title">${esc(identity.title || "이름 없는 정체성")}</span><span class="onekan-identity-goals">${esc(linkedGoalText(identity.id, goals))}</span></div><button class="onekan-identity-goal-add" type="button" data-identity-goal-add="${esc(identity.id)}">목표 연결</button></div>`)
     .join("");
 }
 
 function goalRows(goals, projects = [], identities = []) {
   const statusOrder = new Map(GOAL_STATUSES.map((item, index) => [item.id, index]));
   return [...goals]
-    .sort((a, b) => (statusOrder.get(normalizeGoalStatus(a.status)) ?? 9) - (statusOrder.get(normalizeGoalStatus(b.status)) ?? 9) || String(a.startDate || "9999-99-99").localeCompare(String(b.startDate || "9999-99-99")) || String(a.title || "").localeCompare(String(b.title || ""), "ko"))
+    .sort((a, b) => manualOrder(a, b, (left, right) => (statusOrder.get(normalizeGoalStatus(left.status)) ?? 9) - (statusOrder.get(normalizeGoalStatus(right.status)) ?? 9) || String(left.startDate || "9999-99-99").localeCompare(String(right.startDate || "9999-99-99")) || String(left.title || "").localeCompare(String(right.title || ""), "ko")))
     .map((goal) => {
       const identity = identityName(goal.identityId, identities);
-      return `<div class="onekan-goal-row" data-goal-id="${esc(goal.id)}"><div class="onekan-goal-main"><button class="onekan-goal-title" type="button" data-goal-edit="${esc(goal.id)}">${esc(goal.title || "이름 없는 목표")}</button>${identity ? `<span class="onekan-goal-identity">정체성 · ${esc(identity)}</span>` : ""}<span class="onekan-goal-projects">${esc(linkedProjectText(goal.id, projects))}</span></div><span class="onekan-goal-status">${esc(statusLabel(goal.status))}</span><span class="onekan-goal-period"><span>${esc(goalPeriod(goal))}</span><button type="button" data-goal-period="${esc(goal.id)}" aria-label="목표 기간 수정" title="목표 기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span></div>`;
+      return `<div class="onekan-goal-row" draggable="true" data-direction-kind="goal" data-direction-id="${esc(goal.id)}" data-context-kind="goal" data-context-id="${esc(goal.id)}"><div class="onekan-goal-main"><span class="onekan-goal-title">${esc(goal.title || "이름 없는 목표")}</span>${identity ? `<span class="onekan-goal-identity">정체성 · ${esc(identity)}</span>` : ""}<span class="onekan-goal-projects">${esc(linkedProjectText(goal.id, projects))}</span></div><span class="onekan-goal-status">${esc(statusLabel(goal.status))}</span><span class="onekan-goal-period"><span>${esc(goalPeriod(goal))}</span><button type="button" data-goal-period="${esc(goal.id)}" aria-label="목표 기간 수정" title="목표 기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span></div>`;
     })
     .join("");
 }
@@ -454,11 +469,63 @@ function render() {
   }
 }
 
+async function persistDirectionOrder(kind) {
+  const selector = kind === "goal" ? ".onekan-goal-list" : ".onekan-identity-list";
+  const ids = [...document.querySelectorAll(`${selector} [data-direction-kind="${kind}"]`)].map((row) => row.dataset.directionId);
+  if (!ids.length) return;
+  const collectionName = kind === "goal" ? "directionGoals" : "identities";
+  try {
+    await writeGoalState((state) => {
+      const byId = new Map(ids.map((id, index) => [id, (index + 1) * 10]));
+      state[collectionName].forEach((item) => {
+        if (byId.has(item.id)) item.sortOrder = byId.get(item.id);
+      });
+    }, "direction-order");
+  } catch (error) {
+    console.error("방향 목록 순서 저장 실패", error);
+    showToast("순서를 저장하지 못했어요.");
+    render();
+  }
+}
+
+function wireDirectionDrag() {
+  document.addEventListener("dragstart", (event) => {
+    const row = event.target.closest?.("[data-direction-kind][data-direction-id]");
+    if (!row || !row.closest("#onekanProjectDirectionSecondary")) return;
+    draggedDirection = { kind: row.dataset.directionKind, id: row.dataset.directionId };
+    row.classList.add("onekan-direction-dragging");
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", draggedDirection.id);
+    }
+  });
+  document.addEventListener("dragover", (event) => {
+    if (!draggedDirection) return;
+    const row = event.target.closest?.(`[data-direction-kind="${draggedDirection.kind}"][data-direction-id]`);
+    if (!row || row.dataset.directionId === draggedDirection.id) return;
+    const moving = document.querySelector(`[data-direction-kind="${draggedDirection.kind}"][data-direction-id="${CSS.escape(draggedDirection.id)}"]`);
+    if (!moving || moving.parentElement !== row.parentElement) return;
+    event.preventDefault();
+    const rect = row.getBoundingClientRect();
+    row.parentElement.insertBefore(moving, event.clientY < rect.top + rect.height / 2 ? row : row.nextSibling);
+  });
+  document.addEventListener("drop", (event) => {
+    if (!draggedDirection) return;
+    event.preventDefault();
+    persistDirectionOrder(draggedDirection.kind);
+  });
+  document.addEventListener("dragend", () => {
+    document.querySelectorAll(".onekan-direction-dragging").forEach((row) => row.classList.remove("onekan-direction-dragging"));
+    draggedDirection = null;
+  });
+}
+
 function init() {
   installStyle();
   ensureGoalDialog();
   ensureIdentityDialog();
   render();
+  wireDirectionDrag();
   document.addEventListener("click", (event) => {
     const button = event.target.closest("[data-project-direction-tab]");
     if (button) {
@@ -479,19 +546,11 @@ function init() {
       openIdentityEditor();
       return;
     }
-    const identityEdit = event.target.closest("[data-identity-edit]");
-    if (identityEdit) {
-      openIdentityEditor(identityEdit.dataset.identityEdit);
-      return;
-    }
     const identityGoalAdd = event.target.closest("[data-identity-goal-add]");
     if (identityGoalAdd) {
-      openGoalEditor(null, identityGoalAdd.dataset.identityGoalAdd);
-      return;
-    }
-    const edit = event.target.closest("[data-goal-edit]");
-    if (edit) {
-      openGoalEditor(edit.dataset.goalEdit);
+      const row = identityGoalAdd.closest("[data-context-kind='identity']");
+      const rect = identityGoalAdd.getBoundingClientRect();
+      row?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: rect.left, clientY: rect.bottom + 4 }));
       return;
     }
     const period = event.target.closest("[data-goal-period]");
