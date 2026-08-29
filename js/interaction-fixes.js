@@ -1,11 +1,12 @@
 import "./auth-guard.js?v=1";
 
 // 오늘한칸은 오늘 할일 배치와 시간 계획에 집중한다.
-// 기존 습관/관리/반복 데이터는 Supabase에 그대로 보존하되,
-// 관련 기능 모듈은 더 이상 시작 시 불러오지 않는다.
+// 기존 습관/관리 데이터는 Supabase에 그대로 보존하되 숨긴다.
+// 할일·일정의 반복 입력 도구는 계속 사용한다.
 window.__ONEKAN_DAILY_FOCUS_MODE__ = true;
 
 const deferredModules = [
+  "./task-input-controls.js?v=2",
   "./home-timeline-dynamic-columns.js?v=2",
 ];
 
