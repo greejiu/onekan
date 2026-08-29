@@ -1,0 +1,411 @@
+import { supabase } from "./supabase.js";
+import { showToast } from "./ui-feedback.js";
+
+const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
+const $$ = (selector, root = document) => [...(root?.querySelectorAll?.(selector) || [])];
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
+const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const DEFAULT_GROUP_ID = "project-group-inbox";
+const DEFAULT_GROUP_COLOR = "#8fa9c4";
+const STATUSES = [
+  { id: "before", label: "시작 전" },
+  { id: "doing", label: "진행 중" },
+  { id: "done", label: "완료" },
+  { id: "archived", label: "보관" },
+];
+
+let user = null;
+let state = null;
+let rendering = false;
+let renderTimer = null;
+let activeFilter = sessionStorage.getItem("onekan-project-filter") || "all";
+let editingProjectId = null;
+
+function normalizeStatus(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (["before", "시작 전", "시작전", "todo", "planned"].includes(raw)) return "before";
+  if (["done", "완료", "달성", "complete", "completed"].includes(raw)) return "done";
+  if (["archived", "보관", "closed", "archive"].includes(raw)) return "archived";
+  if (["doing", "진행 중", "진행중", "하는 중", "하는중", "active", "in progress", "진행"].includes(raw)) return "doing";
+  return "doing";
+}
+
+function isProject(item) {
+  return !!item && (item.kind === "project" || !item.kind);
+}
+
+function projectGroupId(project) {
+  return project?.projectGroupId || DEFAULT_GROUP_ID;
+}
+
+function groupsOf(current = state) {
+  const groups = Array.isArray(current?.projectGroups) ? [...current.projectGroups] : [];
+  if (!groups.some((group) => group.id === DEFAULT_GROUP_ID)) {
+    groups.unshift({ id: DEFAULT_GROUP_ID, name: "미분류", color: DEFAULT_GROUP_COLOR, system: true, order: -1 });
+  }
+  return groups.sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+}
+
+function ensureWritableStructure(current) {
+  current.projects = Array.isArray(current.projects) ? current.projects : [];
+  current.projectGroups = Array.isArray(current.projectGroups) ? current.projectGroups : [];
+  if (!current.projectGroups.some((group) => group.id === DEFAULT_GROUP_ID)) {
+    current.projectGroups.unshift({ id: DEFAULT_GROUP_ID, name: "미분류", color: DEFAULT_GROUP_COLOR, system: true, order: -1 });
+  }
+}
+
+async function readState() {
+  const { data: { session } } = await supabase.auth.getSession();
+  user = session?.user || null;
+  if (!user) return null;
+  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
+  if (error) throw error;
+  state = data?.data && typeof data.data === "object" ? data.data : {};
+  state.projects = Array.isArray(state.projects) ? state.projects : [];
+  return state;
+}
+
+async function writeState(mutator, source = "project-status") {
+  await readState();
+  if (!state || !user) return false;
+  ensureWritableStructure(state);
+  mutator(state);
+  const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: state }, { onConflict: "user_id" });
+  if (error) throw error;
+  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source } }));
+  $("#reloadCloudBtn")?.click();
+  scheduleRender(100);
+  return true;
+}
+
+function installStyle() {
+  if ($("#onekanProjectStatusStyle")) return;
+  const style = document.createElement("style");
+  style.id = "onekanProjectStatusStyle";
+  style.textContent = `
+    #page-projects{--project-line:var(--line,#d2d7df)}
+    .onekan-project-shell{display:grid;gap:14px;min-width:0}
+    .onekan-project-toolbar{display:flex;align-items:center;gap:10px;min-width:0}
+    .onekan-project-filter{height:34px;min-width:116px;padding:0 30px 0 12px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:999px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+    .onekan-project-board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch}
+    .onekan-project-board{display:grid;grid-template-rows:auto 1fr;min-height:260px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:15px;background:#fff;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+    .onekan-project-board.is-drop,.onekan-project-group.is-drop{border-color:var(--accent,#8fa9c4);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#8fa9c4) 13%,transparent)}
+    .onekan-project-board-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 13px 8px}
+    .onekan-project-board-head strong{font-size:13px}
+    .onekan-project-count{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:var(--panel-soft,#f4f5f6);color:var(--muted,#6d737d);font-size:9px;font-weight:700}
+    .onekan-project-list{display:grid;align-content:start;gap:2px;padding:0 10px 11px;min-height:190px}
+    .onekan-project-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;min-height:38px;padding:7px 8px;border-radius:8px;cursor:grab;user-select:none}
+    .onekan-project-row:hover{background:var(--panel-soft,#f6f7f8)}
+    .onekan-project-row.dragging{opacity:.45}
+    .onekan-project-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;cursor:pointer}
+    .onekan-project-period{display:flex;align-items:center;gap:6px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
+    .onekan-project-period button{display:grid;place-items:center;width:25px;height:25px;padding:0;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
+    .onekan-project-period button:hover{background:#fff}
+    .onekan-project-add{justify-self:start;margin:3px 5px 0;padding:7px 4px;border:0;background:transparent;color:var(--muted,#6d737d);font:inherit;font-size:11px;cursor:pointer}
+    .onekan-project-add:hover{color:var(--text,#1f2328)}
+    .onekan-project-empty{padding:10px 8px;color:var(--muted,#6d737d);font-size:10px}
+    .onekan-project-group-view{min-height:440px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:15px;background:#fff;padding:18px 16px 20px}
+    .onekan-project-groups{display:grid;gap:5px}
+    .onekan-project-group{border:1.5px solid transparent;border-radius:10px;padding:4px 7px 7px;transition:border-color .15s,box-shadow .15s}
+    .onekan-project-group-head{display:flex;align-items:center;gap:6px;min-height:30px;padding:0 2px;cursor:pointer}
+    .onekan-project-group-chevron{width:14px;color:var(--text,#1f2328);font-size:11px}
+    .onekan-project-group-dot{width:8px;height:8px;border-radius:50%;background:var(--project-group,#8fa9c4)}
+    .onekan-project-group-head strong{font-size:12px}
+    .onekan-project-group-head small{margin-left:auto;color:var(--muted,#6d737d);font-size:9px}
+    .onekan-project-group-body{display:grid;gap:1px;padding-left:24px}
+    .onekan-project-group.collapsed .onekan-project-group-body{display:none}
+    .onekan-project-group-add{margin-top:12px;padding:7px 6px;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:11px;cursor:pointer}
+    .onekan-project-group-add:hover{text-decoration:underline}
+    .onekan-project-dialog{width:min(430px,calc(100vw - 28px));padding:0;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:14px;background:#fff;color:var(--text,#1f2328);box-shadow:0 20px 60px rgba(15,23,42,.18)}
+    .onekan-project-dialog::backdrop{background:rgba(15,23,42,.2)}
+    .onekan-project-dialog form{display:grid;gap:13px;padding:18px}
+    .onekan-project-dialog h3{margin:0;font-size:16px}
+    .onekan-project-fields{display:grid;gap:10px}
+    .onekan-project-fields label{display:grid;gap:5px;color:var(--muted,#6d737d);font-size:10px}
+    .onekan-project-fields input,.onekan-project-fields select{width:100%;height:36px;padding:0 10px;border:1px solid var(--project-line);border-radius:8px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px}
+    .onekan-project-date-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .onekan-project-dialog-actions{display:flex;justify-content:flex-end;gap:7px}
+    @media(max-width:800px){.onekan-project-board-grid{grid-template-columns:1fr}.onekan-project-board{min-height:220px}.onekan-project-group-view{min-height:360px;padding:13px 10px}.onekan-project-row{grid-template-columns:minmax(0,1fr);gap:2px}.onekan-project-period{justify-content:flex-start}.onekan-project-date-row{grid-template-columns:1fr}}
+  `;
+  document.head.appendChild(style);
+}
+
+function projectDates(project) {
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(project?.startDate || "") ? project.startDate : null;
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(project?.endDate || "") ? project.endDate : /^\d{4}-\d{2}-\d{2}$/.test(project?.deadline || "") ? project.deadline : null;
+  return { start, end };
+}
+
+function shortDate(value) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-");
+  return `${year.slice(2)}.${month}.${day}`;
+}
+
+function periodText(project) {
+  const { start, end } = projectDates(project);
+  if (start && end) return `${shortDate(start)} ~ ${shortDate(end)}`;
+  if (start) return `${shortDate(start)} ~`;
+  if (end) return `~ ${shortDate(end)}`;
+  return "기간 없음";
+}
+
+function projectRow(project) {
+  return `<div class="onekan-project-row" draggable="true" data-project-status-id="${esc(project.id)}">
+    <span class="onekan-project-title" data-project-edit="${esc(project.id)}">${esc(project.title || "이름 없는 프로젝트")}</span>
+    <span class="onekan-project-period"><span>${esc(periodText(project))}</span><button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정">▣</button></span>
+  </div>`;
+}
+
+function filteredProjects(current = state) {
+  return (current?.projects || []).filter(isProject);
+}
+
+function statusBoard(status, projects) {
+  const items = projects.filter((project) => normalizeStatus(project.status) === status.id);
+  return `<section class="onekan-project-board" data-project-status-drop="${status.id}">
+    <div class="onekan-project-board-head"><strong>${esc(status.label)}</strong><span class="onekan-project-count">${items.length}</span></div>
+    <div class="onekan-project-list">${items.length ? items.map(projectRow).join("") : '<div class="onekan-project-empty">아직 프로젝트가 없어요.</div>'}<button class="onekan-project-add" type="button" data-project-add-status="${status.id}">＋ 프로젝트 추가</button></div>
+  </section>`;
+}
+
+function groupBlock(group, projects, statusId) {
+  const items = projects.filter((project) => normalizeStatus(project.status) === statusId && projectGroupId(project) === group.id);
+  const collapsed = sessionStorage.getItem(`onekan-project-group-${group.id}`) === "0";
+  return `<section class="onekan-project-group${collapsed ? " collapsed" : ""}" data-project-group-drop="${esc(group.id)}" style="--project-group:${esc(group.color || DEFAULT_GROUP_COLOR)}">
+    <div class="onekan-project-group-head" data-project-group-toggle="${esc(group.id)}"><span class="onekan-project-group-chevron">${collapsed ? "▶" : "▼"}</span><span class="onekan-project-group-dot"></span><strong>${esc(group.name || "미분류")}</strong><small>${items.length}개</small></div>
+    <div class="onekan-project-group-body">${items.map(projectRow).join("")}<button class="onekan-project-add" type="button" data-project-add-group="${esc(group.id)}">＋ 프로젝트 추가</button></div>
+  </section>`;
+}
+
+function renderMarkup() {
+  const projects = filteredProjects();
+  const filterOptions = [{ id: "all", label: "전체" }, ...STATUSES].map((item) => `<option value="${item.id}"${item.id === activeFilter ? " selected" : ""}>${esc(item.label)}</option>`).join("");
+  const toolbar = `<div class="onekan-project-toolbar"><select class="onekan-project-filter" id="onekanProjectFilter" aria-label="프로젝트 상태 보기">${filterOptions}</select></div>`;
+  if (activeFilter === "all") {
+    return `${toolbar}<div class="onekan-project-board-grid">${STATUSES.map((status) => statusBoard(status, projects)).join("")}</div>`;
+  }
+  const groups = groupsOf();
+  return `${toolbar}<section class="onekan-project-group-view"><div class="onekan-project-groups">${groups.map((group) => groupBlock(group, projects, activeFilter)).join("")}</div><button class="onekan-project-group-add" type="button" data-project-group-add>＋ 그룹 추가</button></section>`;
+}
+
+function ensureDialog() {
+  let dialog = $("#onekanProjectEditor");
+  if (dialog) return dialog;
+  dialog = document.createElement("dialog");
+  dialog.id = "onekanProjectEditor";
+  dialog.className = "onekan-project-dialog";
+  dialog.innerHTML = `<form method="dialog" id="onekanProjectForm">
+    <h3 id="onekanProjectDialogTitle">프로젝트</h3>
+    <div class="onekan-project-fields">
+      <label>이름<input id="onekanProjectTitle" maxlength="120" autocomplete="off" required /></label>
+      <label>상태<select id="onekanProjectStatus">${STATUSES.map((status) => `<option value="${status.id}">${status.label}</option>`).join("")}</select></label>
+      <label>그룹<select id="onekanProjectGroup"></select></label>
+      <div class="onekan-project-date-row"><label>시작일<input id="onekanProjectStart" type="date" /></label><label>종료일<input id="onekanProjectEnd" type="date" /></label></div>
+    </div>
+    <div class="onekan-project-dialog-actions"><button class="soft-btn" value="cancel" type="submit">취소</button><button class="primary-btn" id="onekanProjectSave" type="button">저장</button></div>
+  </form>`;
+  document.body.appendChild(dialog);
+  $("#onekanProjectSave", dialog).addEventListener("click", saveEditor);
+  dialog.addEventListener("close", () => { editingProjectId = null; });
+  return dialog;
+}
+
+function fillGroupSelect(selectedId) {
+  const select = $("#onekanProjectGroup");
+  if (!select) return;
+  const groups = groupsOf();
+  select.innerHTML = groups.map((group) => `<option value="${esc(group.id)}"${group.id === selectedId ? " selected" : ""}>${esc(group.name || "미분류")}</option>`).join("");
+}
+
+async function openEditor({ projectId = null, status = "doing", groupId = DEFAULT_GROUP_ID, focusPeriod = false } = {}) {
+  await readState();
+  const dialog = ensureDialog();
+  editingProjectId = projectId;
+  const project = projectId ? filteredProjects().find((item) => item.id === projectId) : null;
+  $("#onekanProjectDialogTitle", dialog).textContent = project ? "프로젝트 수정" : "프로젝트 추가";
+  $("#onekanProjectTitle", dialog).value = project?.title || "";
+  $("#onekanProjectStatus", dialog).value = project ? normalizeStatus(project.status) : status;
+  fillGroupSelect(project ? projectGroupId(project) : groupId);
+  const dates = projectDates(project);
+  $("#onekanProjectStart", dialog).value = dates.start || "";
+  $("#onekanProjectEnd", dialog).value = dates.end || "";
+  if (!dialog.open) dialog.showModal();
+  requestAnimationFrame(() => (focusPeriod ? $("#onekanProjectStart", dialog) : $("#onekanProjectTitle", dialog))?.focus());
+}
+
+async function saveEditor() {
+  const dialog = $("#onekanProjectEditor");
+  const title = $("#onekanProjectTitle", dialog)?.value.trim();
+  if (!title) return $("#onekanProjectTitle", dialog)?.focus();
+  const status = $("#onekanProjectStatus", dialog)?.value || "doing";
+  const groupId = $("#onekanProjectGroup", dialog)?.value || DEFAULT_GROUP_ID;
+  const startDate = $("#onekanProjectStart", dialog)?.value || null;
+  const endDate = $("#onekanProjectEnd", dialog)?.value || null;
+  if (startDate && endDate && endDate < startDate) return showToast("종료일은 시작일보다 뒤여야 해요.");
+  const id = editingProjectId;
+  try {
+    await writeState((current) => {
+      if (id) {
+        const project = current.projects.find((item) => item.id === id && isProject(item));
+        if (!project) return;
+        project.title = title;
+        project.status = status;
+        project.projectGroupId = groupId;
+        project.startDate = startDate;
+        project.endDate = endDate;
+        project.updatedAt = new Date().toISOString();
+      } else {
+        current.projects.push({ id: uid(), kind: "project", title, status, projectGroupId: groupId, startDate, endDate, createdAt: new Date().toISOString() });
+      }
+    }, id ? "project-edit" : "project-add");
+    dialog.close();
+  } catch (error) {
+    console.error("프로젝트 저장 실패", error);
+    showToast("프로젝트를 저장하지 못했어요.");
+  }
+}
+
+async function addGroup() {
+  const name = window.prompt("새 그룹 이름을 입력해 주세요.");
+  if (!name?.trim()) return;
+  try {
+    await writeState((current) => {
+      const groups = current.projectGroups || [];
+      groups.push({ id: uid(), name: name.trim(), color: DEFAULT_GROUP_COLOR, order: groups.length });
+      current.projectGroups = groups;
+    }, "project-group-add");
+  } catch (error) {
+    console.error("프로젝트 그룹 추가 실패", error);
+    showToast("그룹을 추가하지 못했어요.");
+  }
+}
+
+async function moveProject(projectId, { status = null, groupId = null } = {}) {
+  if (!projectId) return;
+  try {
+    await writeState((current) => {
+      const project = current.projects.find((item) => item.id === projectId && isProject(item));
+      if (!project) return;
+      if (status) project.status = status;
+      if (groupId) project.projectGroupId = groupId;
+      project.updatedAt = new Date().toISOString();
+    }, "project-drag");
+  } catch (error) {
+    console.error("프로젝트 이동 실패", error);
+    showToast("프로젝트를 이동하지 못했어요.");
+  }
+}
+
+function clearDropState() {
+  $$(".onekan-project-board.is-drop,.onekan-project-group.is-drop").forEach((node) => node.classList.remove("is-drop"));
+}
+
+function wireRoot(root) {
+  if (root.dataset.projectStatusWired) return;
+  root.dataset.projectStatusWired = "1";
+  root.addEventListener("change", (event) => {
+    const filter = event.target.closest("#onekanProjectFilter");
+    if (!filter) return;
+    activeFilter = filter.value || "all";
+    sessionStorage.setItem("onekan-project-filter", activeFilter);
+    render();
+  });
+  root.addEventListener("click", (event) => {
+    const addStatus = event.target.closest("[data-project-add-status]");
+    if (addStatus) return openEditor({ status: addStatus.dataset.projectAddStatus, groupId: DEFAULT_GROUP_ID });
+    const addGroupProject = event.target.closest("[data-project-add-group]");
+    if (addGroupProject) return openEditor({ status: activeFilter === "all" ? "doing" : activeFilter, groupId: addGroupProject.dataset.projectAddGroup });
+    if (event.target.closest("[data-project-group-add]")) return addGroup();
+    const period = event.target.closest("[data-project-period]");
+    if (period) return openEditor({ projectId: period.dataset.projectPeriod, focusPeriod: true });
+    const edit = event.target.closest("[data-project-edit]");
+    if (edit) return openEditor({ projectId: edit.dataset.projectEdit });
+    const toggle = event.target.closest("[data-project-group-toggle]");
+    if (toggle) {
+      const id = toggle.dataset.projectGroupToggle;
+      const group = toggle.closest(".onekan-project-group");
+      const collapsed = !group.classList.contains("collapsed");
+      sessionStorage.setItem(`onekan-project-group-${id}`, collapsed ? "0" : "1");
+      group.classList.toggle("collapsed", collapsed);
+      $(".onekan-project-group-chevron", group).textContent = collapsed ? "▶" : "▼";
+    }
+  });
+  root.addEventListener("dragstart", (event) => {
+    const row = event.target.closest("[data-project-status-id]");
+    if (!row) return;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/onekan-project-id", row.dataset.projectStatusId);
+    row.classList.add("dragging");
+  });
+  root.addEventListener("dragend", (event) => {
+    event.target.closest("[data-project-status-id]")?.classList.remove("dragging");
+    clearDropState();
+  });
+  root.addEventListener("dragover", (event) => {
+    if (!Array.from(event.dataTransfer.types).includes("text/onekan-project-id")) return;
+    const target = event.target.closest("[data-project-status-drop],[data-project-group-drop]");
+    if (!target) return;
+    event.preventDefault();
+    clearDropState();
+    target.classList.add("is-drop");
+  });
+  root.addEventListener("dragleave", (event) => {
+    const target = event.target.closest("[data-project-status-drop],[data-project-group-drop]");
+    if (target && !target.contains(event.relatedTarget)) target.classList.remove("is-drop");
+  });
+  root.addEventListener("drop", async (event) => {
+    const projectId = event.dataTransfer.getData("text/onekan-project-id");
+    const target = event.target.closest("[data-project-status-drop],[data-project-group-drop]");
+    if (!projectId || !target) return;
+    event.preventDefault();
+    clearDropState();
+    if (target.dataset.projectStatusDrop) await moveProject(projectId, { status: target.dataset.projectStatusDrop });
+    else if (target.dataset.projectGroupDrop) await moveProject(projectId, { status: activeFilter === "all" ? null : activeFilter, groupId: target.dataset.projectGroupDrop });
+  });
+}
+
+async function render() {
+  const page = $("#page-projects");
+  const root = $("#projectStatusRoot");
+  if (!page || !root || !page.classList.contains("active") || rendering) return;
+  rendering = true;
+  try {
+    installStyle();
+    if (!STATUSES.some((status) => status.id === activeFilter) && activeFilter !== "all") activeFilter = "all";
+    root.innerHTML = '<div class="onekan-project-empty">불러오는 중...</div>';
+    const current = await readState();
+    if (!current) {
+      root.innerHTML = '<div class="onekan-project-empty">로그인 후 프로젝트를 확인할 수 있어요.</div>';
+      return;
+    }
+    root.innerHTML = `<div class="onekan-project-shell">${renderMarkup()}</div>`;
+    wireRoot(root);
+  } catch (error) {
+    console.error("프로젝트 현황 렌더링 실패", error);
+    root.innerHTML = '<div class="onekan-project-empty">프로젝트를 불러오지 못했어요.</div>';
+  } finally {
+    rendering = false;
+  }
+}
+
+function scheduleRender(delay = 60) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(render, delay);
+}
+
+function init() {
+  installStyle();
+  ensureDialog();
+  document.addEventListener("click", (event) => {
+    if (event.target.closest('[data-page="projects"]')) scheduleRender(30);
+  });
+  document.addEventListener("onekan:state-changed", (event) => {
+    if (event.detail?.source === "app-render") return;
+    if ($("#page-projects")?.classList.contains("active")) scheduleRender(100);
+  });
+  if ($("#page-projects")?.classList.contains("active")) scheduleRender(0);
+}
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
+else init();
