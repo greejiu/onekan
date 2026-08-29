@@ -560,3 +560,27 @@
 .uw-item.uw-manual-drop-before::before{top:-4px}
 .uw-item.uw-manual-drop-after::after{bottom:-4px}
 [data-manual-list].uw-manual-drop-bottom::after{content:"";display:block;height:2px;margin:3px 5px 1px;border-radius:999px;background:var(--accent);pointer-events:none}
+
+
+/* Home planner card polish: remove header gap, keep rounded corners, text-only session toggle */
+#page-home #homeLeftColumn{
+  gap:0;
+}
+#page-home #homeLeftColumn .uw-home-view-controls{
+  border-radius:23px 23px 0 0;
+}
+#page-home #homeLeftColumn .uw-session-toggle,
+#page-home #homeLeftColumn .uw-session-toggle[aria-pressed="true"]{
+  border-color:transparent;
+  background:transparent;
+  color:var(--text);
+  box-shadow:none;
+}
+#page-home #homeLeftColumn .uw-session-toggle:hover{
+  background:var(--panel-soft);
+}
+@media(max-width:600px){
+  #page-home #homeLeftColumn .uw-home-view-controls{
+    border-radius:19px 19px 0 0;
+  }
+}
