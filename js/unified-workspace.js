@@ -230,7 +230,7 @@ function eventOccurrencesForDate(date,source=state){
   }
   return rows
 }
-function habitActiveOn(habit,date){if(!habit||!date)return false;if(habit.startDate&&date<habit.startDate)return false;if(habit.endDate&&date>habit.endDate)return false;return true}
+function habitActiveOn(habit,date){if(window.__ONEKAN_DAILY_FOCUS_MODE__)return false;if(!habit||!date)return false;if(habit.startDate&&date<habit.startDate)return false;if(habit.endDate&&date>habit.endDate)return false;return true}
 function habitOccursOn(habit,date,source=state){if(!habit||!date)return false;const recorded=Object.prototype.hasOwnProperty.call(source?.habitDays?.[date]||{},habit.id);if(recorded)return true;if(!habitActiveOn(habit,date))return false;if(!habit.recurrence?.frequency)return true;const base=habit.startDate||habit.recurrence.anchorDate||date;return recurrenceOn(habit,base,date)}
 function habitOverride(source,date,id,create=false){if(!source||!date||!id)return null;if(create){source.habitOverrides||={};source.habitOverrides[date]||={};source.habitOverrides[date][id]||={}}return source.habitOverrides?.[date]?.[id]||null}
 function cleanHabitOverride(source,date,id){const value=source.habitOverrides?.[date]?.[id];if(value&&Object.keys(value).length===0)delete source.habitOverrides[date][id];if(source.habitOverrides?.[date]&&Object.keys(source.habitOverrides[date]).length===0)delete source.habitOverrides[date]}

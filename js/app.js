@@ -52,6 +52,7 @@ function taskCompletedOn(task, dateKey) {
 }
 
 function habitOccursOnDate(habit, targetKey) {
+  if (window.__ONEKAN_DAILY_FOCUS_MODE__) return false;
   if (!habit || !targetKey) return false;
   if (habit.startDate && targetKey < habit.startDate) return false;
   if (habit.endDate && targetKey > habit.endDate) return false;
@@ -257,6 +258,7 @@ function save() {
 }
 
 function ensureHabitDay() {
+  if (window.__ONEKAN_DAILY_FOCUS_MODE__) return;
   const dayKey = appDayKey();
   state.habitDays ||= {};
   state.habitDays[dayKey] ||= {};
