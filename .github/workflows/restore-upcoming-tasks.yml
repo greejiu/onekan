@@ -1,0 +1,31 @@
+name: Restore upcoming tasks
+on:
+  push:
+    paths:
+      - '.github/scripts/restore-upcoming-tasks.py'
+      - '.github/workflows/restore-upcoming-tasks.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python .github/scripts/restore-upcoming-tasks.py
+      - name: Verify syntax and behavior markers
+        run: |
+          node --check js/unified-workspace.js
+          grep -q 'function upcomingTasksForDate' js/unified-workspace.js
+          grep -q 'task.isHabit||task.done||task.date!==date' js/unified-workspace.js
+          grep -q '앞으로 7일간 일정과 할일이 없어요' js/unified-workspace.js
+          grep -q 'unified-workspace.js?v=83' index.html
+      - name: Remove helpers
+        run: rm -f .github/scripts/restore-upcoming-tasks.py .github/workflows/restore-upcoming-tasks.yml
+      - name: Commit result
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: restore upcoming tasks for next seven days' || exit 0
+          git push
