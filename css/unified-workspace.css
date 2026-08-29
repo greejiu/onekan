@@ -272,7 +272,8 @@
 #page-home #homeLeftColumn{
   position:relative;
   display:flex;
-  min-height:760px;
+  height:760px;
+  min-height:0;
   overflow:hidden;
   border:1px solid var(--line);
   border-radius:24px;
@@ -337,7 +338,18 @@
   display:grid;
   grid-template-rows:minmax(0,1fr) minmax(0,1fr);
   gap:22px;
-  min-height:760px;
+  height:760px;
+  min-height:0;
+}
+#page-home #homeRightColumn:has(.uw-upcoming-card:not([open])){
+  grid-template-rows:auto minmax(0,1fr);
+}
+#page-home #homeRightColumn:has(.uw-someday-card:not([open])){
+  grid-template-rows:minmax(0,1fr) auto;
+}
+#page-home #homeRightColumn:has(.uw-upcoming-card:not([open])):has(.uw-someday-card:not([open])){
+  grid-template-rows:auto auto;
+  align-content:start;
 }
 #page-home #homeRightColumn .uw-side-toggle{
   display:flex;
@@ -376,19 +388,20 @@
 }
 @media(max-width:1050px){
   #page-home #homeLeftColumn,
-  #page-home #homeRightColumn{min-height:0}
-  #page-home #homeLeftColumn{min-height:620px}
+  #page-home #homeRightColumn{height:auto;min-height:0}
+  #page-home #homeLeftColumn{height:620px}
   #page-home #homeRightColumn{grid-template-rows:auto auto}
-  #page-home #homeRightColumn .uw-side-toggle{min-height:320px}
+  #page-home #homeRightColumn .uw-side-toggle[open]{min-height:320px}
 }
 @media(max-width:600px){
-  #page-home #homeLeftColumn{min-height:540px;border-radius:20px}
+  #page-home #homeLeftColumn{height:540px;min-height:0;border-radius:20px}
   #page-home #homeLeftColumn .uw-home-view-controls{top:auto;padding:14px 14px 11px}
   #page-home #homeLeftColumn .uw-home-controls-primary{align-items:flex-start}
   #page-home #homeLeftColumn .uw-home-primary-actions{align-items:flex-end;flex-direction:column}
   #page-home #homeLeftColumn .uw-home-bottom-add{margin:0 14px 14px}
   #page-home #homeRightColumn{gap:16px}
-  #page-home #homeRightColumn .uw-side-toggle{min-height:280px;border-radius:20px}
+  #page-home #homeRightColumn .uw-side-toggle{border-radius:20px}
+  #page-home #homeRightColumn .uw-side-toggle[open]{min-height:280px}
 }
 
 

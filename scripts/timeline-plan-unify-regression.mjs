@@ -63,8 +63,12 @@ assert.match(c,/\.uw-time-block-plan-item \.uw-item-title\{font-size:11px\}/,'pr
 assert.match(c,/\.uw-time-block-v2-list \.uw-time-block-v2-item\{min-height:28px;padding:4px 6px\}/,'time-block list cards must stay compact');
 assert.doesNotMatch(c,/\.uw-time-block-v2-item\.fixed-anchor[^\{]*\{grid-column:1\/-1\}/,'timed cards must use the same two-column grid as all-day cards');
 assert.match(c,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-time-block-v2-item\.plan-draggable\{min-height:36px/,'touch cards must stay compact while preserving a usable hit area');
+assert.match(c,/#page-home #homeLeftColumn\{[\s\S]*?height:760px;[\s\S]*?min-height:0;/,'the desktop home planner must keep a fixed height and scroll internally');
+assert.match(c,/#page-home #homeRightColumn\{[\s\S]*?grid-template-rows:minmax\(0,1fr\) minmax\(0,1fr\);[\s\S]*?height:760px;/,'both open home side cards must split the fixed height evenly');
+assert.match(c,/#page-home #homeRightColumn:has\(\.uw-upcoming-card:not\(\[open\]\)\)\{\s*grid-template-rows:auto minmax\(0,1fr\);/,'collapsing upcoming must let someday fill the remaining height');
+assert.match(c,/#page-home #homeRightColumn:has\(\.uw-someday-card:not\(\[open\]\)\)\{\s*grid-template-rows:minmax\(0,1fr\) auto;/,'collapsing someday must let upcoming fill the remaining height');
 assert.match(i,/unified-workspace\.js\?v=79/);
 assert.match(i,/workspace-pages\.js\?v=12/);
 assert.match(i,/context-menu\.js\?v=28/);
-assert.match(i,/unified-workspace\.css\?v=46/);
+assert.match(i,/unified-workspace\.css\?v=47/);
 console.log('timeline plan unify regression: ok');
