@@ -17,7 +17,7 @@ function installStyle() {
   style.id = "repeatOverviewStyle";
   style.textContent = `
     .onekan-repeat-intro{margin:-8px 0 18px;color:var(--muted);font-size:12px;line-height:1.55}
-    .onekan-repeat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+    .onekan-repeat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
     .onekan-repeat-card{overflow:hidden}
     .onekan-repeat-card .card-header{border-bottom:1px solid var(--line)}
     .onekan-repeat-count{display:inline-grid;place-items:center;min-width:24px;height:22px;padding:0 7px;border-radius:999px;background:var(--panel-soft);color:var(--muted);font-size:10px;font-weight:700}
@@ -31,6 +31,7 @@ function installStyle() {
     .onekan-repeat-meta .next{color:var(--accent-dark)}
     .onekan-repeat-kind{padding:3px 6px;border-radius:999px;background:var(--panel-soft);color:var(--muted);font-size:9px;white-space:nowrap}
     .onekan-repeat-empty{padding:22px 8px;color:var(--muted);font-size:11px;text-align:center}
+    @media(max-width:1080px){.onekan-repeat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:760px){.onekan-repeat-grid{grid-template-columns:1fr}.onekan-repeat-row{min-height:56px}}
   `;
   document.head.appendChild(style);
@@ -102,13 +103,14 @@ function rowMarkup(state, item, kind) {
   const next = nextOccurrence(item.recurrence, baseDate);
   const ended = item.recurrence?.until && item.recurrence.until < todayKey();
   const nextText = ended ? "종료됨" : next ? `다음 ${shortDate(next)}` : "다음 일정 없음";
-  return `<div class="onekan-repeat-row" style="--repeat-group:${groupColor(state, item)}">
+  const kindLabel = kind === "task" ? (item.isHabit ? "습관" : "할일") : "일정";
+  return `<div class="onekan-repeat-row" data-context-kind="${kind}" data-context-id="${esc(item.id)}" style="--repeat-group:${groupColor(state, item)}">
     <span class="onekan-repeat-dot" aria-hidden="true"></span>
     <div class="onekan-repeat-main">
       <strong>${esc(item.title || "이름 없음")}</strong>
       <div class="onekan-repeat-meta"><span>${esc(recurrenceLabel(item.recurrence, baseDate))}</span><span>·</span><span class="next">${esc(nextText)}</span></div>
     </div>
-    <span class="onekan-repeat-kind">${kind === "task" ? "할일" : "일정"}</span>
+    <span class="onekan-repeat-kind">${kindLabel}</span>
   </div>`;
 }
 
@@ -140,9 +142,11 @@ async function render() {
       host.innerHTML = '<div class="onekan-repeat-empty">로그인 후 반복 항목을 확인할 수 있어요.</div>';
       return;
     }
-    const tasks = (Array.isArray(state.tasks) ? state.tasks : []).filter((item) => item.recurrence?.frequency && item.recurrence.frequency !== "none").sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ko"));
+    const recurringTasks = (Array.isArray(state.tasks) ? state.tasks : []).filter((item) => item.recurrence?.frequency && item.recurrence.frequency !== "none").sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ko"));
+    const tasks = recurringTasks.filter((item) => !item.isHabit);
+    const habits = recurringTasks.filter((item) => item.isHabit);
     const events = (Array.isArray(state.events) ? state.events : []).filter((item) => item.recurrence?.frequency && item.recurrence.frequency !== "none").sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ko"));
-    host.innerHTML = sectionMarkup(state, "반복 할일", tasks, "task") + sectionMarkup(state, "반복 일정", events, "event");
+    host.innerHTML = sectionMarkup(state, "반복 할일", tasks, "task") + sectionMarkup(state, "습관", habits, "task") + sectionMarkup(state, "반복 일정", events, "event");
   } catch (error) {
     console.error("repeat overview load failed", error);
     host.innerHTML = '<div class="onekan-repeat-empty">반복 항목을 불러오지 못했어요.</div>';

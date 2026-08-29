@@ -197,6 +197,11 @@ function renderGroupChoices(state, target) {
 function showMenu(x, y, target, state) {
   currentTarget = target;
   const menu = $("#globalContextMenu");
+  const item = getItem(state, target);
+  const habitToggle = menu.querySelector('[data-context-action="toggle-habit"]');
+  const canToggleHabit = target.kind === "task" && (item?.isHabit || (item?.recurrence?.frequency && item.recurrence.frequency !== "none"));
+  habitToggle?.classList.toggle("hidden", !canToggleHabit);
+  if (habitToggle && canToggleHabit) habitToggle.textContent = item?.isHabit ? "할일로 만들기" : "습관으로 만들기";
   $$('[data-context-schedule]', menu).forEach((element) => element.classList.toggle("hidden", !schedulable(target.kind)));
   menu.querySelector('[data-context-action="duplicate"]')?.classList.toggle("hidden", !duplicable(target.kind));
   menu.querySelector('[data-context-action="session-time"]')?.classList.toggle("hidden", target.kind !== "session");
@@ -417,6 +422,31 @@ async function changeTargetGroup(groupId) {
   }
 }
 
+async function toggleHabitTarget() {
+  const target = currentTarget;
+  hideMenu();
+  if (!target || target.kind !== "task") return;
+  let becameHabit = false;
+  let didChange = false;
+  try {
+    const changed = await writeState((state) => {
+      const task = state.tasks.find((item) => item.id === target.id);
+      if (!task) return;
+      const recurring = task.recurrence?.frequency && task.recurrence.frequency !== "none";
+      if (!task.isHabit && !recurring) return;
+      task.isHabit = !task.isHabit;
+      becameHabit = task.isHabit;
+      didChange = true;
+    });
+    if (!changed || !didChange) return;
+    document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "task-habit-toggle" } }));
+    showToast(becameHabit ? "습관으로 바꿨어요." : "반복 할일로 바꿨어요.");
+  } catch (error) {
+    console.error(error);
+    showToast("종류를 변경하지 못했어요.");
+  }
+}
+
 function ensureUI() {
   if ($("#globalContextMenu")) return;
 
@@ -425,6 +455,7 @@ function ensureUI() {
   menu.className = "global-context-menu";
   menu.setAttribute("role", "menu");
   menu.innerHTML = `
+    <button type="button" role="menuitem" class="hidden" data-context-action="toggle-habit">습관으로 만들기</button>
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
     <button type="button" role="menuitem" data-context-action="groups">영역 <span class="context-menu-arrow">›</span></button>
     <div class="context-group-list hidden" id="contextGroupList" role="group"></div>
@@ -461,6 +492,7 @@ function ensureUI() {
     const action = button.dataset.contextAction;
     if (action === "today") moveTarget(0);
     else if (action === "tomorrow") moveTarget(1);
+    else if (action === "toggle-habit") toggleHabitTarget();
     else if (action === "duplicate") duplicateTarget();
     else if (action === "session-time") { const target = currentTarget; hideMenu(); if (target?.kind === "session") document.dispatchEvent(new CustomEvent("onekan:edit-session", { detail: { id: target.id } })); }
     else if (action === "groups") {
