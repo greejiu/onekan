@@ -1,40 +1,51 @@
 import { supabase } from "./supabase.js";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
+const $$ = (selector, root = document) => [...(root?.querySelectorAll?.(selector) || [])];
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 const DEFAULT_GROUP_ID = "goal-section-inbox";
 const DEFAULT_COLOR = "#8fa9c4";
-const STATUSES = [
-  { id: "before", label: "시작 전", color: "#9aa9b7" },
-  { id: "doing", label: "하는 중", color: "#88b49a" },
-  { id: "done", label: "달성", color: "#a69ab8" },
-  { id: "archived", label: "보관", color: "#aaa59d" },
+const FILTERS = [
+  { id: "all", label: "전체", status: "doing" },
+  { id: "before", label: "시작 전", status: "before" },
+  { id: "doing", label: "하는 중", status: "doing" },
+  { id: "done", label: "완료", status: "done" },
+  { id: "archived", label: "보관", status: "archived" },
 ];
 
 let timer = null;
 let rendering = false;
+let activeFilter = sessionStorage.getItem("onekan-goal-filter") || "all";
 
 function ensureStyle() {
   if ($('style[data-goal-group-board-style]')) return;
   const style = document.createElement("style");
   style.dataset.goalGroupBoardStyle = "1";
   style.textContent = `
+    #page-goals .ok-goal-v2-toolbar{justify-content:flex-end}
+    #page-goals .ok-goal-v2-toolbar-left>label,
+    #page-goals #okGoalSectionSelect,
     #page-goals .ok-goal-v2-toolbar-right{display:none!important}
-    #page-goals .ok-goal-group-stack{display:grid;gap:14px}
-    #page-goals .ok-goal-group-block{display:grid;gap:8px;padding:11px;border:1px solid var(--line);border-radius:14px;background:#fff}
+    #page-goals #okGoalSectionManage{margin-left:auto}
+    #page-goals #goalStatusTabs{display:flex!important;gap:4px;margin:0 0 12px;padding:3px;width:max-content;max-width:100%;overflow-x:auto}
+    #page-goals #goalStatusTabs button{white-space:nowrap}
+    #page-goals .ok-goal-group-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;align-items:start}
+    #page-goals .ok-goal-group-board{display:grid;gap:8px;padding:10px;border:1px solid var(--line);border-radius:14px;background:#fff;min-width:0}
     #page-goals .ok-goal-group-head{display:flex;align-items:center;gap:7px;min-height:28px;padding:0 2px}
     #page-goals .ok-goal-group-dot{width:9px;height:9px;flex:0 0 9px;border-radius:50%;background:var(--ok-section,#8fa9c4)}
-    #page-goals .ok-goal-group-head strong{font-size:13px}
-    #page-goals .ok-goal-group-head small{margin-left:auto;color:var(--muted);font-size:9px}
-    #page-goals .ok-goal-board-v2.ok-goal-fixed-status-board{grid-template-columns:repeat(4,minmax(190px,1fr));min-width:800px}
-    #page-goals .ok-goal-group-block .ok-goal-column{min-height:250px;padding:8px}
-    #page-goals .ok-goal-group-block .ok-goal-column-list{min-height:165px}
-    #page-goals .ok-goal-group-block .ok-goal-section-badge{display:none}
+    #page-goals .ok-goal-group-head strong{font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #page-goals .ok-goal-group-head small{margin-left:auto;color:var(--muted);font-size:9px;white-space:nowrap}
+    #page-goals .ok-goal-group-board .ok-goal-column{min-height:150px;padding:7px;border-radius:10px}
+    #page-goals .ok-goal-group-board .ok-goal-column-head{display:none}
+    #page-goals .ok-goal-group-board .ok-goal-column-list{min-height:92px;gap:6px}
+    #page-goals .ok-goal-group-board .ok-goal-section-badge{display:none}
+    #page-goals .ok-goal-group-board .ok-goal-column-empty{min-height:72px;display:grid;place-items:center}
     #page-goals .ok-goal-board-empty{padding:28px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
+    #page-goals #goalStatusTabs button.ok-goal-tab-drop{outline:2px solid var(--accent,#8fa9c4);outline-offset:1px}
     @media(max-width:700px){
-      #page-goals .ok-goal-group-stack{gap:10px}
-      #page-goals .ok-goal-group-block{padding:9px}
-      #page-goals .ok-goal-board-v2.ok-goal-fixed-status-board{grid-template-columns:repeat(4,minmax(235px,78vw));min-width:max-content}
+      #page-goals .ok-goal-group-grid{grid-template-columns:1fr;gap:9px}
+      #page-goals .ok-goal-group-board{padding:9px}
+      #page-goals #goalStatusTabs{width:100%}
     }
   `;
   document.head.appendChild(style);
@@ -94,23 +105,24 @@ function goalCard(state, goal, group) {
   </article>`;
 }
 
-function statusBoard(state, group, goals) {
-  const columns = STATUSES.map((status) => {
-    const items = goals.filter((goal) => goal.status === status.id);
-    return `<section class="ok-goal-column" style="--ok-status-color:${status.color}" data-goal-v2-status="${status.id}" data-goal-v2-group-id="${esc(group.id)}">
-      <div class="ok-goal-column-head"><span></span><strong>${status.label}</strong><small>${items.length}</small></div>
-      <div class="ok-goal-column-list">${items.length ? items.map((goal) => goalCard(state, goal, group)).join("") : '<div class="ok-goal-column-empty">여기에 목표가 표시돼요.</div>'}</div>
-    </section>`;
-  }).join("");
-  return `<div class="ok-goal-board-scroll"><div class="ok-goal-board-v2 ok-goal-fixed-status-board" style="--ok-goal-columns:4">${columns}</div></div>`;
+function currentStatus() {
+  return FILTERS.find((item) => item.id === activeFilter)?.status || "doing";
+}
+
+function renderTabs() {
+  const tabs = $("#goalStatusTabs", $("#page-goals"));
+  if (!tabs) return;
+  if (!FILTERS.some((item) => item.id === activeFilter)) activeFilter = "all";
+  tabs.innerHTML = FILTERS.map((item) => `<button class="${item.id === activeFilter ? "active" : ""}" data-goal-board-filter="${item.id}" data-goal-board-status="${item.status}" type="button">${item.label}</button>`).join("");
+  tabs.setAttribute("aria-label", "목표 상태 보기");
 }
 
 function relabelUi() {
   const page = $("#page-goals");
   if (!page) return;
   const toolbar = $(".ok-goal-v2-toolbar", page);
-  const label = $("label[for='okGoalSectionSelect']", toolbar);
-  if (label) label.textContent = "그룹";
+  const select = $("#okGoalSectionSelect", toolbar);
+  if (select) select.value = "all";
   const manage = $("#okGoalSectionManage", toolbar);
   if (manage) manage.textContent = "그룹 관리";
   $(".ok-goal-v2-toolbar-right", toolbar)?.remove();
@@ -120,7 +132,7 @@ function relabelUi() {
   if (managerTitle) managerTitle.textContent = "그룹 관리";
   const managerHint = $(".ok-goal-section-manager-head small", manager);
   if (managerHint) managerHint.textContent = "목표를 분류할 그룹과 색상을 정해요.";
-  manager?.querySelectorAll(".ok-goal-section-name").forEach((input) => input.setAttribute("aria-label", "그룹 이름"));
+  $$(".ok-goal-section-name", manager).forEach((input) => input.setAttribute("aria-label", "그룹 이름"));
   const newName = $("#okGoalSectionNewName", manager);
   if (newName) {
     newName.placeholder = "새 그룹 이름";
@@ -140,37 +152,36 @@ function relabelUi() {
   if (summary) summary.textContent = summary.textContent.replaceAll("섹션", "그룹");
 }
 
+function groupBoard(state, group, goals, status) {
+  const items = goals.filter((goal) => goal.goalSectionId === group.id && goal.status === status);
+  return `<section class="ok-goal-group-board" style="--ok-section:${esc(group.color || DEFAULT_COLOR)}" data-goal-v2-group-block="${esc(group.id)}">
+    <div class="ok-goal-group-head"><span class="ok-goal-group-dot"></span><strong>${esc(group.name || "미분류")}</strong><small>${items.length}개</small></div>
+    <section class="ok-goal-column" data-goal-v2-status="${status}" data-goal-v2-group-id="${esc(group.id)}">
+      <div class="ok-goal-column-head"><strong>${esc(FILTERS.find((item) => item.status === status && item.id !== "all")?.label || "하는 중")}</strong><small>${items.length}</small></div>
+      <div class="ok-goal-column-list">${items.length ? items.map((goal) => goalCard(state, goal, group)).join("") : '<div class="ok-goal-column-empty">아직 목표가 없어요.</div>'}</div>
+    </section>
+  </section>`;
+}
+
 async function render() {
   if (rendering) return;
   const page = $("#page-goals");
   const root = $("#goalSections", page);
-  const select = $("#okGoalSectionSelect", page);
-  if (!page || !root || !select) return;
+  if (!page || !root) return;
   rendering = true;
   try {
     ensureStyle();
+    renderTabs();
     relabelUi();
     const state = await readState();
     if (!state) return;
     const groups = groupsOf(state);
     const goals = state.projects.filter((item) => item?.kind === "goal");
-    const selected = select.value || "all";
-
-    if (selected === "all") {
-      const blocks = groups.map((group) => {
-        const groupGoals = goals.filter((goal) => goal.goalSectionId === group.id);
-        return `<section class="ok-goal-group-block" style="--ok-section:${esc(group.color || DEFAULT_COLOR)}" data-goal-v2-group-block="${esc(group.id)}">
-          <div class="ok-goal-group-head"><span class="ok-goal-group-dot"></span><strong>${esc(group.name || "미분류")}</strong><small>${groupGoals.length}개</small></div>
-          ${statusBoard(state, group, groupGoals)}
-        </section>`;
-      }).join("");
-      root.innerHTML = blocks ? `<div class="ok-goal-group-stack">${blocks}</div>` : '<div class="ok-goal-board-empty">아직 그룹이 없어요.</div>';
-    } else {
-      const group = groups.find((item) => item.id === selected) || groups[0];
-      if (!group) root.innerHTML = '<div class="ok-goal-board-empty">아직 그룹이 없어요.</div>';
-      else root.innerHTML = statusBoard(state, group, goals.filter((goal) => goal.goalSectionId === group.id));
-    }
+    const status = currentStatus();
+    const boards = groups.map((group) => groupBoard(state, group, goals, status)).join("");
+    root.innerHTML = boards ? `<div class="ok-goal-group-grid" data-goal-group-view="${esc(activeFilter)}">${boards}</div>` : '<div class="ok-goal-board-empty">아직 그룹이 없어요.</div>';
     root.dataset.goalGroupView = "1";
+    renderTabs();
     relabelUi();
   } catch (error) {
     console.error("목표 그룹 보기 렌더링 실패", error);
@@ -192,16 +203,22 @@ function wire() {
   const root = $("#goalSections", page);
   if (!page || !root) return;
 
-  page.addEventListener("change", (event) => {
-    if (event.target.id === "okGoalSectionSelect") schedule(40);
+  page.addEventListener("click", (event) => {
+    const filter = event.target.closest?.("[data-goal-board-filter]");
+    if (filter) {
+      activeFilter = filter.dataset.goalBoardFilter || "all";
+      sessionStorage.setItem("onekan-goal-filter", activeFilter);
+      schedule(0);
+      return;
+    }
+    setTimeout(relabelUi, 0);
   });
-  page.addEventListener("click", () => setTimeout(relabelUi, 0));
   $(".nav-item[data-page='goals']")?.addEventListener("click", () => schedule(220));
-  document.addEventListener("onekan:state-changed", () => schedule(230));
+  document.addEventListener("onekan:state-changed", () => schedule(220));
 
   const observer = new MutationObserver(() => {
     relabelUi();
-    if (!$(".ok-goal-group-stack", root) && !$(".ok-goal-fixed-status-board", root)) schedule(60);
+    if (!$(".ok-goal-group-grid", root)) schedule(60);
   });
   observer.observe(root, { childList: true, subtree: false });
 
