@@ -610,3 +610,33 @@
     max-height:520px;
   }
 }
+
+
+/* Home right cards: fixed visible internal scrollbar */
+#page-home #homeRightColumn .uw-side-toggle[open]{
+  height:100%;
+  min-height:0;
+  max-height:100%;
+  overflow:hidden;
+}
+#page-home #homeRightColumn .uw-side-toggle .card-body{
+  flex:1 1 0!important;
+  height:0!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow-x:hidden!important;
+  overflow-y:scroll!important;
+  scrollbar-gutter:stable!important;
+}
+@media(max-width:1050px){
+  #page-home #homeRightColumn .uw-side-toggle[open]{
+    height:auto;
+    max-height:none;
+  }
+  #page-home #homeRightColumn .uw-side-toggle .card-body{
+    flex:none!important;
+    height:auto!important;
+    max-height:520px!important;
+    overflow-y:auto!important;
+  }
+}
