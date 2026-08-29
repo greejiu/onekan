@@ -14,7 +14,7 @@ const STATUSES = [
 let activeProjectId = null;
 let observer = null;
 let wired = false;
-let openEndAfterStart = false;
+let periodAnchor = null;
 
 function normalizeStatus(value) {
   const raw = String(value ?? "").trim().toLowerCase();
@@ -62,8 +62,12 @@ function installStyle() {
     #globalContextMenu .onekan-project-context-list button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
     #globalContextMenu .onekan-project-context-list.hidden,#globalContextMenu [data-project-context-action].hidden{display:none}
     #onekanProjectEditor label:has(#onekanProjectGoal),#onekanProjectEditor label:has(#onekanProjectStatus){display:none}
-    .onekan-project-native-date{position:fixed!important;left:-9999px!important;top:-9999px!important;width:1px!important;height:1px!important;min-width:1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important}
-    .onekan-project-period>span{cursor:pointer}
+    .onekan-project-period-pop{position:fixed;z-index:12020;width:min(310px,calc(100vw - 24px));padding:10px;border:1px solid var(--line,#d2d7df);border-radius:12px;background:var(--surface,#fff);box-shadow:0 12px 34px #0002;display:grid;gap:9px}
+    .onekan-project-period-pop[hidden]{display:none!important}
+    .onekan-project-period-pop strong{font-size:11px}
+    .onekan-project-period-pop label{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:center;gap:8px;color:var(--muted,#6d737d);font-size:10px}
+    .onekan-project-period-pop input{width:100%;height:34px;padding:0 8px;border:1px solid var(--line,#d2d7df);border-radius:8px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:11px}
+    .onekan-project-period-pop small{color:var(--muted,#6d737d);font-size:9px;line-height:1.4}
   `;
   document.head.appendChild(style);
 }
@@ -182,115 +186,90 @@ async function changeStatus(statusId) {
   }
 }
 
-function showNativePicker(input) {
-  if (!input) return;
-  try { input.showPicker(); }
-  catch { input.click(); }
+function ensurePeriodPopover() {
+  let panel = $("#onekanProjectPeriodPop");
+  if (panel) return panel;
+  panel = document.createElement("div");
+  panel.id = "onekanProjectPeriodPop";
+  panel.className = "onekan-project-period-pop";
+  panel.hidden = true;
+  panel.innerHTML = `<strong>프로젝트 기간</strong><label><span>시작일</span><input id="onekanProjectPeriodPopStart" type="date"></label><label><span>종료일</span><input id="onekanProjectPeriodPopEnd" type="date"></label><small>날짜를 고르면 바로 저장돼요.</small>`;
+  document.body.appendChild(panel);
+  $("#onekanProjectPeriodPopStart", panel)?.addEventListener("change", savePeriodFromPopover);
+  $("#onekanProjectPeriodPopEnd", panel)?.addEventListener("change", savePeriodFromPopover);
+  panel.addEventListener("pointerdown", (event) => event.stopPropagation());
+  panel.addEventListener("click", (event) => event.stopPropagation());
+  return panel;
 }
 
-function ensurePeriodInputs() {
-  let start = $("#onekanProjectPeriodStartNative");
-  let end = $("#onekanProjectPeriodEndNative");
-  if (start && end) return { start, end };
-  start = document.createElement("input");
-  start.id = "onekanProjectPeriodStartNative";
-  start.className = "onekan-project-native-date";
-  start.type = "date";
-  start.setAttribute("aria-label", "프로젝트 시작일");
-  end = document.createElement("input");
-  end.id = "onekanProjectPeriodEndNative";
-  end.className = "onekan-project-native-date";
-  end.type = "date";
-  end.setAttribute("aria-label", "프로젝트 종료일");
-  document.body.append(start, end);
-  start.addEventListener("change", saveStartDate);
-  end.addEventListener("change", saveEndDate);
-  return { start, end };
+function positionPeriodPopover(anchor, panel) {
+  const rect = anchor.getBoundingClientRect();
+  panel.hidden = false;
+  panel.style.visibility = "hidden";
+  panel.style.left = "12px";
+  panel.style.top = `${Math.min(innerHeight - 12, rect.bottom + 6)}px`;
+  requestAnimationFrame(() => {
+    if (panel.hidden) return;
+    const box = panel.getBoundingClientRect();
+    const left = Math.max(12, Math.min(rect.right - box.width, innerWidth - box.width - 12));
+    const below = rect.bottom + 6;
+    const above = rect.top - box.height - 6;
+    const top = below + box.height <= innerHeight - 12 ? below : Math.max(12, above);
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+    panel.style.visibility = "";
+  });
 }
 
-async function openPeriodOnly(projectId, endOnly = false) {
+function closePeriodPopover() {
+  const panel = $("#onekanProjectPeriodPop");
+  if (panel) panel.hidden = true;
+  periodAnchor = null;
+}
+
+async function openPeriodPopover(projectId, anchor) {
   activeProjectId = projectId;
+  periodAnchor = anchor;
+  const panel = ensurePeriodPopover();
   try {
     const current = await readState();
     const project = current?.state.projects.find((item) => item.id === projectId && (item.kind === "project" || !item.kind));
-    if (!project) return;
-    const { start, end } = ensurePeriodInputs();
-    const startDate = /^\d{4}-\d{2}-\d{2}$/.test(project.startDate || "") ? project.startDate : "";
-    const endDate = /^\d{4}-\d{2}-\d{2}$/.test(project.endDate || "") ? project.endDate : "";
-    start.value = startDate;
-    end.value = endDate;
-    end.min = startDate;
-    if (endOnly && startDate) {
-      openEndAfterStart = false;
-      showNativePicker(end);
-      return;
-    }
-    if (startDate && !endDate) {
-      openEndAfterStart = false;
-      showNativePicker(end);
-      return;
-    }
-    openEndAfterStart = true;
-    showNativePicker(start);
+    if (!project || projectId !== activeProjectId) return;
+    const start = /^\d{4}-\d{2}-\d{2}$/.test(project.startDate || "") ? project.startDate : "";
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(project.endDate || "") ? project.endDate : "";
+    $("#onekanProjectPeriodPopStart", panel).value = start;
+    $("#onekanProjectPeriodPopEnd", panel).value = end;
+    $("#onekanProjectPeriodPopEnd", panel).min = start;
+    positionPeriodPopover(anchor, panel);
   } catch (error) {
     console.error("프로젝트 기간 열기 실패", error);
     showToast("기간을 불러오지 못했어요.");
   }
 }
 
-async function saveStartDate(event) {
+async function savePeriodFromPopover() {
   const id = activeProjectId;
-  const startDate = event.currentTarget.value || null;
+  const panel = $("#onekanProjectPeriodPop");
+  const startDate = $("#onekanProjectPeriodPopStart", panel)?.value || null;
+  const endDate = $("#onekanProjectPeriodPopEnd", panel)?.value || null;
   if (!id) return;
-  let nextEnd = null;
-  try {
-    await writeState((state) => {
-      const project = state.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
-      if (!project) return;
-      const currentEnd = /^\d{4}-\d{2}-\d{2}$/.test(project.endDate || "") ? project.endDate : null;
-      project.startDate = startDate;
-      if (startDate && currentEnd && currentEnd < startDate) project.endDate = null;
-      nextEnd = project.endDate || null;
-      project.updatedAt = new Date().toISOString();
-    }, "project-period-start");
-    if (openEndAfterStart && startDate) {
-      openEndAfterStart = false;
-      const { end } = ensurePeriodInputs();
-      end.min = startDate;
-      end.value = nextEnd || "";
-      setTimeout(() => showNativePicker(end), 0);
-    }
-  } catch (error) {
-    console.error("프로젝트 시작일 저장 실패", error);
-    showToast("시작일을 저장하지 못했어요.");
+  if (startDate && endDate && endDate < startDate) {
+    showToast("종료일은 시작일보다 뒤여야 해요.");
+    $("#onekanProjectPeriodPopEnd", panel).value = "";
+    return;
   }
-}
-
-async function saveEndDate(event) {
-  const id = activeProjectId;
-  const endDate = event.currentTarget.value || null;
-  if (!id) return;
   try {
-    let invalid = false;
     await writeState((state) => {
       const project = state.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
       if (!project) return;
-      const startDate = /^\d{4}-\d{2}-\d{2}$/.test(project.startDate || "") ? project.startDate : null;
-      if (startDate && endDate && endDate < startDate) {
-        invalid = true;
-        return;
-      }
+      project.startDate = startDate;
       project.endDate = endDate;
       project.updatedAt = new Date().toISOString();
-    }, "project-period-end");
-    if (invalid) {
-      showToast("종료일은 시작일보다 뒤여야 해요.");
-      const { end } = ensurePeriodInputs();
-      setTimeout(() => showNativePicker(end), 0);
-    }
+    }, "project-period-popover");
+    if (panel) $("#onekanProjectPeriodPopEnd", panel).min = startDate || "";
   } catch (error) {
-    console.error("프로젝트 종료일 저장 실패", error);
-    showToast("종료일을 저장하지 못했어요.");
+    console.error("프로젝트 기간 저장 실패", error);
+    showToast("기간을 저장하지 못했어요.");
   }
 }
 
@@ -314,28 +293,33 @@ function wire() {
 
   document.addEventListener("pointerdown", (event) => {
     const element = event.target instanceof Element ? event.target : null;
-    if (element?.closest?.("#globalContextMenu")) return;
-    activeProjectId = projectIdFromElement(element);
+    if (element?.closest?.("#globalContextMenu,#onekanProjectPeriodPop")) return;
+    if (!element?.closest?.("[data-project-period]")) closePeriodPopover();
+    activeProjectId = projectIdFromElement(element) || activeProjectId;
   }, true);
 
   document.addEventListener("click", (event) => {
     const periodButton = event.target.closest?.("[data-project-period]");
-    if (periodButton) {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      openPeriodOnly(periodButton.dataset.projectPeriod);
+    if (!periodButton) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    const id = periodButton.dataset.projectPeriod;
+    const panel = ensurePeriodPopover();
+    if (!panel.hidden && activeProjectId === id && periodAnchor === periodButton) {
+      closePeriodPopover();
       return;
     }
-    const periodText = event.target.closest?.(".onekan-project-period > span");
-    if (periodText) {
-      const projectId = projectIdFromElement(periodText);
-      if (!projectId) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      openPeriodOnly(projectId, true);
-    }
+    openPeriodPopover(id, periodButton);
+  }, true);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closePeriodPopover();
+  });
+  window.addEventListener("resize", closePeriodPopover);
+  document.addEventListener("scroll", (event) => {
+    if (event.target instanceof Element && event.target.closest("#onekanProjectPeriodPop")) return;
+    closePeriodPopover();
   }, true);
 
   parts.menu.addEventListener("click", (event) => {
@@ -373,7 +357,7 @@ function wire() {
 
 function init(attempt = 0) {
   installStyle();
-  ensurePeriodInputs();
+  ensurePeriodPopover();
   if (wire()) return;
   if (!wired && attempt < 30) setTimeout(() => init(attempt + 1), 120);
 }
