@@ -1,0 +1,34 @@
+name: Reorder sidebar
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/reorder-sidebar.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply sidebar order
+        run: |
+          python3 scripts/reorder-sidebar.py
+          grep -A8 '<nav class="nav"' index.html
+          git diff --check
+      - name: Commit sidebar order
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'ui: reorder sidebar navigation'
+      - name: Remove patch files
+        run: |
+          git rm scripts/reorder-sidebar.py .github/workflows/reorder-sidebar.yml
+          git commit -m 'chore: remove sidebar reorder patch files'
+          git push origin main
