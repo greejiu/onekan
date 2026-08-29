@@ -24,8 +24,9 @@ jobs:
       - name: Verify migration
         run: |
           ! grep -R "onekan-manual-handle\|data-manual-sort-handle\|manual-list-order.js" -n index.html js/unified-workspace.js js/repeat-overview.js || exit 1
-          grep -q 'dropType="manual-order"' js/unified-workspace.js
-          grep -q 'dropType="manual-group"' js/unified-workspace.js
+          grep -q 'manual-order' js/unified-workspace.js
+          grep -q 'manual-group' js/unified-workspace.js
+          grep -q 'saveManualListOrder' js/unified-workspace.js
           grep -q 'uw-manual-drop-before' css/unified-workspace.css
       - name: Remove migration helpers
         run: |
