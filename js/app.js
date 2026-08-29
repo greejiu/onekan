@@ -1668,7 +1668,7 @@ function bindUI() {
 
   $("#addTaskBtn")?.addEventListener("click", addTask);
   $("#newTaskInput")?.addEventListener("keydown", (event) => { if (event.key === "Enter") addTask(); });
-  $("#addTimeBlockBtn").addEventListener("click", () => {
+  $("#addTimeBlockBtn")?.addEventListener("click", () => {
     const now = new Date();
     let minute = now.getHours() * 60 + now.getMinutes();
     minute = Math.ceil(minute / SLOT) * SLOT;
