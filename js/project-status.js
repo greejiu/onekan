@@ -5,7 +5,6 @@ const $ = (selector, root = document) => root?.querySelector?.(selector) || null
 const $$ = (selector, root = document) => [...(root?.querySelectorAll?.(selector) || [])];
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-const DEFAULT_GROUP_ID = "project-group-inbox";
 const DEFAULT_GROUP_LABEL = "기본";
 const DEFAULT_GROUP_COLOR = "#8fa9c4";
 const STATUSES = [
@@ -35,27 +34,27 @@ function isProject(item) {
   return !!item && (item.kind === "project" || !item.kind);
 }
 
-function projectGroupId(project) {
-  return project?.projectGroupId || DEFAULT_GROUP_ID;
+function groupsOf(current = state) {
+  const groups = Array.isArray(current?.eventGroups) && current.eventGroups.length
+    ? [...current.eventGroups]
+    : [{ id: "default", name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR }];
+  return groups;
 }
 
-function groupsOf(current = state) {
-  const groups = Array.isArray(current?.projectGroups) ? [...current.projectGroups] : [];
-  if (!groups.some((group) => group.id === DEFAULT_GROUP_ID)) {
-    groups.unshift({ id: DEFAULT_GROUP_ID, name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR, system: true, order: -1 });
-  }
-  return groups.map((group) => group.id === DEFAULT_GROUP_ID && (!group.name || group.name === "미분류") ? { ...group, name: DEFAULT_GROUP_LABEL } : group).sort((a, b) => Number(a.order || 0) - Number(b.order || 0) || String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+function defaultGroupId(current = state) {
+  return groupsOf(current)[0]?.id || "default";
+}
+
+function projectGroupId(project, current = state) {
+  const groups = groupsOf(current);
+  return groups.some((group) => group.id === project?.groupId) ? project.groupId : (groups[0]?.id || "default");
 }
 
 function ensureWritableStructure(current) {
   current.projects = Array.isArray(current.projects) ? current.projects : [];
-  current.projectGroups = Array.isArray(current.projectGroups) ? current.projectGroups : [];
-  const defaultGroup = current.projectGroups.find((group) => group.id === DEFAULT_GROUP_ID);
-  if (!defaultGroup) {
-    current.projectGroups.unshift({ id: DEFAULT_GROUP_ID, name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR, system: true, order: -1 });
-  } else if (!defaultGroup.name || defaultGroup.name === "미분류") {
-    defaultGroup.name = DEFAULT_GROUP_LABEL;
-  }
+  current.eventGroups = Array.isArray(current.eventGroups) && current.eventGroups.length
+    ? current.eventGroups
+    : [{ id: "default", name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR }];
 }
 
 async function readState() {
@@ -66,6 +65,7 @@ async function readState() {
   if (error) throw error;
   state = data?.data && typeof data.data === "object" ? data.data : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
+  state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : [{ id: "default", name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR }];
   return state;
 }
 
@@ -190,8 +190,9 @@ function renderMarkup() {
   if (activeFilter === "all") {
     return `${toolbar}<div class="onekan-project-board-grid">${STATUSES.map((status) => statusBoard(status, projects)).join("")}</div>`;
   }
-  const groups = groupsOf();
-  return `${toolbar}<section class="onekan-project-group-view"><div class="onekan-project-groups">${groups.map((group) => groupBlock(group, projects, activeFilter)).join("")}</div><button class="onekan-project-group-add" type="button" data-project-group-add>＋ 영역 추가</button></section>`;
+  const groups = groupsOf().filter((group) => projects.some((project) => normalizeStatus(project.status) === activeFilter && projectGroupId(project) === group.id));
+  const groupsMarkup = groups.length ? groups.map((group) => groupBlock(group, projects, activeFilter)).join("") : '<div class="onekan-project-empty">이 상태의 프로젝트가 없어요.</div>';
+  return `${toolbar}<section class="onekan-project-group-view"><div class="onekan-project-groups">${groupsMarkup}</div></section>`;
 }
 
 function ensureDialog() {
@@ -224,7 +225,7 @@ function fillGroupSelect(selectedId) {
   select.innerHTML = groups.map((group) => `<option value="${esc(group.id)}"${group.id === selectedId ? " selected" : ""}>${esc(group.name || DEFAULT_GROUP_LABEL)}</option>`).join("");
 }
 
-async function openEditor({ projectId = null, status = "doing", groupId = DEFAULT_GROUP_ID, focusPeriod = false } = {}) {
+async function openEditor({ projectId = null, status = "doing", groupId = null, focusPeriod = false } = {}) {
   await readState();
   const dialog = ensureDialog();
   editingProjectId = projectId;
@@ -232,7 +233,7 @@ async function openEditor({ projectId = null, status = "doing", groupId = DEFAUL
   $("#onekanProjectDialogTitle", dialog).textContent = project ? "프로젝트 수정" : "프로젝트 추가";
   $("#onekanProjectTitle", dialog).value = project?.title || "";
   $("#onekanProjectStatus", dialog).value = project ? normalizeStatus(project.status) : status;
-  fillGroupSelect(project ? projectGroupId(project) : groupId);
+  fillGroupSelect(project ? projectGroupId(project) : (groupId || defaultGroupId()));
   const dates = projectDates(project);
   $("#onekanProjectStart", dialog).value = dates.start || "";
   $("#onekanProjectEnd", dialog).value = dates.end || "";
@@ -245,7 +246,7 @@ async function saveEditor() {
   const title = $("#onekanProjectTitle", dialog)?.value.trim();
   if (!title) return $("#onekanProjectTitle", dialog)?.focus();
   const status = $("#onekanProjectStatus", dialog)?.value || "doing";
-  const groupId = $("#onekanProjectGroup", dialog)?.value || DEFAULT_GROUP_ID;
+  const groupId = $("#onekanProjectGroup", dialog)?.value || defaultGroupId();
   const startDate = $("#onekanProjectStart", dialog)?.value || null;
   const endDate = $("#onekanProjectEnd", dialog)?.value || null;
   if (startDate && endDate && endDate < startDate) return showToast("종료일은 시작일보다 뒤여야 해요.");
@@ -257,33 +258,19 @@ async function saveEditor() {
         if (!project) return;
         project.title = title;
         project.status = status;
-        project.projectGroupId = groupId;
+        project.groupId = groupId;
+        delete project.projectGroupId;
         project.startDate = startDate;
         project.endDate = endDate;
         project.updatedAt = new Date().toISOString();
       } else {
-        current.projects.push({ id: uid(), kind: "project", title, status, projectGroupId: groupId, startDate, endDate, createdAt: new Date().toISOString() });
+        current.projects.push({ id: uid(), kind: "project", title, status, groupId, startDate, endDate, createdAt: new Date().toISOString() });
       }
     }, id ? "project-edit" : "project-add");
     dialog.close();
   } catch (error) {
     console.error("프로젝트 저장 실패", error);
     showToast("프로젝트를 저장하지 못했어요.");
-  }
-}
-
-async function addGroup() {
-  const name = window.prompt("새 영역 이름을 입력해 주세요.");
-  if (!name?.trim()) return;
-  try {
-    await writeState((current) => {
-      const groups = current.projectGroups || [];
-      groups.push({ id: uid(), name: name.trim(), color: DEFAULT_GROUP_COLOR, order: groups.length });
-      current.projectGroups = groups;
-    }, "project-group-add");
-  } catch (error) {
-    console.error("프로젝트 영역 추가 실패", error);
-    showToast("영역을 추가하지 못했어요.");
   }
 }
 
@@ -294,7 +281,10 @@ async function moveProject(projectId, { status = null, groupId = null } = {}) {
       const project = current.projects.find((item) => item.id === projectId && isProject(item));
       if (!project) return;
       if (status) project.status = status;
-      if (groupId) project.projectGroupId = groupId;
+      if (groupId) {
+        project.groupId = groupId;
+        delete project.projectGroupId;
+      }
       project.updatedAt = new Date().toISOString();
     }, "project-drag");
   } catch (error) {
@@ -319,10 +309,9 @@ function wireRoot(root) {
   });
   root.addEventListener("click", (event) => {
     const addStatus = event.target.closest("[data-project-add-status]");
-    if (addStatus) return openEditor({ status: addStatus.dataset.projectAddStatus, groupId: DEFAULT_GROUP_ID });
+    if (addStatus) return openEditor({ status: addStatus.dataset.projectAddStatus, groupId: defaultGroupId() });
     const addGroupProject = event.target.closest("[data-project-add-group]");
     if (addGroupProject) return openEditor({ status: activeFilter === "all" ? "doing" : activeFilter, groupId: addGroupProject.dataset.projectAddGroup });
-    if (event.target.closest("[data-project-group-add]")) return addGroup();
     const period = event.target.closest("[data-project-period]");
     if (period) return openEditor({ projectId: period.dataset.projectPeriod, focusPeriod: true });
     const edit = event.target.closest("[data-project-edit]");

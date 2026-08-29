@@ -191,10 +191,7 @@ function renderGroupChoices(state, target) {
   const groupButton = menu?.querySelector('[data-context-action="groups"]');
   const groupList = $("#contextGroupList");
   const item = getItem(state, target);
-  const usesProjectGroups = target.kind === "project" && item?.kind === "project";
-  const groups = usesProjectGroups
-    ? (Array.isArray(state?.projectGroups) ? state.projectGroups : [])
-    : (Array.isArray(state?.eventGroups) ? state.eventGroups : []);
+  const groups = Array.isArray(state?.eventGroups) ? state.eventGroups : [];
   const available = groupable(target.kind) && groups.length > 0;
   if (groupButton) {
     groupButton.classList.toggle("hidden", !available);
@@ -205,8 +202,8 @@ function renderGroupChoices(state, target) {
     if (groupList) groupList.innerHTML = "";
     return;
   }
-  const selectedId = usesProjectGroups ? (item?.projectGroupId || groups[0]?.id) : (item?.groupId || groups[0]?.id);
-  groupList.innerHTML = groups.map((group) => `<button type="button" role="menuitemradio" aria-checked="${group.id === selectedId}" data-context-group-id="${escapeAttr(group.id)}"><span class="context-group-dot" style="--group-color:${escapeAttr(group.color || "#8fa9c4")}"></span><span>${escapeAttr(usesProjectGroups && group.id === "project-group-inbox" && (!group.name || group.name === "미분류") ? "기본" : group.name)}</span>${group.id === selectedId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
+  const selectedId = item?.groupId || groups[0]?.id;
+  groupList.innerHTML = groups.map((group) => `<button type="button" role="menuitemradio" aria-checked="${group.id === selectedId}" data-context-group-id="${escapeAttr(group.id)}"><span class="context-group-dot" style="--group-color:${escapeAttr(group.color || "#8fa9c4")}"></span><span>${escapeAttr(group.name)}</span>${group.id === selectedId ? '<span class="context-group-check">✓</span>' : ""}</button>`).join("");
 }
 
 function renderProjectChoices(state, target) {
@@ -456,13 +453,9 @@ async function changeTargetGroup(groupId) {
     await writeState((state) => {
       const item = getItem(state, target);
       if (!item) return;
-      if (target.kind === "project" && item.kind === "project") {
-        if (!state.projectGroups?.some((group) => group.id === groupId)) return;
-        item.projectGroupId = groupId;
-      } else {
-        if (!state.eventGroups?.some((group) => group.id === groupId)) return;
-        item.groupId = groupId;
-      }
+      if (!state.eventGroups?.some((group) => group.id === groupId)) return;
+      item.groupId = groupId;
+      if (target.kind === "project") delete item.projectGroupId;
     });
   } catch (error) {
     console.error(error);
