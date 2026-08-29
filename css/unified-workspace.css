@@ -264,6 +264,133 @@
 .uw-home-planner>.uw-planner-days{border-top:0}
 @media(max-width:600px){.uw-home-view-controls{top:54px;display:grid;gap:8px}.uw-home-primary-actions{gap:4px}.uw-home-today-btn,.uw-home-view-controls .uw-session-toggle{padding-inline:8px}.uw-home-controls-date{grid-template-columns:40px minmax(0,1fr) 40px}.uw-home-nav-arrow{width:40px}.uw-home-view-controls .uw-toolbar-group{width:auto;margin-left:0}}
 
+/* Home dashboard card composition */
+#page-home .uw-home-layout{
+  align-items:stretch;
+  gap:22px;
+}
+#page-home #homeLeftColumn{
+  position:relative;
+  display:flex;
+  min-height:760px;
+  overflow:hidden;
+  border:1px solid var(--line);
+  border-radius:24px;
+  background:var(--panel);
+  box-shadow:var(--shadow);
+}
+#page-home #homeLeftColumn .uw-home-view-controls{
+  position:relative;
+  top:auto;
+  z-index:4;
+  flex:none;
+  margin:0;
+  padding:18px 20px 13px;
+  border:0;
+  border-bottom:1px solid var(--line);
+  border-radius:0;
+  background:var(--panel);
+  box-shadow:none;
+  backdrop-filter:none;
+}
+#page-home #homeLeftColumn .uw-home-controls-date{
+  padding-top:10px;
+  border-top:0;
+}
+#page-home #homeLeftColumn .uw-home-date-label{
+  font-size:14px;
+}
+#page-home #homeLeftColumn .uw-home-today-btn{
+  border-color:transparent;
+  background:transparent;
+  font-weight:700;
+}
+#page-home #homeLeftColumn .uw-session-toggle{
+  border-color:#f1d785;
+  background:#fff4c9;
+  color:#4c4533;
+}
+#page-home #homeLeftColumn .home-timeline-card{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+}
+#page-home #homeLeftColumn .uw-home-bottom-add{
+  flex:none;
+  width:max-content;
+  margin:0 20px 18px;
+  padding:8px 0;
+  border:0;
+  background:transparent;
+  color:var(--muted);
+  font:inherit;
+  font-size:12px;
+  cursor:pointer;
+}
+#page-home #homeLeftColumn .uw-home-bottom-add:hover{
+  color:var(--text);
+}
+#page-home #homeRightColumn{
+  display:grid;
+  grid-template-rows:minmax(0,1fr) minmax(0,1fr);
+  gap:22px;
+  min-height:760px;
+}
+#page-home #homeRightColumn .uw-side-toggle{
+  display:flex;
+  min-height:0;
+  margin:0;
+  overflow:visible;
+  flex-direction:column;
+  border-radius:24px;
+}
+#page-home #homeRightColumn .uw-side-toggle>summary{
+  flex:none;
+  padding:18px 20px 13px;
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+}
+#page-home #homeRightColumn .uw-side-toggle .card-body{
+  flex:1 1 auto;
+  max-height:none;
+  padding:12px 18px 16px;
+  overflow-y:auto;
+}
+#page-home #homeRightColumn .uw-someday-list{
+  min-height:100%;
+}
+#page-home #homeRightColumn .uw-someday-add{
+  order:999;
+  margin-top:auto;
+  padding-top:14px;
+}
+#page-home #homeRightColumn .uw-item{
+  border-color:transparent;
+  background:transparent;
+}
+#page-home #homeRightColumn .uw-item:hover{
+  background:var(--panel-soft);
+}
+@media(max-width:1050px){
+  #page-home #homeLeftColumn,
+  #page-home #homeRightColumn{min-height:0}
+  #page-home #homeLeftColumn{min-height:620px}
+  #page-home #homeRightColumn{grid-template-rows:auto auto}
+  #page-home #homeRightColumn .uw-side-toggle{min-height:320px}
+}
+@media(max-width:600px){
+  #page-home #homeLeftColumn{min-height:540px;border-radius:20px}
+  #page-home #homeLeftColumn .uw-home-view-controls{top:auto;padding:14px 14px 11px}
+  #page-home #homeLeftColumn .uw-home-controls-primary{align-items:flex-start}
+  #page-home #homeLeftColumn .uw-home-primary-actions{align-items:flex-end;flex-direction:column}
+  #page-home #homeLeftColumn .uw-home-bottom-add{margin:0 14px 14px}
+  #page-home #homeRightColumn{gap:16px}
+  #page-home #homeRightColumn .uw-side-toggle{min-height:280px;border-radius:20px}
+}
+
 
 /* Project planning bridge */
 .uw-project-plans{margin:8px 0 0 17px;border-top:1px dashed color-mix(in srgb,var(--uw-group) 28%,var(--line));padding-top:6px}

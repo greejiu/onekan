@@ -6,6 +6,7 @@ const c=fs.readFileSync('css/unified-workspace.css','utf8');
 const i=fs.readFileSync('index.html','utf8');
 const m=fs.readFileSync('js/context-menu.js','utf8');
 const w=fs.readFileSync('js/workspace-pages.js','utf8');
+const r=fs.readFileSync('js/repeat-after-completion.js','utf8');
 
 assert.match(u,/uw-time-block-plan-item uw-time-block-v2-item plan-draggable/,'projected timeline items must remain planner draggable');
 assert.match(u,/data-time-block-token=.*data-time-block-block-id=.*data-time-block-after-anchor=.*data-time-block-order=/s,'projected timeline items must carry placement metadata');
@@ -38,7 +39,8 @@ assert.doesNotMatch(u,/Override\(state,sourceDate,id\)\?"day":await ask(?:Habit|
 assert.match(u,/function freezeCompletedTaskOccurrences.*freezeTaskOccurrence/,'completed recurring tasks must be snapshotted before a series change');
 assert.match(u,/function freezeCompletedHabitOccurrences.*freezeHabitOccurrence/,'completed habits must be snapshotted before a series change');
 assert.match(u,/if\(next&&habit\)freezeHabitOccurrence/,'completing a habit must freeze that date immediately');
-assert.match(u,/if\(next\)freezeTaskOccurrence\(s,t,occurrence\)/,'completing a recurring task must freeze that occurrence immediately');
+assert.match(u,/if\(t\.recurrence\?\.frequency\)\{completeRepeatingTask\(s,t,new Date\(\)\)\}/,'completing a recurring task must use the completion-based repeat path');
+assert.match(r,/task\.done = true;[\s\S]*delete task\.recurrence;[\s\S]*state\.tasks\.push\(nextTask\)/,'completion-based repeats must preserve the completed item and create a separate next occurrence');
 assert.match(u,/current\.tasks\.push\(task\);habitOverride\(current,editDate,target\.id,true\)\.hidden=true/,'renaming one habit occurrence must create a one-day task and hide only that habit occurrence');
 assert.doesNotMatch(u,/clearTaskTimingOverrides\(current,id\)/,'a series move must preserve every existing task date override');
 assert.match(u,/if\(kind==="habit"&&\(!frequency\|\|frequency==="none"\)\)return"매일"/,'legacy habits without recurrence metadata must still show the repeat badge');
@@ -61,8 +63,8 @@ assert.match(c,/\.uw-time-block-plan-item \.uw-item-title\{font-size:11px\}/,'pr
 assert.match(c,/\.uw-time-block-v2-list \.uw-time-block-v2-item\{min-height:28px;padding:4px 6px\}/,'time-block list cards must stay compact');
 assert.doesNotMatch(c,/\.uw-time-block-v2-item\.fixed-anchor[^\{]*\{grid-column:1\/-1\}/,'timed cards must use the same two-column grid as all-day cards');
 assert.match(c,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-time-block-v2-item\.plan-draggable\{min-height:36px/,'touch cards must stay compact while preserving a usable hit area');
-assert.match(i,/unified-workspace\.js\?v=61/);
+assert.match(i,/unified-workspace\.js\?v=79/);
 assert.match(i,/workspace-pages\.js\?v=12/);
-assert.match(i,/context-menu\.js\?v=22/);
-assert.match(i,/unified-workspace\.css\?v=44/);
+assert.match(i,/context-menu\.js\?v=28/);
+assert.match(i,/unified-workspace\.css\?v=46/);
 console.log('timeline plan unify regression: ok');
