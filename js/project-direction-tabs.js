@@ -207,7 +207,7 @@ function manualOrder(a, b, fallback) {
 function identityRows(identities, goals = []) {
   return [...identities]
     .sort((a, b) => manualOrder(a, b, (left, right) => String(left.createdAt || "").localeCompare(String(right.createdAt || "")) || String(left.title || "").localeCompare(String(right.title || ""), "ko")))
-    .map((identity) => `<div class="onekan-identity-row" draggable="true" data-direction-kind="identity" data-direction-id="${esc(identity.id)}" data-context-kind="identity" data-context-id="${esc(identity.id)}"><div class="onekan-identity-main"><span class="onekan-identity-title">${esc(identity.title || "이름 없는 정체성")}</span><span class="onekan-identity-goals">${esc(linkedGoalText(identity.id, goals))}</span></div><button class="onekan-identity-goal-add" type="button" data-identity-goal-add="${esc(identity.id)}">목표 연결</button></div>`)
+    .map((identity) => `<div class="onekan-identity-row" draggable="true" data-direction-kind="identity" data-direction-id="${esc(identity.id)}" data-context-kind="identity" data-context-id="${esc(identity.id)}"><div class="onekan-identity-main"><span class="onekan-identity-title">${esc(identity.title || "이름 없는 정체성")}</span><span class="onekan-identity-goals">${esc(linkedGoalText(identity.id, goals))}</span></div><button class="onekan-identity-goal-add" type="button" data-identity-goal-add="${esc(identity.id)}">목표 추가</button></div>`)
     .join("");
 }
 
@@ -548,9 +548,7 @@ function init() {
     }
     const identityGoalAdd = event.target.closest("[data-identity-goal-add]");
     if (identityGoalAdd) {
-      const row = identityGoalAdd.closest("[data-context-kind='identity']");
-      const rect = identityGoalAdd.getBoundingClientRect();
-      row?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: rect.left, clientY: rect.bottom + 4 }));
+      openGoalEditor(null, identityGoalAdd.dataset.identityGoalAdd);
       return;
     }
     const period = event.target.closest("[data-goal-period]");
