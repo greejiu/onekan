@@ -258,7 +258,7 @@ function renderHomePopover() {
         return `<button class="management-home-checklist-step${checked ? " done" : ""}" data-management-home-checklist-step="${esc(step.id)}" data-item-id="${esc(item.id)}" data-date="${esc(openHomeDate)}" type="button"><span class="uw-check${checked ? " checked" : ""}" style="--uw-check-color:var(--timeline-management-color)">${checked ? "✓" : ""}</span><span>${esc(step.title)}</span></button>`;
       }).join("")}
     </div>
-    <div class="management-home-checklist-pop-meta">${done}/${steps.length} 완료 · 마지막 항목을 체크하면 관리 항목이 완료돼요.</div>`;
+    <div class="management-home-checklist-pop-meta">${done}/${steps.length} 완료 · 마지막 항목을 체크하면 반복 항목이 완료돼요.</div>`;
   pop.hidden = false;
   const anchor = $(`#page-home [data-management-home-item][data-item-id="${CSS.escape(item.id)}"][data-date="${CSS.escape(openHomeDate)}"]`);
   if (anchor) positionHomePopover(anchor);
