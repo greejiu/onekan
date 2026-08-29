@@ -13,8 +13,8 @@ import "./habit-period-direct-save.js?v=1";
 import "./home-timeline-dynamic-columns.js?v=2";
 import "./goal-board-v2.js?v=3";
 import "./goal-quick-add.js?v=3";
-import "./goal-group-board.js?v=1";
-import "./goal-status-drag.js?v=2";
+import "./goal-group-board.js?v=2";
+import "./goal-status-drag.js?v=3";
 
 // Compatibility + interaction safeguards loaded before app.js initializes.
 // Safe to load more than once because cached module URLs may coexist during deployment.
