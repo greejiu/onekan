@@ -171,30 +171,23 @@
               <label class="appearance-range">사진 밝기 <input id="homeBackgroundOverlay" type="range" min="0" max="80" value="28" /></label>
               <button class="ghost-btn danger-text" id="removeHomeBackground" type="button">사진 제거</button>
             </div>
-            <div class="setting-desc" id="homeBackgroundStatus">사진을 선택하면 자동으로 저장됩니다.</div>
           </section>
           <section class="setting-section">
-            <h3>타임라인 시작 · 종료 시간</h3><div class="setting-desc">하루 타임라인에 표시할 시간 범위를 정할 수 있어요.</div>
-            <div class="uw-preference-grid">
-              <label><span>시작 시간</span><input id="timelineStart" type="time" step="1800" value="06:00" /></label>
-              <label><span>종료 시간</span><input id="timelineEnd" type="time" step="1800" value="22:00" /></label>
-            </div>
-          </section>
-          <section class="setting-section">
-            <h3>타임라인 체크 색상</h3><div class="setting-desc">타임라인의 흰 목록에서 할일과 습관을 구분하는 체크박스 테두리 색입니다.</div>
+            <h3>타임라인</h3>
+            <div class="setting-desc">집 타임라인과 반복 항목의 표시 색상을 정할 수 있어요.</div>
             <div class="timeline-color-settings">
               <label><span>할일</span><input id="timelineTaskColor" type="color" value="#d8d8d5" /></label>
               <label><span>습관</span><input id="timelineHabitColor" type="color" value="#b9d9c3" /></label>
             </div>
           </section>
           <section class="setting-section">
-            <h3>영역</h3><div class="setting-desc">일정·할일·습관에서 공통으로 사용하는 영역입니다.</div>
-            <div id="eventGroupList"></div>
-            <div class="event-group-add"><input id="newEventGroupName" placeholder="새 영역 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 영역 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
+            <h3>영역</h3><div class="setting-desc">일정·할일·습관·시간기록에서 함께 사용할 영역이에요.</div>
+            <div id="eventGroupList" class="event-group-list"></div>
+            <div class="event-group-add"><input id="newEventGroupName" placeholder="새 영역 이름" maxlength="40" /><input id="newEventGroupColor" type="color" value="#8fa9c4" /><button class="soft-btn" id="addEventGroupBtn" type="button">영역 추가</button></div>
           </section>
           <section class="setting-section">
-            <h3>동기화</h3><div class="setting-desc">로그인한 계정 기준으로 Supabase에 저장됩니다. PC와 모바일에서 같은 계정으로 로그인하면 같은 데이터를 봅니다.</div>
-            <button class="soft-btn" id="reloadCloudBtn" type="button">서버 데이터 다시 불러오기</button>
+            <h3>동기화</h3><div class="setting-desc">로그인한 계정 기준으로 Supabase에 저장돼요.</div>
+            <button class="soft-btn" id="reloadCloudBtn" type="button">클라우드 다시 불러오기</button>
           </section>
         </div>
       </section>
@@ -209,7 +202,7 @@
     <div class="pop-actions"><button class="ghost-btn danger-text" id="deleteBlockBtn" type="button">삭제</button><button class="primary-btn" id="saveBlockBtn" type="button">저장</button></div>
   </div>
 
-  <script type="module" src="./js/interaction-fixes.js?v=31"></script>
+  <script type="module" src="./js/interaction-fixes.js?v=32"></script>
   <script type="module" src="./js/app.js?v=37"></script>
   <script type="module" src="./js/context-menu.js?v=22"></script>
   <script type="module" src="./js/workspace-pages.js?v=12"></script>
