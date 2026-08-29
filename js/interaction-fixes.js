@@ -1,22 +1,11 @@
 import "./auth-guard.js?v=1";
 
-// Heavy feature modules read the shared Supabase state on startup.
-// Load them only after the core app has finished its first cloud load so they
-// cannot compete with the critical login/data request and leave the UI stuck
-// on “불러오는 중...”.
+// 오늘한칸은 오늘 할일 배치와 시간 계획에 집중한다.
+// 기존 습관/관리/반복 데이터는 Supabase에 그대로 보존하되,
+// 관련 기능 모듈은 더 이상 시작 시 불러오지 않는다.
+window.__ONEKAN_DAILY_FOCUS_MODE__ = true;
+
 const deferredModules = [
-  "./management.js?v=5",
-  "./management-section-context.js?v=1",
-  "./management-items.js?v=5",
-  "./management-checklist.js?v=1",
-  "./repeat-hub.js?v=3",
-  "./management-section-item-drag.js?v=3",
-  "./management-item-schedule.js?v=3",
-  "./management-home.js?v=3",
-  "./management-history.js?v=4",
-  "./habit-area-check-colors.js?v=1",
-  "./habit-start-date-fix.js?v=3",
-  "./habit-period-direct-save.js?v=1",
   "./home-timeline-dynamic-columns.js?v=2",
 ];
 
@@ -37,9 +26,7 @@ if (!window.__onekanInteractionFixesInstalled) {
     if (deferredLoadStarted || !coreDataReady()) return;
     deferredLoadStarted = true;
     try {
-      for (const modulePath of deferredModules) {
-        await import(modulePath);
-      }
+      for (const modulePath of deferredModules) await import(modulePath);
     } catch (error) {
       deferredLoadStarted = false;
       console.error("deferred feature module load failed", error);
@@ -93,18 +80,11 @@ if (!window.__onekanInteractionFixesInstalled) {
     "pointerdown",
     (event) => {
       if (!event.isPrimary || event.button > 0) return;
-
       const moveHandle = event.target.closest?.(".uw-move-handle");
       if (moveHandle && isFinePointer()) {
         const item = moveHandle.closest(".uw-item");
-        if (item && !item.classList.contains("selected")) {
-          item.classList.add("selected", "uw-temp-move-selected");
-        }
-        return;
+        if (item && !item.classList.contains("selected")) item.classList.add("selected", "uw-temp-move-selected");
       }
-
-      // Titles must reach the unified gesture handler:
-      // a click edits, while moving at least 6px starts item movement.
     },
     true,
   );
@@ -116,33 +96,14 @@ if (!window.__onekanInteractionFixesInstalled) {
   interactionStyle.dataset.onekanInteractionFix = "1";
   interactionStyle.textContent = `
   @media (hover:hover) and (pointer:fine) {
-    .uw-time-entry .uw-resize-handle {
-      height: 4px;
-    }
-
-    .uw-item-title,
-    .uw-habit-title {
-      cursor: text;
-    }
-
-    .uw-move-handle {
-      cursor: grab;
-    }
-
-    .uw-move-handle:active {
-      cursor: grabbing;
-    }
+    .uw-time-entry .uw-resize-handle { height: 4px; }
+    .uw-item-title { cursor: text; }
+    .uw-move-handle { cursor: grab; }
+    .uw-move-handle:active { cursor: grabbing; }
   }
 
-  /* Month calendar cells are already clickable, so the visual + marker is redundant. */
-  .uw-task-month-cell > .uw-list > .uw-task-inline-add {
-    display: none !important;
-  }
-
-  /* In month view, keep card width for the title instead of repeating the recurrence label. */
-  .uw-task-month-cell .uw-repeat-badge {
-    display: none !important;
-  }
+  .uw-task-month-cell > .uw-list > .uw-task-inline-add { display: none !important; }
+  .uw-task-month-cell .uw-repeat-badge { display: none !important; }
   `;
   document.head.appendChild(interactionStyle);
 }
