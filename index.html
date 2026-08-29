@@ -38,6 +38,7 @@
         <button class="nav-item" data-page="calendar" type="button"><span class="nav-icon">□</span><span class="nav-label">일정</span></button>
         <button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>
         <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▦</span><span class="nav-label">프로젝트</span></button>
+        <button class="nav-item" data-page="plan" type="button"><span class="nav-icon">☷</span><span class="nav-label">계획 세우기</span></button>
         <button class="nav-item" data-page="repeat" type="button"><span class="nav-icon">↻</span><span class="nav-label">반복</span></button>
         <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>
       </nav>
@@ -135,6 +136,11 @@
         <div id="projectStatusRoot"></div>
       </section>
 
+      <section class="page" id="page-plan">
+        <div class="page-head"><div><h1 class="page-title">계획 세우기</h1></div></div>
+        <div id="projectPlanRoot"></div>
+      </section>
+
       <section class="page" id="page-repeat">
         <div class="page-head"><div><h1 class="page-title">반복</h1></div></div>
         <p class="onekan-repeat-intro">반복되는 할일과 일정을 한 곳에서 확인해요. 지금은 기존 반복 항목을 모아보는 단계예요.</p>
@@ -227,9 +233,10 @@
   <script type="module" src="./js/workspace-pages.js?v=12"></script>
   <script type="module" src="./js/appearance.js?v=4"></script>
   <script type="module" src="./js/time-block-v2-settings.js?v=4"></script>
-  <script type="module" src="./js/unified-workspace.js?v=67"></script>
+  <script type="module" src="./js/unified-workspace.js?v=68"></script>
   <script type="module" src="./js/repeat-overview.js?v=2"></script>
   <script type="module" src="./js/project-status.js?v=2"></script>
+  <script type="module" src="./js/project-plan.js?v=1"></script>
   <script type="module" src="./js/habit-history-view.js?v=1"></script>
   <script type="module" src="./js/daily-focus-mode.js?v=3"></script>
   <script type="module" src="./js/task-completed-groups.js?v=5"></script>

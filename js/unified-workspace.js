@@ -42,6 +42,7 @@ function normalize(s){
   s.timeBlocks=Array.isArray(s.timeBlocks)?s.timeBlocks:[];
   ensureTimeBlockV2State(s);
   s.sessions=Array.isArray(s.sessions)?s.sessions:[];
+  s.projects=Array.isArray(s.projects)?s.projects:[];
   s.eventGroups=Array.isArray(s.eventGroups)&&s.eventGroups.length?s.eventGroups:[{id:"default",name:"기본",color:"#8fa9c4"}];
   s.ui=s.ui&&typeof s.ui==="object"?s.ui:{};
   s.ui.timelineColors={task:"#d8d8d5",habit:"#b9d9c3",...(s.ui.timelineColors||{})};
@@ -399,6 +400,8 @@ function recurrenceFromEditor(root,baseDate,{includeUntil=true}={}){
   if(type==="weeks")return{frequency:"weekly",interval,weekdays:selected(),...(until?{until}:{})};
   return{frequency:"monthly",interval,dayOfMonth:base.getDate(),...(until?{until}:{})}
 }
+function projectPlanStatus(value){const raw=String(value??"").trim().toLowerCase();if(["before","시작 전","시작전","todo","planned"].includes(raw))return"before";if(["done","완료","달성","complete","completed"].includes(raw))return"done";if(["archived","보관","closed","archive"].includes(raw))return"archived";return"doing"}
+function taskProjectSelectMarkup(old){const selected=old?.projectId||"",projects=(state?.projects||[]).filter(item=>(item?.kind==="project"||!item?.kind)&&(projectPlanStatus(item.status)==="doing"||item.id===selected)).sort((a,b)=>String(a.title||"").localeCompare(String(b.title||""),"ko"));return`<select class="uw-project-select" aria-label="프로젝트"><option value="">프로젝트 없음</option>${projects.map(project=>`<option value="${esc(project.id)}"${project.id===selected?" selected":""}>프로젝트 · ${esc(project.title||"이름 없는 프로젝트")}</option>`).join("")}</select>`}
 function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,editId=null,withTime=false,occurrenceSource=null,groupId=null}={}){
   if(!host||$(".uw-inline-form",host))return;
   const list=kind==="event"?state.events:kind==="habit"?state.habitTemplates:state.tasks;
@@ -412,7 +415,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
   const form=document.createElement("form");
   form.className="uw-inline-form";
   form.dataset.uwEntrySelectedDate=date||"";
-  form.innerHTML=`${withTime?`<input type="time" value="${eventEditItem&&kind==="event"&&!eventEditItem.allDay?timeOf(eventEditItem.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(displayTitle||"")}" placeholder="${kind==="event"?"일정":kind==="habit"?"습관":"할일"} 입력" autocomplete="off">${old&&kind==="habit"?`<div class="uw-habit-range-inline" title="모든 습관에 적용되는 기간"><label><span>시작</span><input class="uw-habit-start-date" type="date" value="${esc(old.startDate||"")}" aria-label="습관 시작일"></label><label><span>종료</span><input class="uw-habit-end-date" type="date" value="${esc(old.endDate||"")}" aria-label="습관 종료일"></label></div>`:""}${canRepeat?recurrenceEditorMarkup(old,frequency,kind!=="habit",kind!=="habit"):""}`;
+  form.innerHTML=`${withTime?`<input type="time" value="${eventEditItem&&kind==="event"&&!eventEditItem.allDay?timeOf(eventEditItem.start):time!==null?`${pad(Math.floor(time/60))}:${pad(time%60)}`:""}" aria-label="시간">`:""}<input type="text" value="${esc(displayTitle||"")}" placeholder="${kind==="event"?"일정":kind==="habit"?"습관":"할일"} 입력" autocomplete="off">${old&&kind==="habit"?`<div class="uw-habit-range-inline" title="모든 습관에 적용되는 기간"><label><span>시작</span><input class="uw-habit-start-date" type="date" value="${esc(old.startDate||"")}" aria-label="습관 시작일"></label><label><span>종료</span><input class="uw-habit-end-date" type="date" value="${esc(old.endDate||"")}" aria-label="습관 종료일"></label></div>`:""}${canRepeat?recurrenceEditorMarkup(old,frequency,kind!=="habit",kind!=="habit"):""}${kind==="task"?taskProjectSelectMarkup(old):""}`;
   const scroll={x:scrollX,y:scrollY},editTarget=editId?host.closest(".uw-item"):null;
   const rangeFirst=date&&endDate&&endDate<date?endDate:date;
   const rangeLast=date&&endDate&&endDate<date?date:endDate;
@@ -452,6 +455,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
     const habitEditDate=date||todayKey();
     const habitStartDate=$(".uw-habit-start-date",form)?.value||"";
     const habitEndDate=$(".uw-habit-end-date",form)?.value||"";
+    const selectedProjectId=kind==="task"?($(".uw-project-select",form)?.value||""):"";
     if(old&&kind==="habit"&&habitStartDate&&habitEndDate&&habitEndDate<habitStartDate){const endInput=$(".uw-habit-end-date",form);endInput?.setCustomValidity("종료일은 시작일과 같거나 이후여야 해요.");endInput?.reportValidity();saving=false;return}
     const habitScope=old&&kind==="habit"?await askHabitScope("change",old,habitEditDate,value!==old.title?"task":"change"):null;
     if(old&&kind==="habit"&&!habitScope){saving=false;scheduleRender(0);return}
@@ -464,6 +468,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
       if(old){
         const target=(kind==="event"?current.events:kind==="habit"?current.habitTemplates:current.tasks).find(item=>item.id===old.id);
         if(!target)return;
+        if(kind==="task"){if(selectedProjectId)target.projectId=selectedProjectId;else delete target.projectId}
         if(kind==="habit"){
           const editDate=habitEditDate;
           if(habitScope==="day"){
@@ -538,6 +543,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
       }else{
         const taskDate=selectedDate;
         const task={id:uid(),title:value,date:taskDate,done:false,groupId:defaultGroup,createdAt:new Date().toISOString()};
+        if(selectedProjectId)task.projectId=selectedProjectId;
         const recurrence=recurrenceFromEditor(form,taskDate);
         if(recurrence)task.recurrence=recurrence;
         if(time!==null&&taskDate){
