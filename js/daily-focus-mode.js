@@ -3,25 +3,6 @@
 
 const HIDDEN_PAGE_IDS = ["page-habits", "page-repeat", "page-management"];
 
-const REPEAT_CONTROL_SELECTORS = [
-  ".uw-repeat-badge",
-  ".uw-repeat-control",
-  ".uw-task-repeat-control",
-  ".uw-schedule-repeat-control",
-  ".uw-recurrence-control",
-  ".uw-repeat-pop",
-  ".uw-repeat-panel",
-  ".uw-recurrence-pop",
-  ".uw-recurrence-panel",
-  "button[data-uw-repeat]",
-  "button[data-repeat]",
-  "button[data-recurrence]",
-  "button[aria-label*='반복']",
-  "button[title*='반복']",
-  "[role='button'][aria-label*='반복']",
-  "[role='button'][title*='반복']",
-  "label[title*='반복']",
-];
 
 function hideLegacyPages() {
   for (const id of HIDDEN_PAGE_IDS) {
@@ -49,26 +30,6 @@ function removeHabitRows(root = document) {
     '.uw-habit-row',
   ];
   root.querySelectorAll(selectors.join(",")).forEach((node) => node.remove());
-}
-
-function removeRepeatControls(root = document) {
-  root.querySelectorAll(REPEAT_CONTROL_SELECTORS.join(",")).forEach((node) => node.remove());
-
-  // 반복 버튼/뱃지의 클래스명이 바뀌더라도 사용자에게 다시 노출되지 않게 한다.
-  root.querySelectorAll("button, [role='button']").forEach((node) => {
-    const text = [node.textContent, node.getAttribute("aria-label"), node.getAttribute("title")]
-      .filter(Boolean)
-      .join(" ");
-    if (text.includes("반복")) node.remove();
-  });
-
-  // 반복 전용 선택창이 남아 있는 경우 그 필드만 제거한다.
-  root.querySelectorAll("select").forEach((select) => {
-    const optionText = [...select.options].map((option) => option.textContent || "").join(" ");
-    if (!/(반복|매일|매주|매월|평일)/.test(optionText)) return;
-    const host = select.closest(".uw-repeat-control, .uw-task-repeat-control, .uw-schedule-repeat-control, .uw-recurrence-control, label");
-    if (host) host.remove();
-  });
 }
 
 function cleanTracking() {
@@ -108,7 +69,6 @@ function applyDailyFocusMode(root = document) {
   removeLegacyNav();
   hideLegacyPages();
   removeHabitRows(root);
-  removeRepeatControls(root);
   cleanTracking();
   cleanSettings();
   cleanCopy();
