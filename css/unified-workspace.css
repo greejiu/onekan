@@ -319,21 +319,6 @@
   border-radius:0;
   box-shadow:none;
 }
-#page-home #homeLeftColumn .uw-home-bottom-add{
-  flex:none;
-  width:max-content;
-  margin:0 20px 18px;
-  padding:8px 0;
-  border:0;
-  background:transparent;
-  color:var(--muted);
-  font:inherit;
-  font-size:12px;
-  cursor:pointer;
-}
-#page-home #homeLeftColumn .uw-home-bottom-add:hover{
-  color:var(--text);
-}
 #page-home #homeRightColumn{
   display:grid;
   grid-template-rows:minmax(0,1fr) minmax(0,1fr);
@@ -398,18 +383,6 @@
 #page-home #homeRightColumn .uw-someday-list{
   min-height:0;
 }
-#page-home #homeRightColumn .uw-someday-add{
-  order:999;
-  margin-top:auto;
-  padding-top:14px;
-}
-#page-home #homeRightColumn .uw-item{
-  border-color:transparent;
-  background:transparent;
-}
-#page-home #homeRightColumn .uw-item:hover{
-  background:var(--panel-soft);
-}
 @media(max-width:1050px){
   #page-home #homeLeftColumn,
   #page-home #homeRightColumn{height:auto;min-height:0}
@@ -423,7 +396,6 @@
   #page-home #homeLeftColumn .uw-home-view-controls{top:auto;padding:14px 14px 11px}
   #page-home #homeLeftColumn .uw-home-controls-primary{align-items:flex-start}
   #page-home #homeLeftColumn .uw-home-primary-actions{align-items:flex-end;flex-direction:column}
-  #page-home #homeLeftColumn .uw-home-bottom-add{margin:0 14px 14px}
   #page-home #homeRightColumn{gap:16px}
   #page-home #homeRightColumn .uw-side-toggle{border-radius:20px}
   #page-home #homeRightColumn .uw-side-toggle[open]{min-height:280px}
