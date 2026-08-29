@@ -114,7 +114,7 @@ function installStyle() {
     .onekan-project-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;min-height:38px;padding:7px 8px;border:1px solid color-mix(in srgb,var(--uw-group,#8fa9c4) 45%,#fff);border-radius:8px;background:color-mix(in srgb,var(--uw-group,#8fa9c4) 16%,#fff);cursor:grab;user-select:none}
     .onekan-project-row:hover{background:color-mix(in srgb,var(--uw-group,#8fa9c4) 23%,#fff)}
     .onekan-project-row.dragging{opacity:.45}
-    .onekan-project-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;cursor:pointer}
+    .onekan-project-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:400;cursor:pointer}
     .onekan-project-period{display:flex;align-items:center;gap:6px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-project-period button{display:grid;place-items:center;width:25px;height:25px;padding:0;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
     .onekan-project-period button:hover{background:#fff}
