@@ -16,10 +16,12 @@ let state=null;
 let user=null;
 let rendering=false;
 let renderTimer=null;
-let habitMode="list";
+let habitMode="calendar";
 let habitListTab="upcoming";
-let habitCalendarView="month";
+let habitCalendarView="day";
+let habitCalendarLayout="board";
 let habitCursor=fromKey(todayKey());
+const SLOT=30,SLOT_H=20;
 
 async function readState(){
   const {data:{session}}=await supabase.auth.getSession();
@@ -29,8 +31,12 @@ async function readState(){
   if(error)throw error;
   state=data?.data&&typeof data.data==="object"?data.data:{};
   state.tasks=Array.isArray(state.tasks)?state.tasks:[];
+  state.timeBlocks=Array.isArray(state.timeBlocks)?state.timeBlocks:[];
   state.eventGroups=Array.isArray(state.eventGroups)&&state.eventGroups.length?state.eventGroups:[{id:"default",name:"기본",color:"#8fa9c4"}];
   state.projects=Array.isArray(state.projects)?state.projects:[];
+  state.ui=state.ui&&typeof state.ui==="object"?state.ui:{};
+  const range=state.ui.timelineRange&&typeof state.ui.timelineRange==="object"?state.ui.timelineRange:{};
+  state.ui.timelineRange={start:Number(range.start)||360,end:Number(range.end)||1320};
   normalizeCompletionRepeats(state);
   return state
 }
@@ -143,6 +149,39 @@ function boardDay(date){
   const dateKey=key(date),rows=habitsForDate(dateKey);
   return `<section class="uw-task-board-day${dateKey===todayKey()?" today":""}"><div class="uw-day-head"><strong>${dayLabel(date,true)}</strong></div><div class="uw-list" data-date="${dateKey}" data-task-drop-date="${dateKey}">${rows.map(task=>itemMarkup(task,{date:dateKey})).join("")}${quickAdd(dateKey)}</div></section>`
 }
+
+function habitTimelineTiming(task,date){
+  if(task.notionStart){
+    const start=new Date(task.notionStart),end=new Date(task.notionEnd||task.notionStart);
+    if(!Number.isNaN(start.getTime()))return{timed:true,time:start.getHours()*60+start.getMinutes(),duration:Math.max(SLOT,Math.round((end-start)/60000/SLOT)*SLOT||SLOT)}
+  }
+  const block=state.timeBlocks.find(item=>item.taskId===task.id&&(item.date===date||item.date===task.date));
+  if(block&&Number.isFinite(Number(block.startMinute)))return{timed:true,time:Number(block.startMinute),duration:Math.max(SLOT,Number(block.duration)||SLOT)};
+  return{timed:false,time:null,duration:SLOT}
+}
+function layoutHabitTimeline(entries){
+  const rows=[...entries].sort((a,b)=>a.time-b.time||b.duration-a.duration);let cluster=[],clusterEnd=-Infinity;
+  const flush=()=>{if(!cluster.length)return;const laneEnds=[];for(const entry of cluster){let lane=laneEnds.findIndex(end=>end<=entry.time);if(lane<0)lane=laneEnds.length;entry.lane=lane;laneEnds[lane]=entry.time+entry.duration}const columns=Math.max(1,laneEnds.length);cluster.forEach(entry=>entry.columns=columns);cluster=[];clusterEnd=-Infinity};
+  for(const entry of rows){if(cluster.length&&entry.time>=clusterEnd)flush();cluster.push(entry);clusterEnd=Math.max(clusterEnd,entry.time+entry.duration)}flush();return rows
+}
+function habitTimelineBlock(entry,date,start){
+  const task=entry.task,area=group(task),done=Boolean(task.done),width=100/entry.columns,left=entry.lane*width;
+  return`<div class="uw-time-entry uw-item uw-task${done?" done":""}" style="top:${((entry.time-start)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(entry.duration/SLOT)*SLOT_H-2)}px;left:calc(${left}% + 1px);width:calc(${width}% - 2px);right:auto;--uw-group:${esc(area?.color||"#8fa9c4")}" data-context-kind="task" data-context-id="${esc(task.id)}" data-habit-item="1" data-uw-kind="task" data-id="${esc(task.id)}" data-date="${esc(date)}" data-time="${entry.time}" data-duration="${entry.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button><button class="uw-check${done?" checked":""}" style="--uw-check-color:${esc(area?.color||"#8fa9c4")}" data-habit-complete="${esc(task.id)}" type="button" aria-label="${done?"완료 취소":"완료"}">${done?"✓":""}</button><span class="uw-item-title">${esc(task.title||"이름 없는 습관")}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`
+}
+function habitCurrentTimeMarkup(date,start,end){
+  const now=new Date(),minute=now.getHours()*60+now.getMinutes(),visible=date===key(now)&&minute>=start&&minute<=end,top=Math.max(0,Math.min(((end-start)/SLOT)*SLOT_H,((minute-start)/SLOT)*SLOT_H));
+  return`<div class="uw-current-time${visible?" active":""}" data-current-date="${date}" style="top:${top}px${visible?"":";display:none"}"><span></span></div>`
+}
+function habitTimelineDay(date){
+  const dateKey=key(date),start=state.ui.timelineRange.start,end=state.ui.timelineRange.end,rows=habitsForDate(dateKey).map(task=>({task,...habitTimelineTiming(task,dateKey)})),untimed=rows.filter(entry=>!entry.timed),timed=layoutHabitTimeline(rows.filter(entry=>entry.timed&&entry.time>=start&&entry.time<end));
+  let labels="";for(let minute=start;minute<end;minute+=SLOT){if(minute%60===0)labels+=`<span class="uw-time-label" style="top:${((minute-start)/SLOT)*SLOT_H}px">${pad(minute/60)}:00</span>`}
+  const allDay=`<div class="uw-all-day" data-date="${dateKey}" data-uw-all-day-drop><span class="uw-all-day-label">하루종일</span><div class="uw-all-day-list" data-date="${dateKey}" data-task-drop-date="${dateKey}">${untimed.map(entry=>itemMarkup(entry.task,{compact:true,date:dateKey})).join("")||quickAdd(dateKey)}</div></div>`;
+  return`<section class="uw-day${dateKey===todayKey()?" uw-today":""}" data-date="${dateKey}"><div class="uw-day-head"><strong>${dayLabel(date,true)}</strong></div>${allDay}<div class="uw-timeline" style="height:${((end-start)/SLOT)*SLOT_H}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${habitCurrentTimeMarkup(dateKey,start,end)}${timed.map(entry=>habitTimelineBlock(entry,dateKey,start)).join("")}</div></div></section>`
+}
+function habitTimeline(){
+  const count=habitCalendarView==="week"?7:1,start=habitCalendarView==="week"?addDays(habitCursor,-habitCursor.getDay()):habitCursor;
+  return`<div class="uw-task-timeline-scroll"><div class="uw-planner-days" style="--uw-days:${count}">${Array.from({length:count},(_,index)=>habitTimelineDay(addDays(start,index))).join("")}</div></div>`
+}
 function weekCalendar(){
   const start=addDays(habitCursor,-habitCursor.getDay());
   return `<div class="uw-task-board-grid" style="--uw-task-days:7">${Array.from({length:7},(_,index)=>boardDay(addDays(start,index))).join("")}</div>`
@@ -151,7 +190,9 @@ function dayCalendar(){
   return `<div class="uw-task-board-grid" style="--uw-task-days:1">${boardDay(habitCursor)}</div>`
 }
 function calendarMarkup(){
-  return `<section class="uw-task-calendar-shell">${calendarNav()}${habitCalendarView==="month"?monthCalendar():habitCalendarView==="week"?weekCalendar():dayCalendar()}</section>`
+  const layout=habitCalendarView==="month"?"board":habitCalendarLayout;
+  const body=habitCalendarView==="month"?monthCalendar():layout==="timeline"?habitTimeline():habitCalendarView==="week"?weekCalendar():dayCalendar();
+  return `<section class="uw-task-calendar-shell">${calendarNav()}${body}</section>`
 }
 function renderSubnav(){
   const nav=$("#habitPageSubnav");
@@ -160,7 +201,9 @@ function renderSubnav(){
     nav.innerHTML=`<div class="uw-task-list-tabs"><div class="seg">${[["all","전체"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>`<button class="${habitListTab===id?"active":""}" data-habit-list-tab="${id}" type="button">${label}</button>`).join("")}</div></div>`;
     return
   }
-  nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,label])=>`<button class="${habitCalendarView===id?"active":""}" data-habit-cal-view="${id}" type="button">${label}</button>`).join("")}</div></div>`
+  const month=habitCalendarView==="month";
+  const label=month?"월은 보드 보기":habitCalendarLayout==="board"?"타임라인으로 보기":"보드로 보기";
+  nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,text])=>`<button class="${habitCalendarView===id?"active":""}" data-habit-cal-view="${id}" type="button">${text}</button>`).join("")}</div><button class="uw-layout-toggle" data-habit-cal-layout-toggle type="button"${month?' disabled title="월 보기는 보드로 고정돼요"':""}>${label}</button></div>`
 }
 async function render(){
   const page=$("#page-repeat"),host=$("#repeatOverviewBody");
@@ -238,6 +281,8 @@ function wire(){
     if(tab){habitListTab=tab.dataset.habitListTab;scheduleRender(0);return}
     const view=event.target.closest("[data-habit-cal-view]");
     if(view){habitCalendarView=view.dataset.habitCalView;scheduleRender(0);return}
+    const layout=event.target.closest("[data-habit-cal-layout-toggle]");
+    if(layout&&!layout.disabled){habitCalendarLayout=habitCalendarLayout==="board"?"timeline":"board";scheduleRender(0);return}
     if(event.target.closest("[data-habit-cal-prev]")){habitCursor=habitCalendarView==="month"?new Date(habitCursor.getFullYear(),habitCursor.getMonth()-1,1,12):addDays(habitCursor,habitCalendarView==="week"?-7:-1);scheduleRender(0);return}
     if(event.target.closest("[data-habit-cal-next]")){habitCursor=habitCalendarView==="month"?new Date(habitCursor.getFullYear(),habitCursor.getMonth()+1,1,12):addDays(habitCursor,habitCalendarView==="week"?7:1);scheduleRender(0);return}
     if(event.target.closest("[data-habit-cal-today]")){habitCursor=fromKey(todayKey());scheduleRender(0);return}
