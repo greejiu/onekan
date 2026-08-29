@@ -431,7 +431,7 @@ function init() {
   });
   document.addEventListener("onekan:add-project", (event) => {
     const goalId = event.detail?.goalId || null;
-    openEditor({ goalId, status: "doing", groupId: defaultGroupId() });
+    openEditor({ goalId, status: "doing" });
   });
   if ($("#page-projects")?.classList.contains("active")) scheduleRender(0);
 }
