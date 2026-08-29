@@ -611,32 +611,36 @@
   }
 }
 
-
-/* Home right cards: fixed visible internal scrollbar */
+/* Home right cards: fixed half-height scroll regions */
 #page-home #homeRightColumn .uw-side-toggle[open]{
-  height:100%;
   min-height:0;
-  max-height:100%;
   overflow:hidden;
 }
 #page-home #homeRightColumn .uw-side-toggle .card-body{
-  flex:1 1 0!important;
-  height:0!important;
-  min-height:0!important;
-  max-height:none!important;
-  overflow-x:hidden!important;
-  overflow-y:scroll!important;
-  scrollbar-gutter:stable!important;
+  flex:1 1 auto;
+  min-height:0;
+  height:auto;
+  max-height:none;
+  overflow-x:hidden;
+  overflow-y:scroll;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  scrollbar-width:thin;
+  scrollbar-color:var(--line-strong) transparent;
+}
+#page-home #homeRightColumn .uw-side-toggle .card-body::-webkit-scrollbar{width:9px}
+#page-home #homeRightColumn .uw-side-toggle .card-body::-webkit-scrollbar-track{background:transparent}
+#page-home #homeRightColumn .uw-side-toggle .card-body::-webkit-scrollbar-thumb{
+  border:2px solid transparent;
+  border-radius:999px;
+  background:var(--line-strong);
+  background-clip:padding-box;
 }
 @media(max-width:1050px){
-  #page-home #homeRightColumn .uw-side-toggle[open]{
-    height:auto;
-    max-height:none;
-  }
   #page-home #homeRightColumn .uw-side-toggle .card-body{
-    flex:none!important;
-    height:auto!important;
-    max-height:520px!important;
-    overflow-y:auto!important;
+    flex:none;
+    height:auto;
+    max-height:520px;
+    overflow-y:auto;
   }
 }
