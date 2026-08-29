@@ -1,0 +1,22 @@
+name: Refresh grouped goal bundle
+on:
+  push:
+    paths:
+      - .github/workflows/refresh-goal-group.yml
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refresh cache key
+        run: sed -i 's#./js/interaction-fixes.js?v=23#./js/interaction-fixes.js?v=24#' index.html
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/refresh-goal-group.yml
+          git add index.html
+          git commit -m "chore: refresh grouped goal bundle"
+          git push origin main
