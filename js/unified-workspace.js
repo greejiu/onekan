@@ -124,6 +124,7 @@ function dayDistance(first,last){
   return Math.round((Date.UTC(b.getFullYear(),b.getMonth(),b.getDate())-Date.UTC(a.getFullYear(),a.getMonth(),a.getDate()))/86400000)
 }
 function recurrenceOn(item,baseDate,targetDate){
+  if(window.__ONEKAN_DAILY_FOCUS_MODE__)return targetDate===baseDate;
   if(!baseDate||!targetDate)return false;
   const recurrence=item.recurrence;
   if(!recurrence||!recurrence.frequency||recurrence.frequency==="none")return targetDate===baseDate;

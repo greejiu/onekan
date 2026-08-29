@@ -26,6 +26,7 @@ function appDayKey(now = new Date()) {
 }
 
 function recurringOnDate(item, targetKey) {
+  if (window.__ONEKAN_DAILY_FOCUS_MODE__) return item?.date === targetKey;
   if (!item?.date) return false;
   const recurrence = item.recurrence;
   if (!recurrence?.frequency) return item.date === targetKey;
