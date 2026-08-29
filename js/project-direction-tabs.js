@@ -33,6 +33,10 @@ function normalizeGoalStatus(value) {
   return "doing";
 }
 
+function isProject(item) {
+  return !!item && (item.kind === "project" || !item.kind);
+}
+
 function installStyle() {
   if ($("#onekanProjectDirectionTabsStyle")) return;
   const style = document.createElement("style");
@@ -48,10 +52,12 @@ function installStyle() {
     .onekan-goal-add{height:34px;padding:0 12px;border:1px solid var(--line,#d2d7df);border-radius:9px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:11px;font-weight:700;cursor:pointer}
     .onekan-goal-add:hover{background:var(--panel-soft,#f4f5f6)}
     .onekan-goal-list{display:grid;align-content:start;min-height:360px;padding:8px 10px 12px;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:15px;background:#fff}
-    .onekan-goal-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;min-height:46px;padding:7px 8px;border-bottom:1px solid var(--line,#e1e4e8)}
+    .onekan-goal-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;min-height:52px;padding:7px 8px;border-bottom:1px solid var(--line,#e1e4e8)}
     .onekan-goal-row:last-child{border-bottom:0}
+    .onekan-goal-main{display:grid;gap:3px;min-width:0}
     .onekan-goal-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--text,#1f2328);font:inherit;font-size:12px;font-weight:650;text-align:left;cursor:pointer}
     .onekan-goal-title:hover{text-decoration:underline}
+    .onekan-goal-projects{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted,#6d737d);font-size:9px}
     .onekan-goal-status{display:inline-flex;align-items:center;min-height:24px;padding:0 8px;border-radius:999px;background:var(--panel-soft,#f4f5f6);color:var(--muted,#6d737d);font-size:9px;font-weight:700;white-space:nowrap}
     .onekan-goal-period{display:flex;align-items:center;gap:5px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-goal-period button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:inherit;cursor:pointer}
@@ -108,6 +114,7 @@ async function readGoalState() {
   if (error) throw error;
   goalState = data?.data && typeof data.data === "object" ? data.data : {};
   goalState.directionGoals = Array.isArray(goalState.directionGoals) ? goalState.directionGoals : [];
+  goalState.projects = Array.isArray(goalState.projects) ? goalState.projects : [];
   return goalState;
 }
 
@@ -115,6 +122,7 @@ async function writeGoalState(mutator, source = "direction-goals") {
   await readGoalState();
   if (!goalUser || !goalState) return false;
   goalState.directionGoals = Array.isArray(goalState.directionGoals) ? goalState.directionGoals : [];
+  goalState.projects = Array.isArray(goalState.projects) ? goalState.projects : [];
   mutator(goalState);
   const { error } = await supabase.from("onekan_state").upsert({ user_id: goalUser.id, data: goalState }, { onConflict: "user_id" });
   if (error) throw error;
@@ -143,11 +151,19 @@ function statusLabel(value) {
   return GOAL_STATUSES.find((item) => item.id === id)?.label || "진행 중";
 }
 
-function goalRows(goals) {
+function linkedProjectText(goalId, projects) {
+  const linked = (projects || []).filter((project) => isProject(project) && project.goalId === goalId);
+  if (!linked.length) return "연결된 프로젝트 없음";
+  const names = linked.slice(0, 3).map((project) => project.title || "이름 없는 프로젝트");
+  const more = linked.length > 3 ? ` 외 ${linked.length - 3}개` : "";
+  return `프로젝트 ${linked.length}개 · ${names.join(", ")}${more}`;
+}
+
+function goalRows(goals, projects = []) {
   const statusOrder = new Map(GOAL_STATUSES.map((item, index) => [item.id, index]));
   return [...goals]
     .sort((a, b) => (statusOrder.get(normalizeGoalStatus(a.status)) ?? 9) - (statusOrder.get(normalizeGoalStatus(b.status)) ?? 9) || String(a.startDate || "9999-99-99").localeCompare(String(b.startDate || "9999-99-99")) || String(a.title || "").localeCompare(String(b.title || ""), "ko"))
-    .map((goal) => `<div class="onekan-goal-row" data-goal-id="${esc(goal.id)}"><button class="onekan-goal-title" type="button" data-goal-edit="${esc(goal.id)}">${esc(goal.title || "이름 없는 목표")}</button><span class="onekan-goal-status">${esc(statusLabel(goal.status))}</span><span class="onekan-goal-period"><span>${esc(goalPeriod(goal))}</span><button type="button" data-goal-period="${esc(goal.id)}" aria-label="목표 기간 수정" title="목표 기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span></div>`)
+    .map((goal) => `<div class="onekan-goal-row" data-goal-id="${esc(goal.id)}"><div class="onekan-goal-main"><button class="onekan-goal-title" type="button" data-goal-edit="${esc(goal.id)}">${esc(goal.title || "이름 없는 목표")}</button><span class="onekan-goal-projects">${esc(linkedProjectText(goal.id, projects))}</span></div><span class="onekan-goal-status">${esc(statusLabel(goal.status))}</span><span class="onekan-goal-period"><span>${esc(goalPeriod(goal))}</span><button type="button" data-goal-period="${esc(goal.id)}" aria-label="목표 기간 수정" title="목표 기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span></div>`)
     .join("");
 }
 
@@ -223,6 +239,9 @@ async function deleteGoal() {
   try {
     await writeGoalState((current) => {
       current.directionGoals = (current.directionGoals || []).filter((item) => item.id !== id);
+      (current.projects || []).forEach((project) => {
+        if (isProject(project) && project.goalId === id) project.goalId = null;
+      });
     }, "direction-goal-delete");
     $("#onekanGoalEditor")?.close();
     editingGoalId = null;
@@ -247,7 +266,7 @@ async function renderGoalView() {
       return;
     }
     const goals = current.directionGoals || [];
-    list.innerHTML = goals.length ? goalRows(goals) : `<div class="onekan-goal-empty">아직 목표가 없어요.<br>지금 이루고 싶은 것부터 하나만 만들어 보세요.</div>`;
+    list.innerHTML = goals.length ? goalRows(goals, current.projects || []) : `<div class="onekan-goal-empty">아직 목표가 없어요.<br>지금 이루고 싶은 것부터 하나만 만들어 보세요.</div>`;
   } catch (error) {
     console.error("목표 렌더링 실패", error);
     const list = $(".onekan-goal-list", ui.secondary);
