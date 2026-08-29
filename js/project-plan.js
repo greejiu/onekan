@@ -197,7 +197,7 @@ function renderMarkup() {
   const options = projects.map((item) => `<option value="${esc(item.id)}"${item.id === selectedProjectId ? " selected" : ""}>${esc(item.title || "이름 없는 프로젝트")}</option>`).join("");
   const tasks = state.tasks
     .filter((task) => task.projectId === selectedProjectId)
-    .sort((a, b) => Number(!!a.done) - Number(!!b.done) || String(a.date || "9999-99-99").localeCompare(String(b.date || "9999-99-99")) || String(a.title || "").localeCompare(String(b.title || ""), "ko"));
+    .sort((a, b) => String(a.date || "9999-99-99").localeCompare(String(b.date || "9999-99-99")) || String(a.title || "").localeCompare(String(b.title || ""), "ko"));
   return `<section class="onekan-plan-card"><div class="onekan-plan-top"><select class="onekan-plan-project-select" id="onekanPlanProjectSelect" aria-label="진행 중 프로젝트 선택"><option disabled>프로젝트 선택</option>${options}</select><div class="onekan-plan-period"><span>${esc(projectPeriod(project))}</span><button type="button" data-plan-period aria-label="프로젝트 기간 수정" title="프로젝트 기간 수정">▣</button></div></div><div class="onekan-plan-body" id="onekanPlanTaskList">${tasks.length ? tasks.map(taskRow).join("") : '<div class="onekan-plan-empty">이 프로젝트에 연결된 할일이 아직 없어요.</div>'}<button class="onekan-plan-add" data-plan-add type="button">＋ 할일 추가</button></div></section>`;
 }
 
