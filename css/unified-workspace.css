@@ -584,3 +584,29 @@
     border-radius:19px 19px 0 0;
   }
 }
+
+
+/* Home right cards: reliable half-height internal scrolling */
+#page-home #homeRightColumn .uw-side-toggle[open]{
+  min-height:0;
+  overflow:hidden;
+}
+#page-home #homeRightColumn .uw-side-toggle .card-body{
+  flex:1 1 auto;
+  height:auto;
+  min-height:0;
+  max-height:none;
+  overflow-x:hidden;
+  overflow-y:auto;
+}
+#page-home #upcomingList,
+#page-home #somedayHomeSlot{
+  min-height:0;
+}
+@media(max-width:1050px){
+  #page-home #homeRightColumn .uw-side-toggle .card-body{
+    flex:none;
+    height:auto;
+    max-height:520px;
+  }
+}
