@@ -47,3 +47,5 @@ jobs:
           git add js/interaction-fixes.js index.html
           git commit -m "feat: enable goal quick add"
           git push origin main
+
+# trigger
