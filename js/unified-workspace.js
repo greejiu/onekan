@@ -1087,8 +1087,11 @@ function wireControlsV2(){
       if(!dateAllowed(date))return null;
       const lane=timeline.querySelector(".uw-time-lane"),rect=lane?.getBoundingClientRect();
       if(!lane||!rect)return null;
-      const minute=START+((clientY-rect.top)/SLOT_H)*SLOT,templates=effectiveTimeBlockTemplatesForDate(state,date),block=templates.find(candidate=>minute>=Number(candidate.startMinute)&&minute<Number(candidate.endMinute));
-      if(!block)return null;
+      const minute=START+((clientY-rect.top)/SLOT_H)*SLOT,snappedMinute=minuteAt(lane,clientY),templates=effectiveTimeBlockTemplatesForDate(state,date),block=templates.find(candidate=>minute>=Number(candidate.startMinute)&&minute<Number(candidate.endMinute));
+      if(!block){
+        timeline.querySelector(`.uw-time-hit[data-time="${snappedMinute}"]`)?.classList.add("uw-drop-target");
+        return{dropType:"time",date,startMinute:snappedMinute}
+      }
       const blockId=String(block.id),planItem=pointed?.closest(".uw-time-block-plan-item[data-time-block-token]");
       if(planItem&&planItem.dataset.timeBlockToken!==g.planToken){
         const targetBlockId=planItem.dataset.timeBlockBlockId||blockId,afterAnchor=planItem.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR,bounds=planItem.getBoundingClientRect(),before=clientY<bounds.top+bounds.height/2;
@@ -1276,6 +1279,7 @@ function wireControlsV2(){
       g.validTarget=Boolean(target);
       g.dropType=target?.dropType||null;
       g.nextDate=target?.date||g.date;
+      if(target?.dropType==="time"&&Number.isFinite(Number(target.startMinute)))g.nextStart=Number(target.startMinute);
       g.nextBlockId=target?.blockId||null;
       g.nextAfterAnchor=target?.afterAnchor||TIME_BLOCK_START_ANCHOR;
       g.nextOrder=target?.order||1;

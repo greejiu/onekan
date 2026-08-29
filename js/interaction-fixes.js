@@ -6,7 +6,7 @@ import "./auth-guard.js?v=1";
 window.__ONEKAN_DAILY_FOCUS_MODE__ = true;
 
 const deferredModules = [
-  "./task-input-controls.js?v=2",
+  "./task-input-controls.js?v=3",
   "./home-timeline-dynamic-columns.js?v=2",
 ];
 

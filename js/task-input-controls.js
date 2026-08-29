@@ -17,6 +17,9 @@ function installStyle(){
     .uw-task-date-native{position:absolute!important;right:38px!important;top:100%!important;width:1px!important;height:1px!important;min-width:1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important}
     .uw-task-repeat-pop{position:absolute;z-index:80;top:calc(100% + 6px);right:0;width:min(330px,calc(100vw - 34px));padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);box-shadow:0 12px 34px #0002;display:grid;gap:8px}
     .uw-task-repeat-pop[hidden]{display:none!important}
+    .uw-inline-form.uw-task-compact-input:has(.uw-task-repeat-pop:not([hidden])){z-index:12040!important;overflow:visible!important}
+    .uw-time-block-v2-section:has(.uw-task-repeat-pop:not([hidden])){overflow:visible!important;position:relative;z-index:12030}
+    .uw-task-repeat-pop{pointer-events:auto}
     .uw-task-repeat-pop>.uw-repeat-select{width:100%}
     .uw-task-repeat-pop .uw-repeat-custom{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
     .uw-task-repeat-pop .uw-repeat-custom[hidden],.uw-task-repeat-pop .uw-repeat-weekdays[hidden],.uw-task-repeat-pop .uw-repeat-interval[hidden]{display:none!important}
@@ -64,9 +67,19 @@ function decorate(form,removedItem=null){
   };
   dateButton.addEventListener("click",()=>{dateInput.value=form.dataset.uwTaskSelectedDate||"";try{dateInput.showPicker()}catch{dateInput.click()}});
   dateInput.addEventListener("change",()=>{form.dataset.uwTaskSelectedDate=dateInput.value||"";form.dataset.uwEntrySelectedDate=dateInput.value||"";form.dataset.uwEntryDateChanged="1";updateState()});
+  const positionRepeatPanel=()=>{
+    if(panel.hidden)return;
+    if(!form.closest(".uw-timeline,.uw-time-block-v2-section")){panel.removeAttribute("style");return}
+    const rect=repeatButton.getBoundingClientRect(),width=Math.min(330,Math.max(240,window.innerWidth-24));
+    const left=Math.max(12,Math.min(rect.right-width,window.innerWidth-width-12));
+    panel.style.position="fixed";panel.style.width=`${width}px`;panel.style.left=`${left}px`;panel.style.right="auto";panel.style.bottom="auto";panel.style.zIndex="12050";panel.style.visibility="hidden";
+    panel.style.top=`${Math.min(window.innerHeight-12,rect.bottom+6)}px`;
+    requestAnimationFrame(()=>{if(panel.hidden)return;const height=panel.getBoundingClientRect().height;const below=rect.bottom+6,above=rect.top-height-6;panel.style.top=`${below+height<=window.innerHeight-12?below:Math.max(12,above)}px`;panel.style.visibility=""})
+  };
   repeatButton.addEventListener("click",()=>{
     if(!form.dataset.uwTaskSelectedDate){const d=todayKey();form.dataset.uwTaskSelectedDate=d;form.dataset.uwEntrySelectedDate=d;dateInput.value=d}
-    panel.hidden=!panel.hidden;repeatButton.setAttribute("aria-expanded",String(!panel.hidden));updateState()
+    panel.hidden=!panel.hidden;repeatButton.setAttribute("aria-expanded",String(!panel.hidden));updateState();
+    if(!panel.hidden)positionRepeatPanel();else panel.removeAttribute("style")
   });
   panel.addEventListener("change",updateState);panel.addEventListener("uw-repeat-refresh",updateState);
   updateState()
