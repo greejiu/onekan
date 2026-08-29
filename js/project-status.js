@@ -41,6 +41,10 @@ function groupsOf(current = state) {
   return groups;
 }
 
+function goalsOf(current = state) {
+  return Array.isArray(current?.directionGoals) ? current.directionGoals : [];
+}
+
 function defaultGroupId(current = state) {
   return groupsOf(current)[0]?.id || "default";
 }
@@ -52,6 +56,7 @@ function projectGroupId(project, current = state) {
 
 function ensureWritableStructure(current) {
   current.projects = Array.isArray(current.projects) ? current.projects : [];
+  current.directionGoals = Array.isArray(current.directionGoals) ? current.directionGoals : [];
   current.eventGroups = Array.isArray(current.eventGroups) && current.eventGroups.length
     ? current.eventGroups
     : [{ id: "default", name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR }];
@@ -65,6 +70,7 @@ async function readState() {
   if (error) throw error;
   state = data?.data && typeof data.data === "object" ? data.data : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
+  state.directionGoals = Array.isArray(state.directionGoals) ? state.directionGoals : [];
   state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : [{ id: "default", name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR }];
   return state;
 }
@@ -206,6 +212,7 @@ function ensureDialog() {
     <div class="onekan-project-fields">
       <label>이름<input id="onekanProjectTitle" maxlength="120" autocomplete="off" required /></label>
       <label>상태<select id="onekanProjectStatus">${STATUSES.map((status) => `<option value="${status.id}">${status.label}</option>`).join("")}</select></label>
+      <label>목표<select id="onekanProjectGoal"></select></label>
       <label>영역<select id="onekanProjectGroup"></select></label>
       <div class="onekan-project-date-row"><label>시작일<input id="onekanProjectStart" type="date" /></label><label>종료일<input id="onekanProjectEnd" type="date" /></label></div>
     </div>
@@ -225,6 +232,15 @@ function fillGroupSelect(selectedId) {
   select.innerHTML = groups.map((group) => `<option value="${esc(group.id)}"${group.id === selectedId ? " selected" : ""}>${esc(group.name || DEFAULT_GROUP_LABEL)}</option>`).join("");
 }
 
+function fillGoalSelect(selectedId) {
+  const select = $("#onekanProjectGoal");
+  if (!select) return;
+  const goals = goalsOf();
+  const selectedExists = goals.some((goal) => goal.id === selectedId);
+  select.innerHTML = `<option value="">목표 없음</option>${goals.map((goal) => `<option value="${esc(goal.id)}"${goal.id === selectedId ? " selected" : ""}>${esc(goal.title || "이름 없는 목표")}</option>`).join("")}`;
+  select.value = selectedExists ? selectedId : "";
+}
+
 async function openEditor({ projectId = null, status = "doing", groupId = null, focusPeriod = false } = {}) {
   await readState();
   const dialog = ensureDialog();
@@ -233,6 +249,7 @@ async function openEditor({ projectId = null, status = "doing", groupId = null, 
   $("#onekanProjectDialogTitle", dialog).textContent = project ? "프로젝트 수정" : "프로젝트 추가";
   $("#onekanProjectTitle", dialog).value = project?.title || "";
   $("#onekanProjectStatus", dialog).value = project ? normalizeStatus(project.status) : status;
+  fillGoalSelect(project?.goalId || "");
   fillGroupSelect(project ? projectGroupId(project) : (groupId || defaultGroupId()));
   const dates = projectDates(project);
   $("#onekanProjectStart", dialog).value = dates.start || "";
@@ -246,6 +263,7 @@ async function saveEditor() {
   const title = $("#onekanProjectTitle", dialog)?.value.trim();
   if (!title) return $("#onekanProjectTitle", dialog)?.focus();
   const status = $("#onekanProjectStatus", dialog)?.value || "doing";
+  const goalId = $("#onekanProjectGoal", dialog)?.value || null;
   const groupId = $("#onekanProjectGroup", dialog)?.value || defaultGroupId();
   const startDate = $("#onekanProjectStart", dialog)?.value || null;
   const endDate = $("#onekanProjectEnd", dialog)?.value || null;
@@ -253,18 +271,20 @@ async function saveEditor() {
   const id = editingProjectId;
   try {
     await writeState((current) => {
+      const validGoalId = goalId && current.directionGoals.some((goal) => goal.id === goalId) ? goalId : null;
       if (id) {
         const project = current.projects.find((item) => item.id === id && isProject(item));
         if (!project) return;
         project.title = title;
         project.status = status;
+        project.goalId = validGoalId;
         project.groupId = groupId;
         delete project.projectGroupId;
         project.startDate = startDate;
         project.endDate = endDate;
         project.updatedAt = new Date().toISOString();
       } else {
-        current.projects.push({ id: uid(), kind: "project", title, status, groupId, startDate, endDate, createdAt: new Date().toISOString() });
+        current.projects.push({ id: uid(), kind: "project", title, status, goalId: validGoalId, groupId, startDate, endDate, createdAt: new Date().toISOString() });
       }
     }, id ? "project-edit" : "project-add");
     dialog.close();
