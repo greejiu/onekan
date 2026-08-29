@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/patch-step4-habit-workspace.yml'
+      - '.github/scripts/patch-step4-habit-workspace.mjs'
 
 permissions:
   contents: write
@@ -30,8 +31,8 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add index.html js/repeat-overview.js js/habit-history-view.js
-          git commit -m "feat: give habits calendar and list views"
+          git add index.html js/habit-history-view.js
+          git commit -m "feat: finish habit calendar and list views"
           git push
       - name: Remove patch files
         run: |
