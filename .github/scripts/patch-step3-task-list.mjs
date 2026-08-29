@@ -1,5 +1,10 @@
 import fs from 'node:fs';
-function replaceRequired(text,before,after,label){if(!text.includes(before))throw new Error(`missing target: ${label}`);return text.replace(before,after)}
+
+function replaceRequired(text,before,after,label){
+  if(!text.includes(before))throw new Error(`missing target: ${label}`);
+  return text.replace(before,after);
+}
+function decoded(value){return Buffer.from(value,'base64').toString('utf8')}
 
 let index=fs.readFileSync('index.html','utf8');
 index=replaceRequired(index,'<div class="page-head"><div><h1 class="page-title">할일</h1></div><div class="seg uw-task-mode-controls" aria-label="할일 보기"><button data-uw-task-mode="list" type="button">목록</button><button class="active" data-uw-task-mode="calendar" type="button">캘린더</button></div></div>','<div class="page-head"><div><h1 class="page-title">할일</h1></div><div class="seg uw-task-mode-controls" aria-label="할일 보기"><button class="active" data-uw-task-mode="calendar" type="button">캘린더</button><button data-uw-task-mode="list" type="button">목록</button></div></div>','task mode order');
@@ -10,69 +15,13 @@ let source=fs.readFileSync('js/unified-workspace.js','utf8');
 const visibleStart=source.indexOf('function visibleTasks(tab){');
 const visibleEnd=source.indexOf('function renderTasks(){',visibleStart);
 if(visibleStart<0||visibleEnd<0)throw new Error('visibleTasks block not found');
-const visibleReplacement=`function taskListDate(task){
-  if(task.done){
-    if(task.completedDate)return task.completedDate;
-    if(task.completedAt){const completed=new Date(task.completedAt);if(!Number.isNaN(completed.getTime()))return key(completed)}
-  }
-  return task._occurrenceDate||task.date||""
-}
-function visibleTasks(tab){
-  const today=todayKey(),tasks=state.tasks.filter(task=>!task.isHabit);
-  let rows=[];
-  if(tab==="done")rows=tasks.filter(task=>task.done);
-  else if(tab==="someday")rows=tasks.filter(task=>!task.done&&!task.date);
-  else if(tab==="upcoming")rows=tasks.filter(task=>!task.done&&task.date&&task.date>=today);
-  else rows=[...tasks];
-  return rows.sort((a,b)=>{
-    const ad=taskListDate(a),bd=taskListDate(b);
-    if(tab==="upcoming")return String(ad||"9999").localeCompare(String(bd||"9999"))||String(a.title||"").localeCompare(String(b.title||""),"ko");
-    return String(bd||"").localeCompare(String(ad||""))||String(a.title||"").localeCompare(String(b.title||""),"ko")
-  })
-}
-`;
+const visibleReplacement=decoded('ZnVuY3Rpb24gdGFza0xpc3REYXRlKHRhc2spewogIGlmKHRhc2suZG9uZSl7CiAgICBpZih0YXNrLmNvbXBsZXRlZERhdGUpcmV0dXJuIHRhc2suY29tcGxldGVkRGF0ZTsKICAgIGlmKHRhc2suY29tcGxldGVkQXQpe2NvbnN0IGNvbXBsZXRlZD1uZXcgRGF0ZSh0YXNrLmNvbXBsZXRlZEF0KTtpZighTnVtYmVyLmlzTmFOKGNvbXBsZXRlZC5nZXRUaW1lKCkpKXJldHVybiBrZXkoY29tcGxldGVkKX0KICB9CiAgcmV0dXJuIHRhc2suX29jY3VycmVuY2VEYXRlfHx0YXNrLmRhdGV8fCIiCn0KZnVuY3Rpb24gdmlzaWJsZVRhc2tzKHRhYil7CiAgY29uc3QgdG9kYXk9dG9kYXlLZXkoKSx0YXNrcz1zdGF0ZS50YXNrcy5maWx0ZXIodGFzaz0+IXRhc2suaXNIYWJpdCk7CiAgbGV0IHJvd3M9W107CiAgaWYodGFiPT09ImRvbmUiKXJvd3M9dGFza3MuZmlsdGVyKHRhc2s9PnRhc2suZG9uZSk7CiAgZWxzZSBpZih0YWI9PT0ic29tZWRheSIpcm93cz10YXNrcy5maWx0ZXIodGFzaz0+IXRhc2suZG9uZSYmIXRhc2suZGF0ZSk7CiAgZWxzZSBpZih0YWI9PT0idXBjb21pbmciKXJvd3M9dGFza3MuZmlsdGVyKHRhc2s9PiF0YXNrLmRvbmUmJnRhc2suZGF0ZSYmdGFzay5kYXRlPj10b2RheSk7CiAgZWxzZSByb3dzPVsuLi50YXNrc107CiAgcmV0dXJuIHJvd3Muc29ydCgoYSxiKT0+ewogICAgY29uc3QgYWQ9dGFza0xpc3REYXRlKGEpLGJkPXRhc2tMaXN0RGF0ZShiKTsKICAgIGlmKHRhYj09PSJ1cGNvbWluZyIpcmV0dXJuIFN0cmluZyhhZHx8Ijk5OTkiKS5sb2NhbGVDb21wYXJlKFN0cmluZyhiZHx8Ijk5OTkiKSl8fFN0cmluZyhhLnRpdGxlfHwiIikubG9jYWxlQ29tcGFyZShTdHJpbmcoYi50aXRsZXx8IiIpLCJrbyIpOwogICAgcmV0dXJuIFN0cmluZyhiZHx8IiIpLmxvY2FsZUNvbXBhcmUoU3RyaW5nKGFkfHwiIikpfHxTdHJpbmcoYS50aXRsZXx8IiIpLmxvY2FsZUNvbXBhcmUoU3RyaW5nKGIudGl0bGV8fCIiKSwia28iKQogIH0pCn0K');
 source=source.slice(0,visibleStart)+visibleReplacement+source.slice(visibleEnd);
 source=replaceRequired(source,'function taskRowsForDate(k){return taskOccurrencesForDate(k).sort((a,b)=>+taskDoneOn(a,k)-+taskDoneOn(b,k)||String(a.notionStart||"").localeCompare(String(b.notionStart||""))||String(a.title).localeCompare(String(b.title),"ko"))}','function taskRowsForDate(k){return taskOccurrencesForDate(k).filter(task=>!task.isHabit).sort((a,b)=>+taskDoneOn(a,k)-+taskDoneOn(b,k)||String(a.notionStart||"").localeCompare(String(b.notionStart||""))||String(a.title).localeCompare(String(b.title),"ko"))}','task calendar habit filter');
-source=replaceRequired(source,'${[["all","전체"],["today","오늘"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>','${[["all","전체"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>','task list tabs');
-
+source=replaceRequired(source,'[["all","전체"],["today","오늘"],["upcoming","예정"],["someday","언젠가"],["done","완료"]]','[["all","전체"],["upcoming","예정"],["someday","언젠가"],["done","완료"]]','task list tabs');
 const renderStart=source.indexOf('function renderTasksV2(){');
-const renderEnd=source.indexOf('function taskBoard',renderStart);
-if(renderStart<0||renderEnd<0)throw new Error('renderTasksV2 block end not found');
-const currentBlock=source.slice(renderStart,renderEnd);
-const funcEnd=currentBlock.indexOf('\nfunction taskMonthBoard');
-if(funcEnd<0)throw new Error('task render boundary not found');
-const beforeRender=currentBlock.slice(0,currentBlock.indexOf('function renderTasksV2(){'));
-const afterRender=currentBlock.slice(funcEnd);
-const renderReplacement=`function taskDateGroups(rows,tab){
-  if(tab==="someday")return[];
-  const groups=new Map();
-  for(const task of rows){const date=taskListDate(task);if(!date)continue;if(!groups.has(date))groups.set(date,[]);groups.get(date).push(task)}
-  const dates=[...groups.keys()].sort((a,b)=>tab==="upcoming"?a.localeCompare(b):b.localeCompare(a));
-  return dates.map(date=>({date,rows:groups.get(date)}))
-}
-function renderTasksV2(){
-  const root=$("#tasksPageList");
-  if(!root)return;
-  $$('[data-uw-task-mode]').forEach(button=>button.classList.toggle("active",button.dataset.uwTaskMode===taskPageMode));
-  renderTaskSubnav();
-  if(taskPageMode==="list"){
-    const rows=visibleTasks(taskListTab);
-    if(taskListTab==="someday"){
-      const grouped=state.eventGroups.map(groupInfo=>({groupInfo,rows:rows.filter(task=>group(task).id===groupInfo.id)})).filter(entry=>entry.rows.length);
-      const add=`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop>\${taskListInput("")}</div>`;
-      root.innerHTML=add+(grouped.length?`<div class="uw-task-grouped-list">\${grouped.map(({groupInfo,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:\${groupInfo.color}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>\${esc(groupInfo.name)}</strong></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-group-id="\${groupInfo.id}" data-uw-someday-drop>\${taskListMarkup(groupRows,"")}</div></section>`).join("")}</div>`:'<div class="empty">언젠가 할일이 없어요.</div>');
-      return
-    }
-    const groups=taskDateGroups(rows,taskListTab),undated=taskListTab==="all"?rows.filter(task=>!taskListDate(task)):[];
-    const add=taskListTab==="all"?`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="">\${taskListInput("")}</div>`:"";
-    const dated=groups.map(({date,rows:groupRows})=>`<section class="uw-date-group"><div class="uw-date-label"><span>\${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="\${date}" data-task-drop-date="\${date}">\${taskListMarkup(groupRows,date)}</div></section>`).join("");
-    const someday=undated.length?`<section class="uw-date-group"><div class="uw-date-label"><span>언젠가</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop>\${taskListMarkup(undated,"")}</div></section>`:"";
-    root.innerHTML=add+(dated||someday?`<div class="uw-task-grouped-list">\${dated}\${someday}</div>`:'<div class="empty">표시할 할일이 없어요.</div>');
-    return
-  }
-  const layout=taskCalendarView==="month"?"board":taskCalendarLayout;
-  root.innerHTML=`<section class="uw-task-calendar-shell">\${taskCalendarNav()}\${taskCalendarView==="month"?taskMonthBoard():layout==="timeline"?taskTimeline():taskBoard()}</section>`
-}
-`;
-source=source.slice(0,renderStart)+renderReplacement+afterRender+source.slice(renderEnd);
+const renderEnd=source.indexOf('function wireTaskViewControls(){',renderStart);
+if(renderStart<0||renderEnd<0)throw new Error('renderTasksV2 block not found');
+const renderReplacement=decoded('ZnVuY3Rpb24gdGFza0RhdGVHcm91cHMocm93cyx0YWIpewogIGlmKHRhYj09PSJzb21lZGF5IilyZXR1cm5bXTsKICBjb25zdCBncm91cHM9bmV3IE1hcCgpOwogIGZvcihjb25zdCB0YXNrIG9mIHJvd3MpewogICAgY29uc3QgZGF0ZT10YXNrTGlzdERhdGUodGFzayk7CiAgICBpZighZGF0ZSljb250aW51ZTsKICAgIGlmKCFncm91cHMuaGFzKGRhdGUpKWdyb3Vwcy5zZXQoZGF0ZSxbXSk7CiAgICBncm91cHMuZ2V0KGRhdGUpLnB1c2godGFzaykKICB9CiAgY29uc3QgZGF0ZXM9Wy4uLmdyb3Vwcy5rZXlzKCldLnNvcnQoKGEsYik9PnRhYj09PSJ1cGNvbWluZyI/YS5sb2NhbGVDb21wYXJlKGIpOmIubG9jYWxlQ29tcGFyZShhKSk7CiAgcmV0dXJuIGRhdGVzLm1hcChkYXRlPT4oe2RhdGUscm93czpncm91cHMuZ2V0KGRhdGUpfSkpCn0KZnVuY3Rpb24gcmVuZGVyVGFza3NWMigpewogIGNvbnN0IHJvb3Q9JCgiI3Rhc2tzUGFnZUxpc3QiKTsKICBpZighcm9vdClyZXR1cm47CiAgJCQoJ1tkYXRhLXV3LXRhc2stbW9kZV0nKS5mb3JFYWNoKGJ1dHRvbj0+YnV0dG9uLmNsYXNzTGlzdC50b2dnbGUoImFjdGl2ZSIsYnV0dG9uLmRhdGFzZXQudXdUYXNrTW9kZT09PXRhc2tQYWdlTW9kZSkpOwogIHJlbmRlclRhc2tTdWJuYXYoKTsKICBpZih0YXNrUGFnZU1vZGU9PT0ibGlzdCIpewogICAgY29uc3Qgcm93cz12aXNpYmxlVGFza3ModGFza0xpc3RUYWIpOwogICAgaWYodGFza0xpc3RUYWI9PT0ic29tZWRheSIpewogICAgICBjb25zdCBncm91cGVkPXN0YXRlLmV2ZW50R3JvdXBzCiAgICAgICAgLm1hcChncm91cEluZm89Pih7Z3JvdXBJbmZvLHJvd3M6cm93cy5maWx0ZXIodGFzaz0+Z3JvdXAodGFzaykuaWQ9PT1ncm91cEluZm8uaWQpfSkpCiAgICAgICAgLmZpbHRlcihlbnRyeT0+ZW50cnkucm93cy5sZW5ndGgpOwogICAgICBjb25zdCBhZGQ9YDxkaXYgY2xhc3M9InV3LWxpc3QgdXctdGFzay1tYWluLWxpc3QiIGRhdGEtdXctYWRkLWtpbmQ9InRhc2siIGRhdGEtZGF0ZT0iIiBkYXRhLXV3LXNvbWVkYXktZHJvcD4ke3Rhc2tMaXN0SW5wdXQoIiIpfTwvZGl2PmA7CiAgICAgIHJvb3QuaW5uZXJIVE1MPWFkZCsoZ3JvdXBlZC5sZW5ndGgKICAgICAgICA/IGA8ZGl2IGNsYXNzPSJ1dy10YXNrLWdyb3VwZWQtbGlzdCI+JHtncm91cGVkLm1hcCgoe2dyb3VwSW5mbyxyb3dzOmdyb3VwUm93c30pPT5gPHNlY3Rpb24gY2xhc3M9InV3LXRhc2stZ3JvdXAtc2VjdGlvbiIgc3R5bGU9Ii0tdXctZ3JvdXA6JHtncm91cEluZm8uY29sb3J9Ij48ZGl2IGNsYXNzPSJ1dy10YXNrLWdyb3VwLWhlYWRpbmciPjxzcGFuIGNsYXNzPSJ1dy10YXNrLWdyb3VwLWRvdCI+PC9zcGFuPjxzdHJvbmc+JHtlc2MoZ3JvdXBJbmZvLm5hbWUpfTwvc3Ryb25nPjwvZGl2PjxkaXYgY2xhc3M9InV3LWxpc3QgdXctdGFzay1tYWluLWxpc3QiIGRhdGEtdXctYWRkLWtpbmQ9InRhc2siIGRhdGEtZGF0ZT0iIiBkYXRhLWdyb3VwLWlkPSIke2dyb3VwSW5mby5pZH0iIGRhdGEtdXctc29tZWRheS1kcm9wPiR7dGFza0xpc3RNYXJrdXAoZ3JvdXBSb3dzLCIiKX08L2Rpdj48L3NlY3Rpb24+YCkuam9pbigiIil9PC9kaXY+YAogICAgICAgIDogJzxkaXYgY2xhc3M9ImVtcHR5Ij7slrjsoKDqsIAg7ZWg7J287J20IOyXhuyWtOyalC48L2Rpdj4nKTsKICAgICAgcmV0dXJuCiAgICB9CiAgICBjb25zdCBncm91cHM9dGFza0RhdGVHcm91cHMocm93cyx0YXNrTGlzdFRhYik7CiAgICBjb25zdCB1bmRhdGVkPXRhc2tMaXN0VGFiPT09ImFsbCI/cm93cy5maWx0ZXIodGFzaz0+IXRhc2tMaXN0RGF0ZSh0YXNrKSk6W107CiAgICBjb25zdCBhZGQ9dGFza0xpc3RUYWI9PT0iYWxsIj9gPGRpdiBjbGFzcz0idXctbGlzdCB1dy10YXNrLW1haW4tbGlzdCIgZGF0YS11dy1hZGQta2luZD0idGFzayIgZGF0YS1kYXRlPSIiPiR7dGFza0xpc3RJbnB1dCgiIil9PC9kaXY+YDoiIjsKICAgIGNvbnN0IGRhdGVkPWdyb3Vwcy5tYXAoKHtkYXRlLHJvd3M6Z3JvdXBSb3dzfSk9PmA8c2VjdGlvbiBjbGFzcz0idXctZGF0ZS1ncm91cCI+PGRpdiBjbGFzcz0idXctZGF0ZS1sYWJlbCI+PHNwYW4+JHtkYXlMYWJlbChmcm9tS2V5KGRhdGUpLHRydWUpfTwvc3Bhbj48L2Rpdj48ZGl2IGNsYXNzPSJ1dy1saXN0IHV3LXRhc2stbWFpbi1saXN0IiBkYXRhLXV3LWFkZC1raW5kPSJ0YXNrIiBkYXRhLWRhdGU9IiR7ZGF0ZX0iIGRhdGEtdGFzay1kcm9wLWRhdGU9IiR7ZGF0ZX0iPiR7dGFza0xpc3RNYXJrdXAoZ3JvdXBSb3dzLGRhdGUpfTwvZGl2Pjwvc2VjdGlvbj5gKS5qb2luKCIiKTsKICAgIGNvbnN0IHNvbWVkYXk9dW5kYXRlZC5sZW5ndGg/YDxzZWN0aW9uIGNsYXNzPSJ1dy1kYXRlLWdyb3VwIj48ZGl2IGNsYXNzPSJ1dy1kYXRlLWxhYmVsIj48c3Bhbj7slrjsoKDqsIA8L3NwYW4+PC9kaXY+PGRpdiBjbGFzcz0idXctbGlzdCB1dy10YXNrLW1haW4tbGlzdCIgZGF0YS11dy1hZGQta2luZD0idGFzayIgZGF0YS1kYXRlPSIiIGRhdGEtdXctc29tZWRheS1kcm9wPiR7dGFza0xpc3RNYXJrdXAodW5kYXRlZCwiIil9PC9kaXY+PC9zZWN0aW9uPmA6IiI7CiAgICByb290LmlubmVySFRNTD1hZGQrKGRhdGVkfHxzb21lZGF5P2A8ZGl2IGNsYXNzPSJ1dy10YXNrLWdyb3VwZWQtbGlzdCI+JHtkYXRlZH0ke3NvbWVkYXl9PC9kaXY+YDonPGRpdiBjbGFzcz0iZW1wdHkiPu2RnOyLnO2VoCDtlaDsnbzsnbQg7JeG7Ja07JqULjwvZGl2PicpOwogICAgcmV0dXJuCiAgfQogIGNvbnN0IGxheW91dD10YXNrQ2FsZW5kYXJWaWV3PT09Im1vbnRoIj8iYm9hcmQiOnRhc2tDYWxlbmRhckxheW91dDsKICByb290LmlubmVySFRNTD1gPHNlY3Rpb24gY2xhc3M9InV3LXRhc2stY2FsZW5kYXItc2hlbGwiPiR7dGFza0NhbGVuZGFyTmF2KCl9JHt0YXNrQ2FsZW5kYXJWaWV3PT09Im1vbnRoIj90YXNrTW9udGhCb2FyZCgpOmxheW91dD09PSJ0aW1lbGluZSI/dGFza1RpbWVsaW5lKCk6dGFza0JvYXJkKCl9PC9zZWN0aW9uPmAKfQo=');
+source=source.slice(0,renderStart)+renderReplacement+source.slice(renderEnd);
 fs.writeFileSync('js/unified-workspace.js',source);
