@@ -25,34 +25,20 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           path = Path('index.html')
           text = path.read_text()
-
-          old = '''        <button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>
-        <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>'''
-          new = '''        <button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>
-        <button class="nav-item" data-page="repeat" type="button"><span class="nav-icon">↻</span><span class="nav-label">반복</span></button>
-        <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>'''
+          old = '<button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>\n        <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>'
+          new = '<button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>\n        <button class="nav-item" data-page="repeat" type="button"><span class="nav-icon">↻</span><span class="nav-label">반복</span></button>\n        <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>'
           if old not in text:
               raise SystemExit('navigation token not found')
           text = text.replace(old, new, 1)
-
-          marker = '''      <section class="page" id="page-tracking">'''
-          repeat_page = '''      <section class="page" id="page-repeat">
-        <div class="page-head"><div><h1 class="page-title">반복</h1></div></div>
-        <p class="onekan-repeat-intro">반복되는 할일과 일정을 한 곳에서 확인해요. 지금은 기존 반복 항목을 모아보는 단계예요.</p>
-        <div class="onekan-repeat-grid" id="repeatOverviewBody"></div>
-      </section>
-
-'''
+          marker = '      <section class="page" id="page-tracking">'
+          repeat_page = '      <section class="page" id="page-repeat">\n        <div class="page-head"><div><h1 class="page-title">반복</h1></div></div>\n        <p class="onekan-repeat-intro">반복되는 할일과 일정을 한 곳에서 확인해요. 지금은 기존 반복 항목을 모아보는 단계예요.</p>\n        <div class="onekan-repeat-grid" id="repeatOverviewBody"></div>\n      </section>\n\n'
           if marker not in text:
               raise SystemExit('repeat page marker not found')
           text = text.replace(marker, repeat_page + marker, 1)
-
-          old_script = '''  <script type="module" src="./js/unified-workspace.js?v=67"></script>'''
-          new_script = '''  <script type="module" src="./js/unified-workspace.js?v=67"></script>
-  <script type="module" src="./js/repeat-overview.js?v=1"></script>'''
+          old_script = '  <script type="module" src="./js/unified-workspace.js?v=67"></script>'
+          new_script = old_script + '\n  <script type="module" src="./js/repeat-overview.js?v=1"></script>'
           if old_script not in text:
               raise SystemExit('script token not found')
           text = text.replace(old_script, new_script, 1)
