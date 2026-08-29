@@ -24,8 +24,8 @@ path.write_text(text, encoding='utf-8')
 
 index = Path('index.html')
 html = index.read_text(encoding='utf-8')
-old_version = './js/unified-workspace.js?v=74'
-new_version = './js/unified-workspace.js?v=75'
+old_version = './js/unified-workspace.js?v=75'
+new_version = './js/unified-workspace.js?v=76'
 if old_version not in html:
     raise SystemExit('unified-workspace version marker not found')
 index.write_text(html.replace(old_version, new_version, 1), encoding='utf-8')
