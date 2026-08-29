@@ -1,0 +1,38 @@
+name: Patch step 2 schedule list
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-step2-schedule-list.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply patch
+        run: node .github/scripts/patch-step2-schedule-list.mjs
+      - name: Check JavaScript
+        run: node --check js/unified-workspace.js
+      - name: Check diff
+        run: git diff --check
+      - name: Commit feature
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html js/unified-workspace.js
+          git commit -m "feat: unify schedule calendar and list views"
+          git push
+      - name: Remove patch files
+        run: |
+          git rm .github/workflows/patch-step2-schedule-list.yml .github/scripts/patch-step2-schedule-list.mjs
+          git commit -m "chore: remove step 2 schedule list patch files"
+          git push
