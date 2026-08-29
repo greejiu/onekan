@@ -219,12 +219,11 @@ async function toggleGoal(goalId) {
 
 function installListeners() {
   document.addEventListener("contextmenu", (event) => {
-    const target = directionTarget(event.target);
-    if (target) activeTarget = target;
+    activeTarget = directionTarget(event.target);
   }, true);
   document.addEventListener("pointerdown", (event) => {
-    const target = directionTarget(event.target);
-    if (target) activeTarget = target;
+    if (event.target.closest?.("#globalContextMenu")) return;
+    activeTarget = directionTarget(event.target);
   }, true);
 
   document.addEventListener("click", (event) => {
@@ -261,6 +260,8 @@ function installListeners() {
 }
 
 function init() {
+  if (document.documentElement.dataset.directionContextWired) return;
+  document.documentElement.dataset.directionContextWired = "1";
   ensureParts();
   installListeners();
 }
@@ -268,8 +269,5 @@ function init() {
 const { data: { session } } = await supabase.auth.getSession();
 if (session?.user) init();
 supabase.auth.onAuthStateChange((_event, nextSession) => {
-  if (nextSession?.user && !document.documentElement.dataset.directionContextWired) {
-    document.documentElement.dataset.directionContextWired = "1";
-    init();
-  }
+  if (nextSession?.user) init();
 });
