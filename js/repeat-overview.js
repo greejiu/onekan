@@ -16,8 +16,8 @@ let state=null;
 let user=null;
 let rendering=false;
 let renderTimer=null;
-let habitMode="calendar";
-let habitListTab="all";
+let habitMode="list";
+let habitListTab="upcoming";
 let habitCalendarView="month";
 let habitCursor=fromKey(todayKey());
 
