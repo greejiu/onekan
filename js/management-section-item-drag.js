@@ -3,14 +3,24 @@ import { showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const esc = (value) => String(value ?? "").replace(/[&<>"\']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 
 let state = null;
 let user = null;
 let drag = null;
 let holdTimer = null;
 let renderTimer = null;
-let pendingMove = null;
+
+function flatGroupId(sectionId) {
+  return `management-flat-${sectionId}`;
+}
+
+function normalizeState(raw) {
+  const next = raw && typeof raw === "object" ? raw : {};
+  next.managementSections = Array.isArray(next.managementSections) ? next.managementSections : [];
+  next.managementGroups = Array.isArray(next.managementGroups) ? next.managementGroups : [];
+  next.managementItems = Array.isArray(next.managementItems) ? next.managementItems : [];
+  return next;
+}
 
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -18,12 +28,18 @@ async function readState() {
   if (!user) return null;
   const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
   if (error) throw error;
-  const next = data?.data && typeof data.data === "object" ? data.data : {};
-  next.managementSections = Array.isArray(next.managementSections) ? next.managementSections : [];
-  next.managementGroups = Array.isArray(next.managementGroups) ? next.managementGroups : [];
-  next.managementItems = Array.isArray(next.managementItems) ? next.managementItems : [];
-  state = next;
+  state = normalizeState(data?.data);
   return state;
+}
+
+function ensureFlatGroup(sectionId) {
+  const id = flatGroupId(sectionId);
+  let group = state.managementGroups.find((entry) => entry.id === id);
+  if (!group) {
+    group = { id, sectionId, name: "기본", system: true, hidden: true, createdAt: new Date().toISOString() };
+    state.managementGroups.push(group);
+  }
+  return group;
 }
 
 async function saveState() {
@@ -33,26 +49,12 @@ async function saveState() {
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management-section-item-drag" } }));
 }
 
-function ensureMenu() {
-  if ($("#managementSectionMoveMenu")) return;
-  const menu = document.createElement("div");
-  menu.id = "managementSectionMoveMenu";
-  menu.className = "management-context";
-  document.body.appendChild(menu);
-}
-
-function closeMenu() {
-  $("#managementSectionMoveMenu")?.classList.remove("open");
-  pendingMove = null;
-}
-
 function clearTargets() {
   $$("#page-management .management-section-board.management-section-drop-target").forEach((card) => card.classList.remove("management-section-drop-target"));
 }
 
 function targetSectionAt(x, y) {
-  const node = document.elementFromPoint(x, y);
-  return node?.closest?.("#page-management .management-section-board[data-management-section-id]") || null;
+  return document.elementFromPoint(x, y)?.closest?.("#page-management .management-section-board[data-management-section-id]") || null;
 }
 
 function markTarget(card) {
@@ -97,42 +99,17 @@ function scheduleDecorate(delay = 40, refresh = false) {
   renderTimer = setTimeout(() => decorateOverview({ refresh }), delay);
 }
 
-async function moveItemToGroup(itemId, sectionId, groupId) {
+async function moveItem(itemId, sectionId) {
   await readState();
-  const item = state?.managementItems.find((entry) => entry.id === itemId);
-  const group = state?.managementGroups.find((entry) => entry.id === groupId && entry.sectionId === sectionId);
-  if (!item || !group) return;
+  if (!state || !state.managementSections.some((entry) => entry.id === sectionId)) return;
+  const item = state.managementItems.find((entry) => entry.id === itemId);
+  if (!item || item.sectionId === sectionId) return;
+  const group = ensureFlatGroup(sectionId);
   item.sectionId = sectionId;
-  item.groupId = groupId;
+  item.groupId = group.id;
   await saveState();
   showToast(`‘${item.title}’ 항목을 이동했어요.`);
-  scheduleDecorate(120);
-}
-
-function openGroupChooser(itemId, sectionId, groups, x, y) {
-  ensureMenu();
-  const menu = $("#managementSectionMoveMenu");
-  pendingMove = { itemId, sectionId };
-  menu.innerHTML = `<strong class="management-context-label">어느 그룹으로 옮길까요?</strong>${groups.map((group) => `<button data-management-section-move-group="${group.id}" type="button">${esc(group.name)}</button>`).join("")}`;
-  menu.style.left = `${Math.max(8, Math.min(innerWidth - 210, x))}px`;
-  menu.style.top = `${Math.max(8, Math.min(innerHeight - Math.min(300, 48 + groups.length * 36), y))}px`;
-  menu.classList.add("open");
-}
-
-async function handleSectionDrop(itemId, targetSectionId, x, y) {
-  await readState();
-  const item = state?.managementItems.find((entry) => entry.id === itemId);
-  if (!item || !targetSectionId || item.sectionId === targetSectionId) return;
-  const groups = state.managementGroups.filter((group) => group.sectionId === targetSectionId);
-  if (!groups.length) {
-    showToast("이 섹션에 그룹을 먼저 만들어 주세요.");
-    return;
-  }
-  if (groups.length === 1) {
-    await moveItemToGroup(itemId, targetSectionId, groups[0].id);
-    return;
-  }
-  openGroupChooser(itemId, targetSectionId, groups, x, y);
+  scheduleDecorate(100, false);
 }
 
 function beginActiveDrag() {
@@ -148,7 +125,6 @@ document.addEventListener("pointerdown", (event) => {
   if (!event.isPrimary || event.button !== 0) return;
   const itemEl = event.target.closest?.("#page-management .management-section-board-item[data-management-overview-item-id]");
   if (!itemEl) return;
-  closeMenu();
   drag = {
     pointerId: event.pointerId,
     pointerType: event.pointerType,
@@ -160,9 +136,7 @@ document.addEventListener("pointerdown", (event) => {
     y: event.clientY,
     active: false,
   };
-  if (event.pointerType === "touch") {
-    holdTimer = setTimeout(beginActiveDrag, 420);
-  }
+  if (event.pointerType === "touch") holdTimer = setTimeout(beginActiveDrag, 420);
 }, true);
 
 document.addEventListener("pointermove", (event) => {
@@ -170,7 +144,6 @@ document.addEventListener("pointermove", (event) => {
   drag.x = event.clientX;
   drag.y = event.clientY;
   const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
-
   if (!drag.active) {
     if (drag.pointerType === "touch") {
       if (distance > 8) resetDrag();
@@ -179,7 +152,6 @@ document.addEventListener("pointermove", (event) => {
     if (distance < 6) return;
     beginActiveDrag();
   }
-
   if (!drag?.active) return;
   if (event.cancelable) event.preventDefault();
   markTarget(targetSectionAt(event.clientX, event.clientY));
@@ -194,7 +166,7 @@ document.addEventListener("pointerup", async (event) => {
   resetDrag();
   if (!current.active || !sectionId) return;
   try {
-    await handleSectionDrop(current.itemId, sectionId, event.clientX, event.clientY);
+    await moveItem(current.itemId, sectionId);
   } catch (error) {
     console.error("management cross-section move failed", error);
     showToast("섹션 이동 중 오류가 났어요.");
@@ -203,23 +175,6 @@ document.addEventListener("pointerup", async (event) => {
 
 document.addEventListener("pointercancel", (event) => {
   if (drag && event.pointerId === drag.pointerId) resetDrag();
-}, true);
-
-document.addEventListener("click", async (event) => {
-  const choice = event.target.closest?.("[data-management-section-move-group]");
-  if (choice && pendingMove) {
-    const move = pendingMove;
-    const groupId = choice.dataset.managementSectionMoveGroup || "";
-    closeMenu();
-    try {
-      await moveItemToGroup(move.itemId, move.sectionId, groupId);
-    } catch (error) {
-      console.error("management group choice move failed", error);
-      showToast("항목 이동 중 오류가 났어요.");
-    }
-    return;
-  }
-  if (!event.target.closest?.("#managementSectionMoveMenu")) closeMenu();
 }, true);
 
 const style = document.createElement("style");
@@ -232,11 +187,10 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-ensureMenu();
-const pageObserverTarget = $("#page-management");
-if (pageObserverTarget) {
+const managementPage = $("#page-management");
+if (managementPage) {
   const observer = new MutationObserver(() => scheduleDecorate(30, false));
-  observer.observe(pageObserverTarget, { childList: true, subtree: true });
+  observer.observe(managementPage, { childList: true, subtree: true });
 }
 document.addEventListener("onekan:state-changed", () => scheduleDecorate(70, true));
 supabase.auth.onAuthStateChange(() => scheduleDecorate(100, true));

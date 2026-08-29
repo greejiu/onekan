@@ -54,7 +54,7 @@ function ensureShell() {
   if (!$("link[data-onekan-management-style]")) {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "./css/management.css?v=3";
+    link.href = "./css/management.css?v=4";
     link.dataset.onekanManagementStyle = "1";
     document.head.appendChild(link);
   }
@@ -145,7 +145,7 @@ function renderAllSections() {
             ${previewItems.length ? previewItems.map((item) => `<span class="management-section-board-item">${esc(item.title || "이름 없는 항목")}</span>`).join("") : '<span class="management-section-board-item-empty">아직 관리 항목이 없어요.</span>'}
             ${remainingItems ? `<small class="management-section-board-more">외 ${remainingItems}개</small>` : ""}
           </div>
-          <small class="management-section-board-meta">${groupCount ? `${groupCount}개 그룹` : "그룹 없음"} · ${itemCount}개 항목</small>
+          <small class="management-section-board-meta">${itemCount}개 항목</small>
         </div>
       </section>`;
   }).join("")}</div>`;
@@ -168,21 +168,12 @@ function groupMarkup(group) {
 function renderSection(section) {
   const root = $("#managementContent");
   if (!root) return;
-  const groups = managementState.managementGroups.filter((group) => group.sectionId === section.id);
   root.innerHTML = `
     <section class="management-section-detail" data-management-section-id="${esc(section.id)}">
       <div class="management-section-detail-title">
         <strong>${esc(section.name)}</strong>
-        <button class="soft-btn management-group-add-button" id="managementGroupAddButton" type="button">그룹 추가&nbsp; ＋</button>
       </div>
-      <form class="management-group-form" id="managementGroupForm" autocomplete="off" hidden>
-        <input id="managementGroupName" type="text" maxlength="40" placeholder="새 그룹 이름" aria-label="관리 그룹 이름" />
-        <button class="primary-btn" id="managementGroupSubmit" type="submit">추가</button>
-        <button class="soft-btn" id="managementGroupCancel" type="button">취소</button>
-      </form>
-      <div class="management-groups">
-        ${groups.length ? groups.map(groupMarkup).join("") : '<div class="management-section-placeholder"><span>아직 그룹이 없어요.</span><small>예: 방, 거실, 욕실처럼 이 섹션 안에서 관리 항목을 묶어보세요.</small></div>'}
-      </div>
+      <div class="management-section-items-body" data-management-section-items="${esc(section.id)}"></div>
     </section>`;
 }
 
