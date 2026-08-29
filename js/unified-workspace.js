@@ -1577,6 +1577,13 @@ function wireEnterToSave(){
   })
 }
 function wireOverdueActions(){document.addEventListener("click",async event=>{const view=event.target.closest("[data-uw-overdue-view]"),move=event.target.closest("[data-uw-overdue-move]");if(!view&&!move)return;event.preventDefault();event.stopImmediatePropagation();if(view){overdueExpanded=!overdueExpanded;renderOverdue();return}move.disabled=true;move.textContent="이동 중…";await write(current=>{const today=todayKey(),ids=new Set();current.tasks.forEach(task=>{if(!task.done&&task.date&&task.date<today&&!task.recurrence?.frequency){ids.add(task.id);task.date=today}});(current.timeBlocks||[]).forEach(block=>{if(ids.has(block.taskId)&&block.date<today)block.date=today})});overdueExpanded=false},true)}
+function renderInitialCalendarShells(){
+  if(state)return;
+  state=normalize({});
+  applyColors();
+  renderSchedulePage();
+  renderTasks();
+}
 async function renderAll(){if(rendering)return;rendering=true;try{await read();if(!state)return;applyColors();renderHome();renderSchedulePage();renderTasks();renderHabits()}catch(e){console.error("통합 화면 렌더링 실패",e)}finally{rendering=false}}
-async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireEnterToSave();wireHabitForm();wireOverdueActions();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();document.addEventListener("onekan:state-changed",event=>{if(event.detail?.source!=="unified")scheduleRender(40)});await renderAll();updateCurrentTimeLines();setInterval(updateCurrentTimeLines,60000)}
-supabase.auth.onAuthStateChange((_e,session)=>{user=session?.user||null;if(user)setTimeout(init,300)});const {data:{session}}=await supabase.auth.getSession();if(session?.user){user=session.user;setTimeout(init,300)}
+async function init(){if(document.documentElement.dataset.unifiedWorkspace)return;document.documentElement.dataset.unifiedWorkspace="1";wireDragClickGuard();wireEnterToSave();wireHabitForm();wireOverdueActions();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();document.addEventListener("onekan:state-changed",event=>{if(event.detail?.source!=="unified")scheduleRender(40)});renderInitialCalendarShells();await renderAll();updateCurrentTimeLines();setInterval(updateCurrentTimeLines,60000)}
+supabase.auth.onAuthStateChange((_e,session)=>{user=session?.user||null;if(user)queueMicrotask(init)});const {data:{session}}=await supabase.auth.getSession();if(session?.user){user=session.user;queueMicrotask(init)}
