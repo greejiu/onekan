@@ -1,0 +1,10 @@
+#page-goals .ok-goal-quick-add{width:100%;min-height:34px;margin-top:8px;border:1px dashed var(--line);border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:10px;cursor:pointer}
+#page-goals .ok-goal-quick-add:hover{border-color:var(--accent);color:var(--accent-dark);background:color-mix(in srgb,var(--accent) 6%,transparent)}
+#page-goals .ok-goal-quick-form{display:grid;gap:7px;margin-top:8px;padding:9px;border:1.5px solid var(--accent);border-radius:10px;background:#fff;box-shadow:0 4px 14px #0000000d}
+#page-goals .ok-goal-quick-title,#page-goals .ok-goal-quick-section{width:100%;min-width:0;height:34px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);font:inherit;font-size:11px}
+#page-goals .ok-goal-quick-title:focus,#page-goals .ok-goal-quick-section:focus{outline:2px solid color-mix(in srgb,var(--accent) 28%,transparent);border-color:var(--accent)}
+#page-goals .ok-goal-quick-actions{display:flex;justify-content:flex-end;gap:5px}
+#page-goals .ok-goal-quick-actions button{min-height:30px;padding:4px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--muted);font:inherit;font-size:10px;cursor:pointer}
+#page-goals .ok-goal-quick-actions .ok-goal-quick-save{border-color:var(--accent);background:var(--accent);color:#fff;font-weight:700}
+#page-goals .ok-goal-quick-message{min-height:12px;color:var(--danger);font-size:9px}
+@media(max-width:700px){#page-goals .ok-goal-quick-add{min-height:40px;font-size:12px}#page-goals .ok-goal-quick-form{padding:10px}#page-goals .ok-goal-quick-title,#page-goals .ok-goal-quick-section{height:40px;font-size:13px}#page-goals .ok-goal-quick-actions button{min-height:36px;font-size:12px}}
