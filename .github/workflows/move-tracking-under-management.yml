@@ -1,0 +1,41 @@
+name: Move time tracking below management
+
+on:
+  push:
+    paths:
+      - '.github/workflows/move-tracking-under-management.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Reorder sidebar items
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('js/management.js')
+          text = p.read_text()
+          old = '''    const goals = nav.querySelector('[data-page="goals"]');
+    nav.insertBefore(button, goals || null);'''
+          new = '''    const tracking = nav.querySelector('[data-page="tracking"]');
+    nav.insertBefore(button, tracking || null);'''
+          if old not in text:
+              raise SystemExit('management nav insertion pattern not found')
+          p.write_text(text.replace(old, new, 1))
+          PY
+          node --check js/management.js
+      - name: Commit sidebar order
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/move-tracking-under-management.yml
+          git add js/management.js
+          git commit -m "ui: place time tracking below management"
+          git push origin main
