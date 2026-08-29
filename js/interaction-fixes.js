@@ -15,7 +15,7 @@ import "./habit-area-check-colors.js?v=1";
 import "./habit-start-date-fix.js?v=3";
 import "./habit-period-direct-save.js?v=1";
 import "./home-timeline-dynamic-columns.js?v=2";
-import "./goal-board-v2.js?v=1";
+import "./goal-board-v2.js?v=2";
 
 // Compatibility + interaction safeguards loaded before app.js initializes.
 // Safe to load more than once because cached module URLs may coexist during deployment.
