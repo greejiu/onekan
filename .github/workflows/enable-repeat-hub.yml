@@ -1,0 +1,34 @@
+name: Enable repeat hub
+
+on:
+  push:
+    paths:
+      - '.github/workflows/enable-repeat-hub.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Enable repeat hub
+        run: |
+          sed -i '/management-checklist.js?v=1/a import "./repeat-hub.js?v=1";' js/interaction-fixes.js
+          sed -i 's#interaction-fixes.js?v=28#interaction-fixes.js?v=29#' index.html
+          node --check js/repeat-hub.js
+          node --check js/interaction-fixes.js
+      - name: Commit repeat hub enablement
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/enable-repeat-hub.yml
+          git add js/interaction-fixes.js index.html
+          git commit -m "feat: merge habits and management under repeat"
+          git push origin main
