@@ -707,30 +707,29 @@ function wireScheduleViewControls(){
   },true)
 }
 
-function visibleTasks(tab){
-  const today=todayKey(),tomorrow=key(addDays(fromKey(today),1));
-  let rows=[];
-  if(tab==="done")rows=state.tasks.filter(task=>task.done);
-  else if(tab==="someday")rows=somedayTaskOccurrences().filter(task=>!taskDoneOn(task,task._occurrenceSource||""));
-  else if(tab==="today")rows=taskOccurrencesForDate(today).filter(task=>!taskDoneOn(task,today));
-  else if(tab==="upcoming"){
-    const seen=new Set();
-    for(let offset=0;offset<370;offset++){
-      const date=key(addDays(fromKey(tomorrow),offset));
-      for(const task of taskOccurrencesForDate(date)){
-        if(taskDoneOn(task,date)||seen.has(task.id))continue;
-        rows.push(task);seen.add(task.id)
-      }
-      if(seen.size>=state.tasks.filter(task=>!task.done&&task.date).length)break
-    }
-  }else{
-    rows=state.tasks.filter(task=>!task.done)
+function taskListDate(task){
+  if(task.done){
+    if(task.completedDate)return task.completedDate;
+    if(task.completedAt){const completed=new Date(task.completedAt);if(!Number.isNaN(completed.getTime()))return key(completed)}
   }
-  return rows.sort((a,b)=>+taskDoneOn(a,a._occurrenceDate||a.date)-+taskDoneOn(b,b._occurrenceDate||b.date)||String(a._occurrenceDate||a.date||"9999").localeCompare(String(b._occurrenceDate||b.date||"9999"))||String(a.title).localeCompare(String(b.title),"ko"))
+  return task._occurrenceDate||task.date||""
+}
+function visibleTasks(tab){
+  const today=todayKey(),tasks=state.tasks.filter(task=>!task.isHabit);
+  let rows=[];
+  if(tab==="done")rows=tasks.filter(task=>task.done);
+  else if(tab==="someday")rows=tasks.filter(task=>!task.done&&!task.date);
+  else if(tab==="upcoming")rows=tasks.filter(task=>!task.done&&task.date&&task.date>=today);
+  else rows=[...tasks];
+  return rows.sort((a,b)=>{
+    const ad=taskListDate(a),bd=taskListDate(b);
+    if(tab==="upcoming")return String(ad||"9999").localeCompare(String(bd||"9999"))||String(a.title||"").localeCompare(String(b.title||""),"ko");
+    return String(bd||"").localeCompare(String(ad||""))||String(a.title||"").localeCompare(String(b.title||""),"ko")
+  })
 }
 function renderTasks(){renderTasksV2()}
 
-function taskRowsForDate(k){return taskOccurrencesForDate(k).sort((a,b)=>+taskDoneOn(a,k)-+taskDoneOn(b,k)||String(a.notionStart||"").localeCompare(String(b.notionStart||""))||String(a.title).localeCompare(String(b.title),"ko"))}
+function taskRowsForDate(k){return taskOccurrencesForDate(k).filter(task=>!task.isHabit).sort((a,b)=>+taskDoneOn(a,k)-+taskDoneOn(b,k)||String(a.notionStart||"").localeCompare(String(b.notionStart||""))||String(a.title).localeCompare(String(b.title),"ko"))}
 function taskListMarkup(tasks,k,compact=false){return tasks.map(task=>{const date=Object.prototype.hasOwnProperty.call(task,"_occurrenceDate")?task._occurrenceDate||"":task.date||k;return itemMarkup("task",task,date,compact)}).join("")}
 function taskListInput(date,compact=false){return`<button class="uw-empty-hit uw-task-inline-add" data-uw-add-kind="task" data-date="${date||""}" type="button" aria-label="할일 입력">${compact?"＋":"＋ 할일 입력"}</button>`}
 function taskCalendarTitle(){if(taskCalendarView==="month")return`${taskCalendarCursor.getFullYear()}년 ${taskCalendarCursor.getMonth()+1}월`;if(taskCalendarView==="week"){const start=addDays(taskCalendarCursor,-taskCalendarCursor.getDay());return`${dayLabel(start)} – ${dayLabel(addDays(start,6))}`}return dayLabel(taskCalendarCursor,true)}
@@ -744,12 +743,24 @@ function renderTaskSubnav(){
   const nav=$("#taskPageTabs");
   if(!nav)return;
   if(taskPageMode==="list"){
-    nav.innerHTML=`<div class="uw-task-list-tabs"><div class="seg">${[["all","전체"],["today","오늘"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>`<button class="${taskListTab===id?"active":""}" data-task-tab="${id}" type="button">${label}</button>`).join("")}</div></div>`;
+    nav.innerHTML=`<div class="uw-task-list-tabs"><div class="seg">${[["all","전체"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>`<button class="${taskListTab===id?"active":""}" data-task-tab="${id}" type="button">${label}</button>`).join("")}</div></div>`;
     return
   }
   const month=taskCalendarView==="month";
   const label=month?"월은 보드 보기":taskCalendarLayout==="board"?"타임라인으로 보기":"보드로 보기";
   nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,text])=>`<button class="${taskCalendarView===id?"active":""}" data-task-cal-view="${id}" type="button">${text}</button>`).join("")}</div><button class="uw-layout-toggle" data-task-cal-layout-toggle type="button"${month?' disabled title="월 보기는 보드로 고정돼요"':""}>${label}</button></div>`
+}
+function taskDateGroups(rows,tab){
+  if(tab==="someday")return[];
+  const groups=new Map();
+  for(const task of rows){
+    const date=taskListDate(task);
+    if(!date)continue;
+    if(!groups.has(date))groups.set(date,[]);
+    groups.get(date).push(task)
+  }
+  const dates=[...groups.keys()].sort((a,b)=>tab==="upcoming"?a.localeCompare(b):b.localeCompare(a));
+  return dates.map(date=>({date,rows:groups.get(date)}))
 }
 function renderTasksV2(){
   const root=$("#tasksPageList");
@@ -758,15 +769,22 @@ function renderTasksV2(){
   renderTaskSubnav();
   if(taskPageMode==="list"){
     const rows=visibleTasks(taskListTab);
-    const groupedTabs=["all","today","upcoming","someday"];
-    if(groupedTabs.includes(taskListTab)){
-      const date=taskListTab==="today"?todayKey():"";
-      const canAdd=["all","today","someday"].includes(taskListTab);
-      const grouped=state.eventGroups.map((groupInfo,index)=>({groupInfo,index,rows:rows.filter(task=>group(task).id===groupInfo.id)})).filter(entry=>entry.rows.length||canAdd);
-      root.innerHTML=grouped.length?`<div class="uw-task-grouped-list">${grouped.map(({groupInfo,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:${groupInfo.color}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>${esc(groupInfo.name)}</strong>${canAdd?`<button class="uw-icon-btn" data-uw-add-kind="task" data-date="${date}" data-group-id="${groupInfo.id}" type="button" aria-label="${esc(groupInfo.name)} 영역에 할일 추가">＋</button>`:""}</div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="${date}" data-group-id="${groupInfo.id}"${taskListTab==="someday"?" data-uw-someday-drop":""}>${taskListMarkup(groupRows,date)}</div></section>`).join("")}</div>`:'<div class="empty">표시할 할일이 없어요.</div>';
+    if(taskListTab==="someday"){
+      const grouped=state.eventGroups
+        .map(groupInfo=>({groupInfo,rows:rows.filter(task=>group(task).id===groupInfo.id)}))
+        .filter(entry=>entry.rows.length);
+      const add=`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop>${taskListInput("")}</div>`;
+      root.innerHTML=add+(grouped.length
+        ? `<div class="uw-task-grouped-list">${grouped.map(({groupInfo,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:${groupInfo.color}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>${esc(groupInfo.name)}</strong></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-group-id="${groupInfo.id}" data-uw-someday-drop>${taskListMarkup(groupRows,"")}</div></section>`).join("")}</div>`
+        : '<div class="empty">언젠가 할일이 없어요.</div>');
       return
     }
-    root.innerHTML=`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="">${taskListMarkup(rows,"")}${!rows.length?'<div class="empty">완료한 할일이 없어요.</div>':""}</div>`;
+    const groups=taskDateGroups(rows,taskListTab);
+    const undated=taskListTab==="all"?rows.filter(task=>!taskListDate(task)):[];
+    const add=taskListTab==="all"?`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="">${taskListInput("")}</div>`:"";
+    const dated=groups.map(({date,rows:groupRows})=>`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="${date}" data-task-drop-date="${date}">${taskListMarkup(groupRows,date)}</div></section>`).join("");
+    const someday=undated.length?`<section class="uw-date-group"><div class="uw-date-label"><span>언젠가</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop>${taskListMarkup(undated,"")}</div></section>`:"";
+    root.innerHTML=add+(dated||someday?`<div class="uw-task-grouped-list">${dated}${someday}</div>`:'<div class="empty">표시할 할일이 없어요.</div>');
     return
   }
   const layout=taskCalendarView==="month"?"board":taskCalendarLayout;
