@@ -101,6 +101,7 @@ function installStyle() {
     .onekan-project-period{display:flex;align-items:center;gap:6px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-project-period button{display:grid;place-items:center;width:25px;height:25px;padding:0;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
     .onekan-project-period button:hover{background:#fff}
+    .onekan-project-period button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     .onekan-project-add{justify-self:start;margin:3px 5px 0;padding:7px 4px;border:0;background:transparent;color:var(--muted,#6d737d);font:inherit;font-size:11px;cursor:pointer}
     .onekan-project-add:hover{color:var(--text,#1f2328)}
     .onekan-project-empty{padding:10px 8px;color:var(--muted,#6d737d);font-size:10px}
@@ -153,7 +154,7 @@ function periodText(project) {
 function projectRow(project) {
   return `<div class="onekan-project-row" draggable="true" data-project-status-id="${esc(project.id)}" data-context-kind="project" data-context-id="${esc(project.id)}">
     <span class="onekan-project-title" data-project-edit="${esc(project.id)}">${esc(project.title || "이름 없는 프로젝트")}</span>
-    <span class="onekan-project-period"><span>${esc(periodText(project))}</span><button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정">▣</button></span>
+    <span class="onekan-project-period"><span>${esc(periodText(project))}</span><button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span>
   </div>`;
 }
 
