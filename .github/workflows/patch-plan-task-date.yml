@@ -1,0 +1,34 @@
+name: Patch plan task date
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-plan-task-date.yml'
+      - '.github/scripts/patch-plan-task-date.mjs'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Patch and validate
+        run: |
+          node --check .github/scripts/patch-plan-task-date.mjs
+          node .github/scripts/patch-plan-task-date.mjs
+          node --check js/project-plan.js
+      - name: Commit feature
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add js/project-plan.js index.html
+          git commit -m 'feat: add quick task dates in project plan' || true
+          git push
+      - name: Remove patch files
+        run: |
+          git pull --rebase
+          git rm .github/scripts/patch-plan-task-date.mjs .github/workflows/patch-plan-task-date.yml
+          git commit -m 'chore: remove plan task date patch files'
+          git push
