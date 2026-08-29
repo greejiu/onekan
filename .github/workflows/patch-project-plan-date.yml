@@ -33,3 +33,4 @@ jobs:
           git rm scripts/patch-project-plan-date.py .github/workflows/patch-project-plan-date.yml
           git commit -m 'chore: remove project plan date patch files'
           git push origin main
+# retry after cache marker correction
