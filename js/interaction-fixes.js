@@ -2,6 +2,7 @@ import "./auth-guard.js?v=1";
 import "./management.js?v=5";
 import "./management-section-context.js?v=1";
 import "./management-items.js?v=5";
+import "./management-checklist.js?v=1";
 import "./management-section-item-drag.js?v=3";
 import "./management-item-schedule.js?v=3";
 import "./management-home.js?v=3";
