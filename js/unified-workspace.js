@@ -28,7 +28,7 @@ const todayKey=()=>{const d=new Date();d.setHours(d.getHours()-3);return key(d)}
 let START=360,END=1320;const SLOT=30,SLOT_H=20;
 let user=null,state=null,homeDays=1,homeMode="list",homeSideTab="upcoming",homeCursor=fromKey(todayKey()),calendarView="month",calendarCursor=new Date(),renderTimer=null,rendering=false,pendingGroupRecords=[],suppressItemClickUntil=0,overdueExpanded=false,habitScopeResolve=null;
 const selected=new Map();
-let schedulePageMode="calendar",scheduleCalendarLayout="board";
+let schedulePageMode="calendar",scheduleCalendarLayout="board",scheduleListTab="all";
 let taskPageMode="calendar",taskListTab="all",taskCalendarView="week",taskCalendarLayout="board",taskCalendarCursor=fromKey(todayKey()),habitCursor=fromKey(todayKey());
 
 function normalize(s){
@@ -643,19 +643,46 @@ function scheduleCalendarTitle(){if(calendarView==="month")return`${calendarCurs
 function renderScheduleSubnav(){
   const nav=$("#calendarViewSeg");
   if(!nav)return;
-  if(schedulePageMode==="list"){nav.innerHTML="";return}
+  if(schedulePageMode==="list"){
+    nav.innerHTML=`<div class="uw-task-list-tabs"><div class="seg">${[["all","전체"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>`<button class="${scheduleListTab===id?"active":""}" data-schedule-list-tab="${id}" type="button">${label}</button>`).join("")}</div></div>`;
+    return
+  }
   const month=calendarView==="month";
   const label=month?"월은 보드 보기":scheduleCalendarLayout==="board"?"타임라인으로 보기":"보드로 보기";
   nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,text])=>`<button class="${calendarView===id?"active":""}" data-schedule-cal-view="${id}" type="button">${text}</button>`).join("")}</div><button class="uw-layout-toggle" data-schedule-cal-layout-toggle type="button"${month?' disabled title="월 보기는 보드로 고정돼요"':""}>${label}</button></div>`
 }
-function scheduleList(){
-  const today=todayKey(),dates=new Set([today]);
-  state.events.forEach(event=>{const start=key(new Date(event.start));if(start>=today)dates.add(start)});
-  for(let offset=0;offset<=90;offset++){
-    const date=key(addDays(fromKey(todayKey()),offset));
-    if(schedules(date).length)dates.add(date)
+function eventDoneAt(event,now=new Date()){
+  if(!event?.start)return false;
+  if(event.allDay){const endKey=key(new Date(event.end||event.start));return endKey<todayKey()}
+  const end=new Date(event.end||event.start);
+  return !Number.isNaN(end.getTime())&&end<=now
+}
+function scheduleListRows(tab){
+  if(tab==="someday")return[];
+  const today=todayKey(),dateSet=new Set();
+  for(const event of state.events){if(!event?.start)continue;const start=key(new Date(event.start));if(!Number.isNaN(new Date(event.start).getTime()))dateSet.add(start)}
+  for(let offset=-365;offset<=370;offset++){const date=key(addDays(fromKey(today),offset));if(schedules(date).length)dateSet.add(date)}
+  const seen=new Set(),rows=[];
+  for(const date of dateSet){
+    for(const event of schedules(date)){
+      const source=event._occurrenceSource||date,token=`${event.id}:${source}:${date}`;
+      if(seen.has(token))continue;seen.add(token);
+      const done=eventDoneAt(event);
+      if(tab==="upcoming"&&(done||date<today))continue;
+      if(tab==="done"&&!done)continue;
+      rows.push({date,item:event,done})
+    }
   }
-  return`<div class="uw-schedule-list">${[...dates].sort().map(date=>`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date)).join("")}${scheduleInput(date)}</div></section>`).join("")}</div>`
+  return rows
+}
+function scheduleList(){
+  if(scheduleListTab==="someday")return '<div class="uw-schedule-list"><div class="empty">날짜 없는 일정이 없어요.</div></div>';
+  const rows=scheduleListRows(scheduleListTab),groups=new Map();
+  rows.forEach(row=>{if(!groups.has(row.date))groups.set(row.date,[]);groups.get(row.date).push(row.item)});
+  const dates=[...groups.keys()].sort((a,b)=>scheduleListTab==="upcoming"?a.localeCompare(b):b.localeCompare(a));
+  if(!dates.length)return '<div class="uw-schedule-list"><div class="empty">표시할 일정이 없어요.</div></div>';
+  const canAdd=scheduleListTab==="all"||scheduleListTab==="upcoming";
+  return`<div class="uw-schedule-list">${dates.map(date=>{const items=groups.get(date).sort((a,b)=>new Date(a.start)-new Date(b.start));return`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${items.map(event=>itemMarkup("event",event,date)).join("")}${canAdd?scheduleInput(date):""}</div></section>`}).join("")}</div>`
 }
 function scheduleMonthBoard(){const y=calendarCursor.getFullYear(),m=calendarCursor.getMonth(),first=new Date(y,m,1),start=addDays(first,-first.getDay());return`<div class="uw-task-month-grid">${["일","월","화","수","목","금","토"].map(x=>`<div class="uw-task-dow">${x}</div>`).join("")}${Array.from({length:42},(_,i)=>{const d=addDays(start,i),date=key(d);return`<section class="uw-task-month-cell uw-month-cell${d.getMonth()!==m?" outside":""}${date===todayKey()?" today":""}" data-uw-add-kind="event" data-date="${date}"><span class="uw-task-day-number">${d.getDate()}</span><div class="uw-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date,true)).join("")}${scheduleInput(date,true)}</div></section>`}).join("")}</div>`}
 function scheduleBoardDay(d){const date=key(d);return`<section class="uw-task-board-day${date===todayKey()?" today":""}"><div class="uw-day-head"><strong>${dayLabel(d,true)}</strong></div><div class="uw-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date)).join("")}${scheduleInput(date)}</div></section>`}
@@ -666,10 +693,11 @@ function scheduleTimeline(){const count=calendarView==="week"?7:1,start=calendar
 function renderSchedulePage(){const body=$("#calendarBody"),nav=$("#scheduleCalendarNav"),sessionHolder=$("#scheduleSessionToggle");if(!body)return;$$('[data-uw-schedule-mode]').forEach(button=>button.classList.toggle("active",button.dataset.uwScheduleMode===schedulePageMode));renderScheduleSubnav();if(schedulePageMode==="list"){nav.hidden=true;if(sessionHolder)sessionHolder.innerHTML="";body.innerHTML=scheduleList();return}nav.hidden=false;$("#calTitle").textContent=scheduleCalendarTitle();const layout=calendarView==="month"?"board":scheduleCalendarLayout;if(sessionHolder)sessionHolder.innerHTML=calendarView==="week"&&layout==="timeline"?sessionToggleMarkup():"";body.innerHTML=calendarView==="month"?scheduleMonthBoard():layout==="timeline"?scheduleTimeline():scheduleBoard()}
 function wireScheduleViewControls(){
   document.addEventListener("click",e=>{
-    const mode=e.target.closest("[data-uw-schedule-mode]"),view=e.target.closest("[data-schedule-cal-view]"),layout=e.target.closest("[data-schedule-cal-layout-toggle]"),prev=e.target.closest("#calPrev"),today=e.target.closest("#calToday"),next=e.target.closest("#calNext");
-    if(!mode&&!view&&!layout&&!prev&&!today&&!next)return;
+    const mode=e.target.closest("[data-uw-schedule-mode]"),listTab=e.target.closest("[data-schedule-list-tab]"),view=e.target.closest("[data-schedule-cal-view]"),layout=e.target.closest("[data-schedule-cal-layout-toggle]"),prev=e.target.closest("#calPrev"),today=e.target.closest("#calToday"),next=e.target.closest("#calNext");
+    if(!mode&&!listTab&&!view&&!layout&&!prev&&!today&&!next)return;
     e.preventDefault();e.stopImmediatePropagation();
     if(mode)schedulePageMode=mode.dataset.uwScheduleMode;
+    if(listTab)scheduleListTab=listTab.dataset.scheduleListTab;
     if(view)calendarView=view.dataset.scheduleCalView;
     if(layout&&!layout.disabled)scheduleCalendarLayout=scheduleCalendarLayout==="board"?"timeline":"board";
     if(prev)calendarCursor=calendarView==="month"?new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1):addDays(calendarCursor,calendarView==="week"?-7:-1);
