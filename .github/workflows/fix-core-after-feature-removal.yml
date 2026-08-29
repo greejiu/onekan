@@ -1,0 +1,32 @@
+name: Remove stale project render call
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-core-after-feature-removal.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Remove stale runtime call
+        run: |
+          python -c "from pathlib import Path; p=Path('js/app.js'); s=p.read_text(); old='  renderProjects();\\n'; assert old in s, 'renderProjects call not found'; p.write_text(s.replace(old,'',1)); p=Path('index.html'); s=p.read_text(); old='./js/app.js?v=36'; assert old in s, 'app cache key not found'; p.write_text(s.replace(old,'./js/app.js?v=37',1))"
+          node --check js/app.js
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-core-after-feature-removal.yml
+          git add js/app.js index.html
+          git commit -m "fix: stop rendering removed project page"
+          git push origin main
