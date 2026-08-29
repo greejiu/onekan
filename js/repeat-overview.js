@@ -10,6 +10,7 @@ const fromKey=(value)=>new Date(`${value}T12:00:00`);
 const addDays=(date,amount)=>{const next=new Date(date);next.setDate(next.getDate()+amount);return next};
 const todayKey=()=>{const date=new Date();date.setHours(date.getHours()-3);return key(date)};
 const uid=()=>crypto.randomUUID();
+const dayLabel=(date,long=false)=>new Intl.DateTimeFormat("ko-KR",long?{month:"long",day:"numeric",weekday:"short"}:{month:"numeric",day:"numeric",weekday:"short"}).format(date);
 
 let state=null;
 let user=null;
@@ -19,55 +20,6 @@ let habitMode="calendar";
 let habitListTab="all";
 let habitCalendarView="month";
 let habitCursor=fromKey(todayKey());
-
-function installStyle(){
-  if($("#habitWorkspaceStyle"))return;
-  const style=document.createElement("style");
-  style.id="habitWorkspaceStyle";
-  style.textContent=`
-    #page-repeat .onekan-repeat-intro{display:none}
-    .habit-workspace{display:grid;gap:12px}
-    .habit-subnav{display:flex;justify-content:flex-end;min-height:34px}
-    .habit-calendar-nav{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
-    .habit-calendar-nav>strong{text-align:center;font-size:13px}
-    .habit-calendar-nav>div{display:flex;align-items:center;gap:5px}
-    .habit-today{height:30px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text);font:inherit;font-size:10px;cursor:pointer}
-    .habit-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#fff}
-    .habit-dow{padding:8px 4px;border-bottom:1px solid var(--line);color:var(--muted);font-size:9px;text-align:center}
-    .habit-month-cell{min-height:112px;padding:6px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#fff}
-    .habit-month-cell:nth-child(7n){border-right:0}.habit-month-cell.outside{background:var(--panel-soft);opacity:.58}.habit-month-cell.today{box-shadow:inset 0 0 0 1.5px var(--accent)}
-    .habit-day-number{display:block;margin:0 0 5px;color:var(--muted);font-size:9px}
-    .habit-calendar-items{display:grid;gap:3px}.habit-calendar-more{color:var(--muted);font-size:9px}
-    .habit-week-grid{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:8px;overflow:auto;padding-bottom:4px}
-    .habit-board-day{min-height:230px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff}.habit-board-day.today{border-color:var(--accent)}
-    .habit-board-day h3{margin:0 0 8px;font-size:11px}
-    .habit-day-board{min-height:260px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
-    .habit-list-groups{display:grid;gap:12px}.habit-date-group,.habit-area-group{overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#fff}
-    .habit-group-heading{display:flex;align-items:center;gap:7px;padding:9px 11px;border-bottom:1px solid var(--line);font-size:10px;color:var(--muted)}
-    .habit-group-heading strong{color:var(--text);font-size:11px}
-    .habit-area-dot{width:8px;height:8px;border-radius:50%;background:var(--habit-area,var(--accent))}
-    .habit-list{display:grid;padding:3px 9px 9px}
-    .habit-item{--habit-area:var(--accent);display:grid;grid-template-columns:24px 9px minmax(0,1fr) auto 24px;gap:7px;align-items:center;min-height:42px;padding:6px 5px;border-bottom:1px solid var(--line)}
-    .habit-item:last-child{border-bottom:0}.habit-item.done{opacity:.55}.habit-item.done .habit-title{text-decoration:line-through}
-    .habit-check{display:grid;place-items:center;width:18px;height:18px;padding:0;border:1.5px solid var(--line-strong);border-radius:5px;background:#fff;color:var(--text);font-size:10px;cursor:pointer}
-    .habit-check.checked{background:var(--panel-soft)}
-    .habit-dot{width:7px;height:7px;border-radius:50%;background:var(--habit-area)}
-    .habit-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:600}
-    .habit-meta{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:9px;white-space:nowrap}
-    .habit-repeat{padding:2px 5px;border-radius:999px;background:var(--panel-soft)}
-    .habit-compact{grid-template-columns:18px 7px minmax(0,1fr);min-height:29px;padding:3px;border-bottom:0;border-radius:6px}.habit-compact .habit-meta{display:none}.habit-compact .habit-check{width:15px;height:15px;font-size:8px}.habit-compact .habit-title{font-size:9px}
-    .habit-add-form{display:grid;grid-template-columns:minmax(0,1fr) 132px auto;gap:6px;padding:8px;border:1px solid var(--line);border-radius:11px;background:#fff}
-    .habit-add-form input{height:34px;min-width:0;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit;font-size:11px}
-    .habit-add-form button{height:34px;padding:0 11px;border:1px solid var(--line);border-radius:8px;background:#fff;font:inherit;font-size:10px;cursor:pointer}
-    .habit-cell-add{width:24px;height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}.habit-cell-add:hover{background:var(--panel-soft)}
-    .habit-empty{padding:24px 10px;color:var(--muted);font-size:11px;text-align:center}
-    @media(max-width:760px){
-      .habit-month-cell{min-height:78px;padding:4px}.habit-compact{grid-template-columns:14px minmax(0,1fr)}.habit-compact .habit-dot{display:none}.habit-compact .habit-check{width:13px;height:13px}.habit-compact .habit-title{font-size:8px}
-      .habit-add-form{grid-template-columns:minmax(0,1fr) auto}.habit-add-form input[type=date]{grid-column:1/-1;grid-row:2}.habit-week-grid{grid-template-columns:repeat(7,minmax(130px,1fr))}
-    }
-  `;
-  document.head.appendChild(style)
-}
 
 async function readState(){
   const {data:{session}}=await supabase.auth.getSession();
@@ -117,7 +69,7 @@ function allHabits(){return state.tasks.filter(task=>task.isHabit)}
 function habitsForDate(date){
   return allHabits()
     .filter(task=>task.done?completionDate(task)===date:task.date===date)
-    .sort((a,b)=>Number(a.done)-Number(b.done)||String(a.title||"").localeCompare(String(b.title||""),"ko"))
+    .sort((a,b)=>Number(a.done)-Number(b.done)||manualOrderValue(a)-manualOrderValue(b)||String(a.title||"").localeCompare(String(b.title||""),"ko"))
 }
 function listHabits(tab){
   const today=todayKey();
@@ -133,71 +85,77 @@ function listHabits(tab){
 }
 function projectName(task){return state.projects.find(project=>project.id===task.projectId)?.title||""}
 
-function itemMarkup(task,{compact=false,manual=false}={}){
-  const area=group(task),repeat=repeatLabel(task),project=projectName(task);
+function itemMarkup(task,{compact=false,manual=false,date=""}={}){
+  const area=group(task),repeat=repeatLabel(task),project=projectName(task),rowDate=date||displayDate(task)||"";
   const manualAttrs=manual?` data-manual-row data-manual-kind="task" data-manual-id="${esc(task.id)}"`:"";
-  return `<div class="habit-item uw-item uw-task${task.done?" done":""}${compact?" habit-compact":""}" style="--habit-area:${esc(area?.color||"#8fa9c4")};--uw-group:${esc(area?.color||"#8fa9c4")}" data-context-kind="task" data-context-id="${esc(task.id)}" data-habit-item="1" data-uw-kind="task" data-id="${esc(task.id)}"${manualAttrs}>
-    <button class="habit-check${task.done?" checked":""}" data-habit-complete="${esc(task.id)}" type="button" aria-label="${task.done?"완료 취소":"완료"}">${task.done?"✓":""}</button>
-    <span class="habit-dot" aria-hidden="true"></span>
-    <span class="habit-title uw-item-title">${esc(task.title||"이름 없는 습관")}</span>
-    <span class="habit-meta">${repeat?`<span class="habit-repeat">↻ ${esc(repeat)}</span>`:""}${project?`<span>${esc(project)}</span>`:""}</span>
+  return `<div class="uw-item uw-task${task.done?" done":""}" style="--uw-group:${esc(area?.color||"#8fa9c4")}" data-context-kind="task" data-context-id="${esc(task.id)}" data-habit-item="1" data-uw-kind="task" data-id="${esc(task.id)}" data-date="${esc(rowDate)}"${manualAttrs}>
+    <button class="uw-check${task.done?" checked":""}" style="--uw-check-color:${esc(area?.color||"#8fa9c4")}" data-habit-complete="${esc(task.id)}" type="button" aria-label="${task.done?"완료 취소":"완료"}">${task.done?"✓":""}</button>
+    <span class="uw-event-dot" aria-hidden="true"></span>
+    <span class="uw-item-title">${esc(task.title||"이름 없는 습관")}</span>
+    ${compact?"":`${repeat?`<span class="uw-item-time">↻ ${esc(repeat)}</span>`:""}${project?`<span class="uw-item-time">${esc(project)}</span>`:""}`}
     ${manual?'<button class="onekan-manual-handle" data-manual-sort-handle type="button" aria-label="순서 변경">⠿</button>':""}
   </div>`
 }
-function addForm(dateValue="",allowDate=true){
-  return `<form class="habit-add-form" data-habit-add-form><input type="text" name="title" maxlength="120" autocomplete="off" placeholder="습관 입력" aria-label="습관 이름">${allowDate?`<input type="date" name="date" value="${esc(dateValue)}" aria-label="습관 예정일">`:""}<button type="submit">추가</button></form>`
+function quickAdd(dateValue="",compact=false){
+  return `<button class="uw-empty-hit uw-task-inline-add" data-habit-quick-add="${esc(dateValue)}" type="button" aria-label="습관 입력">${compact?"＋":"＋ 습관 입력"}</button>`
 }
 
 function listMarkup(){
   const rows=listHabits(habitListTab);
   if(habitListTab==="someday"){
-    const grouped=state.eventGroups.map(area=>({area,rows:rows.filter(task=>group(task).id===area.id)})).filter(entry=>entry.rows.length);
-    return `<div class="habit-workspace">${addForm("",false)}<div class="habit-list-groups">${grouped.map(({area,rows:areaRows})=>`<section class="habit-area-group" style="--habit-area:${esc(area.color)}"><div class="habit-group-heading"><span class="habit-area-dot"></span><strong>${esc(area.name)}</strong></div><div class="habit-list" data-manual-list>${areaRows.map(task=>itemMarkup(task,{manual:true})).join("")}</div></section>`).join("")||'<div class="habit-empty">언젠가 습관이 없어요.</div>'}</div></div>`
+    const grouped=state.eventGroups.map(groupInfo=>({groupInfo,rows:rows.filter(task=>group(task).id===groupInfo.id)})).filter(entry=>entry.rows.length);
+    const add=`<div class="uw-list uw-task-main-list" data-date="" data-uw-someday-drop>${quickAdd("")}</div>`;
+    return add+(grouped.length
+      ? `<div class="uw-task-grouped-list">${grouped.map(({groupInfo,rows:groupRows})=>`<section class="uw-task-group-section" style="--uw-group:${esc(groupInfo.color)}"><div class="uw-task-group-heading"><span class="uw-task-group-dot"></span><strong>${esc(groupInfo.name)}</strong></div><div class="uw-list uw-task-main-list" data-date="" data-group-id="${esc(groupInfo.id)}" data-uw-someday-drop data-manual-list>${groupRows.map(task=>itemMarkup(task,{manual:true})).join("")}</div></section>`).join("")}</div>`
+      : '<div class="empty">언젠가 습관이 없어요.</div>')
   }
   const groups=new Map();
   for(const task of rows){const date=displayDate(task);if(!date)continue;if(!groups.has(date))groups.set(date,[]);groups.get(date).push(task)}
   const dates=[...groups.keys()].sort((a,b)=>habitListTab==="upcoming"?a.localeCompare(b):b.localeCompare(a));
   const undated=habitListTab==="all"?rows.filter(task=>!displayDate(task)):[];
-  const dated=dates.map(date=>`<section class="habit-date-group"><div class="habit-group-heading"><strong>${new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"short"}).format(fromKey(date))}</strong></div><div class="habit-list" data-manual-list>${groups.get(date).map(task=>itemMarkup(task,{manual:true})).join("")}</div></section>`).join("");
-  const someday=undated.length?`<section class="habit-date-group"><div class="habit-group-heading"><strong>언젠가</strong></div><div class="habit-list" data-manual-list>${undated.map(task=>itemMarkup(task,{manual:true})).join("")}</div></section>`:"";
-  const canAdd=habitListTab==="all"||habitListTab==="upcoming";
-  return `<div class="habit-workspace">${canAdd?addForm(todayKey(),true):""}<div class="habit-list-groups">${dated}${someday}${!dated&&!someday?'<div class="habit-empty">표시할 습관이 없어요.</div>':""}</div></div>`
+  const add=habitListTab==="all"||habitListTab==="upcoming"?`<div class="uw-list uw-task-main-list" data-date="${todayKey()}">${quickAdd(todayKey())}</div>`:"";
+  const dated=dates.map(date=>`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-date="${date}" data-task-drop-date="${date}" data-manual-list>${groups.get(date).map(task=>itemMarkup(task,{manual:true,date})).join("")}</div></section>`).join("");
+  const someday=undated.length?`<section class="uw-date-group"><div class="uw-date-label"><span>언젠가</span></div><div class="uw-list uw-task-main-list" data-date="" data-uw-someday-drop data-manual-list>${undated.map(task=>itemMarkup(task,{manual:true})).join("")}</div></section>`:"";
+  return add+(dated||someday?`<div class="uw-task-grouped-list">${dated}${someday}</div>`:'<div class="empty">표시할 습관이 없어요.</div>')
 }
 
 function calendarTitle(){
   if(habitCalendarView==="month")return`${habitCursor.getFullYear()}년 ${habitCursor.getMonth()+1}월`;
-  if(habitCalendarView==="week"){const start=addDays(habitCursor,-habitCursor.getDay());const end=addDays(start,6);return`${start.getMonth()+1}/${start.getDate()} – ${end.getMonth()+1}/${end.getDate()}`}
-  return new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"short"}).format(habitCursor)
+  if(habitCalendarView==="week"){const start=addDays(habitCursor,-habitCursor.getDay());return`${dayLabel(start)} – ${dayLabel(addDays(start,6))}`}
+  return dayLabel(habitCursor,true)
 }
 function calendarNav(){
-  return `<div class="habit-calendar-nav"><button class="uw-icon-btn" data-habit-cal-prev type="button" aria-label="이전 기간">‹</button><strong>${esc(calendarTitle())}</strong><div><button class="habit-today" data-habit-cal-today type="button">오늘</button><button class="uw-icon-btn" data-habit-cal-next type="button" aria-label="다음 기간">›</button></div></div>`
+  return `<div class="uw-task-calendar-nav"><button class="uw-icon-btn" data-habit-cal-prev type="button" aria-label="이전 기간">‹</button><strong>${esc(calendarTitle())}</strong><div><button class="uw-task-today" data-habit-cal-today type="button">오늘</button><button class="uw-icon-btn" data-habit-cal-next type="button" aria-label="다음 기간">›</button></div></div>`
 }
 function monthCalendar(){
   const year=habitCursor.getFullYear(),month=habitCursor.getMonth(),first=new Date(year,month,1,12),start=addDays(first,-first.getDay());
-  return `<div class="habit-month-grid">${["일","월","화","수","목","금","토"].map(label=>`<div class="habit-dow">${label}</div>`).join("")}${Array.from({length:42},(_,index)=>{
+  return `<div class="uw-task-month-grid">${["일","월","화","수","목","금","토"].map(label=>`<div class="uw-task-dow">${label}</div>`).join("")}${Array.from({length:42},(_,index)=>{
     const date=addDays(start,index),dateKey=key(date),rows=habitsForDate(dateKey);
-    return `<section class="habit-month-cell${date.getMonth()!==month?" outside":""}${dateKey===todayKey()?" today":""}" data-habit-date="${dateKey}"><span class="habit-day-number">${date.getDate()}</span><div class="habit-calendar-items">${rows.slice(0,4).map(task=>itemMarkup(task,{compact:true})).join("")}${rows.length>4?`<span class="habit-calendar-more">+${rows.length-4}</span>`:""}<button class="habit-cell-add" data-habit-quick-add="${dateKey}" type="button" aria-label="${dateKey} 습관 추가">＋</button></div></section>`
+    return `<section class="uw-task-month-cell uw-month-cell${date.getMonth()!==month?" outside":""}${dateKey===todayKey()?" today":""}" data-habit-date="${dateKey}"><span class="uw-task-day-number">${date.getDate()}</span><div class="uw-list" data-date="${dateKey}" data-task-drop-date="${dateKey}">${rows.slice(0,4).map(task=>itemMarkup(task,{compact:true,date:dateKey})).join("")}${rows.length>4?`<span class="uw-item-time">+${rows.length-4}</span>`:""}${quickAdd(dateKey,true)}</div></section>`
   }).join("")}</div>`
+}
+function boardDay(date){
+  const dateKey=key(date),rows=habitsForDate(dateKey);
+  return `<section class="uw-task-board-day${dateKey===todayKey()?" today":""}"><div class="uw-day-head"><strong>${dayLabel(date,true)}</strong></div><div class="uw-list" data-date="${dateKey}" data-task-drop-date="${dateKey}">${rows.map(task=>itemMarkup(task,{date:dateKey})).join("")}${quickAdd(dateKey)}</div></section>`
 }
 function weekCalendar(){
   const start=addDays(habitCursor,-habitCursor.getDay());
-  return `<div class="habit-week-grid">${Array.from({length:7},(_,index)=>{const date=addDays(start,index),dateKey=key(date),rows=habitsForDate(dateKey);return`<section class="habit-board-day${dateKey===todayKey()?" today":""}"><h3>${new Intl.DateTimeFormat("ko-KR",{month:"numeric",day:"numeric",weekday:"short"}).format(date)}</h3><div class="habit-list">${rows.map(task=>itemMarkup(task)).join("")}</div><button class="habit-cell-add" data-habit-quick-add="${dateKey}" type="button">＋</button></section>`}).join("")}</div>`
+  return `<div class="uw-task-board-grid" style="--uw-task-days:7">${Array.from({length:7},(_,index)=>boardDay(addDays(start,index))).join("")}</div>`
 }
 function dayCalendar(){
-  const date=key(habitCursor),rows=habitsForDate(date);
-  return `<section class="habit-day-board"><div class="habit-list">${rows.map(task=>itemMarkup(task)).join("")||'<div class="habit-empty">이 날의 습관이 없어요.</div>'}</div>${addForm(date,true)}</section>`
+  return `<div class="uw-task-board-grid" style="--uw-task-days:1">${boardDay(habitCursor)}</div>`
 }
 function calendarMarkup(){
-  return `<div class="habit-workspace">${calendarNav()}${habitCalendarView==="month"?monthCalendar():habitCalendarView==="week"?weekCalendar():dayCalendar()}</div>`
+  return `<section class="uw-task-calendar-shell">${calendarNav()}${habitCalendarView==="month"?monthCalendar():habitCalendarView==="week"?weekCalendar():dayCalendar()}</section>`
 }
 function renderSubnav(){
   const nav=$("#habitPageSubnav");
   if(!nav)return;
   if(habitMode==="list"){
-    nav.innerHTML=`<div class="habit-subnav"><div class="seg">${[["all","전체"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>`<button class="${habitListTab===id?"active":""}" data-habit-list-tab="${id}" type="button">${label}</button>`).join("")}</div></div>`;
-  }else{
-    nav.innerHTML=`<div class="habit-subnav"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,label])=>`<button class="${habitCalendarView===id?"active":""}" data-habit-cal-view="${id}" type="button">${label}</button>`).join("")}</div></div>`;
+    nav.innerHTML=`<div class="uw-task-list-tabs"><div class="seg">${[["all","전체"],["upcoming","예정"],["someday","언젠가"],["done","완료"]].map(([id,label])=>`<button class="${habitListTab===id?"active":""}" data-habit-list-tab="${id}" type="button">${label}</button>`).join("")}</div></div>`;
+    return
   }
+  nav.innerHTML=`<div class="uw-task-calendar-tabs"><div class="seg">${[["month","월"],["week","주"],["day","일"]].map(([id,label])=>`<button class="${habitCalendarView===id?"active":""}" data-habit-cal-view="${id}" type="button">${label}</button>`).join("")}</div></div>`
 }
 async function render(){
   const page=$("#page-repeat"),host=$("#repeatOverviewBody");
@@ -205,13 +163,13 @@ async function render(){
   rendering=true;
   try{
     await readState();
-    if(!state){host.innerHTML='<div class="habit-empty">로그인 후 습관을 확인할 수 있어요.</div>';return}
+    if(!state){host.innerHTML='<div class="empty">로그인 후 습관을 확인할 수 있어요.</div>';return}
     document.querySelectorAll("[data-habit-mode]").forEach(button=>button.classList.toggle("active",button.dataset.habitMode===habitMode));
     renderSubnav();
     host.innerHTML=habitMode==="calendar"?calendarMarkup():listMarkup();
   }catch(error){
     console.error("habit workspace render failed",error);
-    host.innerHTML='<div class="habit-empty">습관을 불러오지 못했어요.</div>';
+    host.innerHTML='<div class="empty">습관을 불러오지 못했어요.</div>';
   }finally{rendering=false}
 }
 function scheduleRender(delay=40){clearTimeout(renderTimer);renderTimer=setTimeout(render,delay)}
@@ -260,22 +218,14 @@ function wire(){
     const check=event.target.closest("[data-habit-complete]");
     if(check){event.preventDefault();event.stopPropagation();toggleHabit(check.dataset.habitComplete);return}
     const quick=event.target.closest("[data-habit-quick-add]");
-    if(quick){event.preventDefault();const title=window.prompt("습관 이름");if(title)addHabit(title,quick.dataset.habitQuickAdd);return}
+    if(quick){event.preventDefault();const title=window.prompt("습관 이름");if(title)addHabit(title,quick.dataset.habitQuickAdd||null);return}
     if(event.target.closest('[data-page="repeat"]'))scheduleRender(30)
-  },true);
-  document.addEventListener("submit",event=>{
-    const form=event.target.closest("[data-habit-add-form]");
-    if(!form)return;
-    event.preventDefault();
-    const data=new FormData(form);
-    addHabit(data.get("title"),data.get("date")||null)
   },true);
   document.addEventListener("onekan:state-changed",event=>{
     if(event.detail?.source!=="habit-workspace"&&$("#page-repeat")?.classList.contains("active"))scheduleRender(60)
   })
 }
 function init(){
-  installStyle();
   wire();
   if($("#page-repeat")?.classList.contains("active"))scheduleRender(0)
 }
