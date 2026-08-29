@@ -87,7 +87,7 @@ function installStyle() {
     .onekan-plan-task.dragging{opacity:.42}
     .onekan-plan-check{display:grid;place-items:center;width:18px;height:18px;padding:0;border:1.5px solid var(--uw-group,#8fa9c4);border-radius:4px;background:#fff;color:#fff;font-size:11px;cursor:pointer}
     .onekan-plan-check.checked{background:var(--uw-group,#8fa9c4)}
-    .onekan-plan-task strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;cursor:text}
+    .onekan-plan-task strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:400;cursor:text}
     .onekan-plan-task-meta{color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-plan-task-date{position:relative;display:flex;align-items:center;gap:5px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-plan-task-date-button{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted,#6d737d);cursor:pointer}
