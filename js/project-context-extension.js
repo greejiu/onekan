@@ -14,6 +14,7 @@ const STATUSES = [
 let activeProjectId = null;
 let observer = null;
 let wired = false;
+let openEndAfterStart = false;
 
 function normalizeStatus(value) {
   const raw = String(value ?? "").trim().toLowerCase();
@@ -61,15 +62,8 @@ function installStyle() {
     #globalContextMenu .onekan-project-context-list button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
     #globalContextMenu .onekan-project-context-list.hidden,#globalContextMenu [data-project-context-action].hidden{display:none}
     #onekanProjectEditor label:has(#onekanProjectGoal),#onekanProjectEditor label:has(#onekanProjectStatus){display:none}
-    .onekan-project-period-only-dialog{width:min(390px,calc(100vw - 28px));padding:0;border:1.5px solid var(--line-strong,#b8c0cb);border-radius:14px;background:#fff;color:var(--text,#1f2328);box-shadow:0 20px 60px rgba(15,23,42,.18)}
-    .onekan-project-period-only-dialog::backdrop{background:rgba(15,23,42,.2)}
-    .onekan-project-period-only-dialog form{display:grid;gap:14px;padding:18px}
-    .onekan-project-period-only-dialog h3{margin:0;font-size:15px}
-    .onekan-project-period-only-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    .onekan-project-period-only-fields label{display:grid;gap:5px;color:var(--muted,#6d737d);font-size:10px}
-    .onekan-project-period-only-fields input{width:100%;height:36px;padding:0 9px;border:1px solid var(--line,#d2d7df);border-radius:8px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px}
-    .onekan-project-period-only-actions{display:flex;justify-content:flex-end;gap:7px}
-    @media(max-width:560px){.onekan-project-period-only-fields{grid-template-columns:1fr}}
+    .onekan-project-native-date{position:fixed!important;left:-9999px!important;top:-9999px!important;width:1px!important;height:1px!important;min-width:1px!important;padding:0!important;border:0!important;opacity:0!important;pointer-events:none!important}
+    .onekan-project-period>span{cursor:pointer}
   `;
   document.head.appendChild(style);
 }
@@ -188,54 +182,115 @@ async function changeStatus(statusId) {
   }
 }
 
-function ensurePeriodDialog() {
-  let dialog = $("#onekanProjectPeriodOnlyDialog");
-  if (dialog) return dialog;
-  dialog = document.createElement("dialog");
-  dialog.id = "onekanProjectPeriodOnlyDialog";
-  dialog.className = "onekan-project-period-only-dialog";
-  dialog.innerHTML = `<form method="dialog"><h3>프로젝트 기간</h3><div class="onekan-project-period-only-fields"><label>시작일<input id="onekanProjectPeriodOnlyStart" type="date"></label><label>종료일<input id="onekanProjectPeriodOnlyEnd" type="date"></label></div><div class="onekan-project-period-only-actions"><button class="soft-btn" value="cancel" type="submit">취소</button><button class="primary-btn" id="onekanProjectPeriodOnlySave" type="button">저장</button></div></form>`;
-  document.body.appendChild(dialog);
-  $("#onekanProjectPeriodOnlySave", dialog)?.addEventListener("click", savePeriodOnly);
-  return dialog;
+function showNativePicker(input) {
+  if (!input) return;
+  try { input.showPicker(); }
+  catch { input.click(); }
 }
 
-async function openPeriodOnly(projectId) {
+function ensurePeriodInputs() {
+  let start = $("#onekanProjectPeriodStartNative");
+  let end = $("#onekanProjectPeriodEndNative");
+  if (start && end) return { start, end };
+  start = document.createElement("input");
+  start.id = "onekanProjectPeriodStartNative";
+  start.className = "onekan-project-native-date";
+  start.type = "date";
+  start.setAttribute("aria-label", "프로젝트 시작일");
+  end = document.createElement("input");
+  end.id = "onekanProjectPeriodEndNative";
+  end.className = "onekan-project-native-date";
+  end.type = "date";
+  end.setAttribute("aria-label", "프로젝트 종료일");
+  document.body.append(start, end);
+  start.addEventListener("change", saveStartDate);
+  end.addEventListener("change", saveEndDate);
+  return { start, end };
+}
+
+async function openPeriodOnly(projectId, endOnly = false) {
   activeProjectId = projectId;
   try {
     const current = await readState();
     const project = current?.state.projects.find((item) => item.id === projectId && (item.kind === "project" || !item.kind));
     if (!project) return;
-    const dialog = ensurePeriodDialog();
-    $("#onekanProjectPeriodOnlyStart", dialog).value = /^\d{4}-\d{2}-\d{2}$/.test(project.startDate || "") ? project.startDate : "";
-    $("#onekanProjectPeriodOnlyEnd", dialog).value = /^\d{4}-\d{2}-\d{2}$/.test(project.endDate || "") ? project.endDate : "";
-    if (!dialog.open) dialog.showModal();
-    requestAnimationFrame(() => $("#onekanProjectPeriodOnlyStart", dialog)?.focus());
+    const { start, end } = ensurePeriodInputs();
+    const startDate = /^\d{4}-\d{2}-\d{2}$/.test(project.startDate || "") ? project.startDate : "";
+    const endDate = /^\d{4}-\d{2}-\d{2}$/.test(project.endDate || "") ? project.endDate : "";
+    start.value = startDate;
+    end.value = endDate;
+    end.min = startDate;
+    if (endOnly && startDate) {
+      openEndAfterStart = false;
+      showNativePicker(end);
+      return;
+    }
+    if (startDate && !endDate) {
+      openEndAfterStart = false;
+      showNativePicker(end);
+      return;
+    }
+    openEndAfterStart = true;
+    showNativePicker(start);
   } catch (error) {
     console.error("프로젝트 기간 열기 실패", error);
     showToast("기간을 불러오지 못했어요.");
   }
 }
 
-async function savePeriodOnly() {
+async function saveStartDate(event) {
   const id = activeProjectId;
-  const dialog = $("#onekanProjectPeriodOnlyDialog");
-  const startDate = $("#onekanProjectPeriodOnlyStart", dialog)?.value || null;
-  const endDate = $("#onekanProjectPeriodOnlyEnd", dialog)?.value || null;
+  const startDate = event.currentTarget.value || null;
   if (!id) return;
-  if (startDate && endDate && endDate < startDate) return showToast("종료일은 시작일보다 뒤여야 해요.");
+  let nextEnd = null;
   try {
     await writeState((state) => {
       const project = state.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
       if (!project) return;
+      const currentEnd = /^\d{4}-\d{2}-\d{2}$/.test(project.endDate || "") ? project.endDate : null;
       project.startDate = startDate;
+      if (startDate && currentEnd && currentEnd < startDate) project.endDate = null;
+      nextEnd = project.endDate || null;
+      project.updatedAt = new Date().toISOString();
+    }, "project-period-start");
+    if (openEndAfterStart && startDate) {
+      openEndAfterStart = false;
+      const { end } = ensurePeriodInputs();
+      end.min = startDate;
+      end.value = nextEnd || "";
+      setTimeout(() => showNativePicker(end), 0);
+    }
+  } catch (error) {
+    console.error("프로젝트 시작일 저장 실패", error);
+    showToast("시작일을 저장하지 못했어요.");
+  }
+}
+
+async function saveEndDate(event) {
+  const id = activeProjectId;
+  const endDate = event.currentTarget.value || null;
+  if (!id) return;
+  try {
+    let invalid = false;
+    await writeState((state) => {
+      const project = state.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
+      if (!project) return;
+      const startDate = /^\d{4}-\d{2}-\d{2}$/.test(project.startDate || "") ? project.startDate : null;
+      if (startDate && endDate && endDate < startDate) {
+        invalid = true;
+        return;
+      }
       project.endDate = endDate;
       project.updatedAt = new Date().toISOString();
-    }, "project-period-context");
-    dialog?.close();
+    }, "project-period-end");
+    if (invalid) {
+      showToast("종료일은 시작일보다 뒤여야 해요.");
+      const { end } = ensurePeriodInputs();
+      setTimeout(() => showNativePicker(end), 0);
+    }
   } catch (error) {
-    console.error("프로젝트 기간 저장 실패", error);
-    showToast("기간을 저장하지 못했어요.");
+    console.error("프로젝트 종료일 저장 실패", error);
+    showToast("종료일을 저장하지 못했어요.");
   }
 }
 
@@ -265,11 +320,22 @@ function wire() {
 
   document.addEventListener("click", (event) => {
     const periodButton = event.target.closest?.("[data-project-period]");
-    if (!periodButton) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    openPeriodOnly(periodButton.dataset.projectPeriod);
+    if (periodButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      openPeriodOnly(periodButton.dataset.projectPeriod);
+      return;
+    }
+    const periodText = event.target.closest?.(".onekan-project-period > span");
+    if (periodText) {
+      const projectId = projectIdFromElement(periodText);
+      if (!projectId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      openPeriodOnly(projectId, true);
+    }
   }, true);
 
   parts.menu.addEventListener("click", (event) => {
@@ -307,7 +373,7 @@ function wire() {
 
 function init(attempt = 0) {
   installStyle();
-  ensurePeriodDialog();
+  ensurePeriodInputs();
   if (wire()) return;
   if (!wired && attempt < 30) setTimeout(() => init(attempt + 1), 120);
 }
