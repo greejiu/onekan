@@ -37,7 +37,6 @@ async function writeState(mutator) {
   const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: state }, { onConflict: "user_id" });
   if (error) throw error;
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management-items" } }));
-  $("#reloadCloudBtn")?.click();
   scheduleRender(80);
 }
 
@@ -74,11 +73,11 @@ function itemMarkup(item) {
   </div>`;
 }
 
-async function renderItems() {
+async function renderItems({ refresh = false } = {}) {
   if (rendering || !$("#page-management")) return;
   rendering = true;
   try {
-    await readState();
+    if (refresh || !state) await readState();
     if (!state) return;
     $$("#page-management .management-group").forEach((groupEl) => {
       const groupId = groupEl.dataset.managementGroupId;
@@ -105,9 +104,9 @@ async function renderItems() {
   }
 }
 
-function scheduleRender(delay = 40) {
+function scheduleRender(delay = 40, refresh = false) {
   clearTimeout(renderTimer);
-  renderTimer = setTimeout(renderItems, delay);
+  renderTimer = setTimeout(() => renderItems({ refresh }), delay);
 }
 
 function closeContext() {
@@ -385,13 +384,16 @@ ensureStyle();
 ensureContextMenu();
 wireEvents();
 wireDragEvents();
-const observer = new MutationObserver(() => scheduleRender(30));
-observer.observe(document.body, { childList: true, subtree: true });
+const managementPage = $("#page-management");
+if (managementPage) {
+  const observer = new MutationObserver(() => scheduleRender(30, false));
+  observer.observe(managementPage, { childList: true, subtree: true });
+}
 document.addEventListener("onekan:state-changed", (event) => {
-  if (event.detail?.source !== "management-items") scheduleRender(60);
+  if (event.detail?.source !== "management-items") scheduleRender(60, true);
 });
 supabase.auth.onAuthStateChange((_event, session) => {
   user = session?.user || null;
-  if (user) scheduleRender(100);
+  if (user) scheduleRender(100, true);
 });
-scheduleRender(120);
+scheduleRender(120, true);

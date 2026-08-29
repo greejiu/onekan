@@ -272,11 +272,11 @@ function signatureFor(entries) {
   ]));
 }
 
-async function renderHomeManagement() {
+async function renderHomeManagement({ refresh = false } = {}) {
   if (rendering || !$("#page-home")) return;
   rendering = true;
   try {
-    await readState();
+    if (refresh || !state) await readState();
     if (!state) return;
     applyManagementColor();
     ensureColorSetting();
@@ -303,9 +303,9 @@ async function renderHomeManagement() {
   }
 }
 
-function scheduleRender(delay = 45) {
+function scheduleRender(delay = 45, refresh = false) {
   clearTimeout(renderTimer);
-  renderTimer = setTimeout(renderHomeManagement, delay);
+  renderTimer = setTimeout(() => renderHomeManagement({ refresh }), delay);
 }
 
 async function toggleManagement(itemId, viewDate) {
@@ -421,10 +421,10 @@ if (settingsRoot) {
   settingsObserver.observe(settingsRoot, { childList: true, subtree: true });
 }
 document.addEventListener("onekan:state-changed", (event) => {
-  if (event.detail?.source !== "management-home") scheduleRender(80);
+  if (event.detail?.source !== "management-home") scheduleRender(80, true);
 });
 supabase.auth.onAuthStateChange((_event, session) => {
   user = session?.user || null;
-  if (user) scheduleRender(100);
+  if (user) scheduleRender(100, true);
 });
-scheduleRender(140);
+scheduleRender(140, true);

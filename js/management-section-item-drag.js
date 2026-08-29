@@ -68,11 +68,11 @@ function resetDrag() {
   drag = null;
 }
 
-async function decorateOverview() {
+async function decorateOverview({ refresh = false } = {}) {
   const page = $("#page-management");
   if (!page || !$(".management-section-board-grid", page)) return;
   try {
-    await readState();
+    if (refresh || !state) await readState();
     if (!state) return;
     $$(".management-section-board[data-management-section-id]", page).forEach((card) => {
       const sectionId = card.dataset.managementSectionId || "";
@@ -92,9 +92,9 @@ async function decorateOverview() {
   }
 }
 
-function scheduleDecorate(delay = 40) {
+function scheduleDecorate(delay = 40, refresh = false) {
   clearTimeout(renderTimer);
-  renderTimer = setTimeout(decorateOverview, delay);
+  renderTimer = setTimeout(() => decorateOverview({ refresh }), delay);
 }
 
 async function moveItemToGroup(itemId, sectionId, groupId) {
@@ -233,9 +233,11 @@ style.textContent = `
 document.head.appendChild(style);
 
 ensureMenu();
-const observer = new MutationObserver(() => scheduleDecorate(30));
-const pageObserverTarget = $("#page-management") || document.body;
-observer.observe(pageObserverTarget, { childList: true, subtree: true });
-document.addEventListener("onekan:state-changed", () => scheduleDecorate(70));
-supabase.auth.onAuthStateChange(() => scheduleDecorate(100));
-scheduleDecorate(100);
+const pageObserverTarget = $("#page-management");
+if (pageObserverTarget) {
+  const observer = new MutationObserver(() => scheduleDecorate(30, false));
+  observer.observe(pageObserverTarget, { childList: true, subtree: true });
+}
+document.addEventListener("onekan:state-changed", () => scheduleDecorate(70, true));
+supabase.auth.onAuthStateChange(() => scheduleDecorate(100, true));
+scheduleDecorate(100, true);

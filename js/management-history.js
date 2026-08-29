@@ -202,12 +202,12 @@ function decorateItem(itemEl, item) {
   itemEl.dataset.managementHistorySignature = signature;
 }
 
-async function renderHistoryDecorations() {
+async function renderHistoryDecorations({ refresh = false } = {}) {
   const page = $("#page-management");
   if (rendering || !page) return;
   rendering = true;
   try {
-    await readState();
+    if (refresh || !state) await readState();
     if (!state) return;
     const byId = new Map(state.managementItems.map((item) => [item.id, item]));
     $$(".management-item[data-management-item-id]", page).forEach((itemEl) => {
@@ -222,9 +222,9 @@ async function renderHistoryDecorations() {
   }
 }
 
-function scheduleRender(delay = 35) {
+function scheduleRender(delay = 35, refresh = false) {
   clearTimeout(renderTimer);
-  renderTimer = setTimeout(renderHistoryDecorations, delay);
+  renderTimer = setTimeout(() => renderHistoryDecorations({ refresh }), delay);
 }
 
 function positionPopover(anchor, popover) {
@@ -463,9 +463,9 @@ ensurePopover();
 wireEvents();
 attachPageObserver();
 document.addEventListener("onekan:state-changed", (event) => {
-  if (event.detail?.source !== "management-history") scheduleRender(55);
+  if (event.detail?.source !== "management-history") scheduleRender(55, true);
 });
 supabase.auth.onAuthStateChange((_event, session) => {
   user = session?.user || null;
-  if (user) scheduleRender(100);
+  if (user) scheduleRender(100, true);
 });

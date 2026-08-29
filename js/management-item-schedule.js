@@ -58,7 +58,6 @@ async function persistState(nextState) {
     .upsert({ user_id: user.id, data: nextState }, { onConflict: "user_id" });
   if (error) throw error;
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management-schedule" } }));
-  $("#reloadCloudBtn")?.click();
   scheduleRender(80);
 }
 
@@ -185,11 +184,11 @@ function decorateForm(form, item = null) {
   updateFormTools(form);
 }
 
-async function renderSchedule() {
+async function renderSchedule({ refresh = false } = {}) {
   if (rendering || !$("#page-management")) return;
   rendering = true;
   try {
-    await readState();
+    if (refresh || !state) await readState();
     if (!state) return;
     const byId = new Map(state.managementItems.map((item) => [item.id, item]));
 
@@ -209,9 +208,9 @@ async function renderSchedule() {
   }
 }
 
-function scheduleRender(delay = 35) {
+function scheduleRender(delay = 35, refresh = false) {
   clearTimeout(renderTimer);
-  renderTimer = setTimeout(renderSchedule, delay);
+  renderTimer = setTimeout(() => renderSchedule({ refresh }), delay);
 }
 
 function closePopover() {
@@ -412,17 +411,20 @@ function wireEvents() {
 ensureStyle();
 ensurePopover();
 wireEvents();
-const observer = new MutationObserver(() => scheduleRender(30));
-observer.observe(document.body, { childList: true, subtree: true });
+const managementPage = $("#page-management");
+if (managementPage) {
+  const observer = new MutationObserver(() => scheduleRender(30, false));
+  observer.observe(managementPage, { childList: true, subtree: true });
+}
 document.addEventListener("onekan:state-changed", (event) => {
   if (event.detail?.source === "management-items" && pendingSave) {
     void applyPendingSave();
     return;
   }
-  if (event.detail?.source !== "management-schedule") scheduleRender(60);
+  if (event.detail?.source !== "management-schedule") scheduleRender(60, true);
 });
 supabase.auth.onAuthStateChange((_event, session) => {
   user = session?.user || null;
-  if (user) scheduleRender(100);
+  if (user) scheduleRender(100, true);
 });
-scheduleRender(120);
+scheduleRender(120, true);

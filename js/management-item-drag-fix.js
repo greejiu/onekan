@@ -66,7 +66,6 @@ async function moveItem(itemId, groupId) {
   if (saveError) throw saveError;
 
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management-item-drag-fix" } }));
-  $("#reloadCloudBtn")?.click();
 }
 
 function disableNativeDragging() {
@@ -148,7 +147,10 @@ document.addEventListener("click", (event) => {
   event.stopImmediatePropagation();
 }, true);
 
-const observer = new MutationObserver(scheduleDisable);
-observer.observe(document.body, { childList: true, subtree: true });
+const managementPage = $("#page-management");
+if (managementPage) {
+  const observer = new MutationObserver(scheduleDisable);
+  observer.observe(managementPage, { childList: true, subtree: true });
+}
 document.addEventListener("onekan:state-changed", scheduleDisable);
 scheduleDisable();

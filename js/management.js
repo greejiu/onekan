@@ -46,7 +46,6 @@ async function writeState(mutator) {
     .upsert({ user_id: currentUser.id, data: managementState }, { onConflict: "user_id" });
   if (error) throw error;
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "management" } }));
-  $("#reloadCloudBtn")?.click();
   scheduleRender(100);
   return true;
 }
