@@ -2,7 +2,7 @@ import { supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
-const VALID_TARGETS = new Set(["before", "doing", "done"]);
+const VALID_TARGETS = new Set(["before", "doing", "done", "archived"]);
 const MOUSE_THRESHOLD = 6;
 const TOUCH_CANCEL_DISTANCE = 9;
 const TOUCH_HOLD_MS = 420;
@@ -29,7 +29,10 @@ function visibleTargetAt(x, y) {
   const column = element?.closest?.("#page-goals .ok-goal-column[data-goal-v2-status]");
   if (!column) return null;
   const status = column.dataset.goalV2Status || "";
-  return VALID_TARGETS.has(status) ? column : null;
+  if (!VALID_TARGETS.has(status)) return null;
+  const targetGroupId = column.dataset.goalV2GroupId || "";
+  if (drag?.groupId && targetGroupId && targetGroupId !== drag.groupId) return null;
+  return column;
 }
 
 function clearTarget() {
@@ -70,7 +73,7 @@ function cleanupDrag() {
   if (!drag) return;
   clearTimeout(drag.holdTimer);
   drag.ghost?.remove();
-  drag.card?.classList.remove("ok-goal-dragging");
+  drag.card?.classList.remove("ok-goal-dragging", "ok-goal-longpress-ready");
   drag.card?.removeAttribute("aria-grabbed");
   clearTarget();
   drag = null;
@@ -98,8 +101,10 @@ async function moveGoal(goalId, nextStatus) {
     const now = new Date().toISOString();
     goal.status = nextStatus;
     goal.updatedAt = now;
-    if (nextStatus === "done" && previousStatus !== "done") goal.completedAt = now;
-    if (previousStatus === "done" && nextStatus !== "done") delete goal.completedAt;
+    if (nextStatus === "done" && previousStatus !== "done") goal.completedAt = goal.completedAt || now;
+    if (["before", "doing"].includes(nextStatus)) delete goal.completedAt;
+    if (nextStatus === "archived") goal.archivedAt = now;
+    else delete goal.archivedAt;
 
     const { error: saveError } = await supabase
       .from("onekan_state")
@@ -107,7 +112,7 @@ async function moveGoal(goalId, nextStatus) {
     if (saveError) throw saveError;
 
     document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "goal-status-drag" } }));
-    const labels = { before: "시작 전", doing: "진행 중", done: "달성" };
+    const labels = { before: "시작 전", doing: "하는 중", done: "달성", archived: "보관" };
     showToast?.(`‘${goal.title || "목표"}’을 ${labels[nextStatus]}으로 이동했어요.`);
   } catch (error) {
     console.error("목표 상태 이동 실패", error);
@@ -132,6 +137,7 @@ function handlePointerDown(event) {
     card,
     goalId: card.dataset.goalV2Id,
     sourceStatus,
+    groupId: column?.dataset.goalV2GroupId || "",
     pointerId: event.pointerId,
     pointerType: event.pointerType,
     startX: event.clientX,
