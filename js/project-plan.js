@@ -1,5 +1,6 @@
 import { supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
+import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
 const $$ = (selector, root = document) => [...(root?.querySelectorAll?.(selector) || [])];
@@ -39,6 +40,7 @@ async function readState() {
   state = data?.data && typeof data.data === "object" ? data.data : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
   state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
+  normalizeCompletionRepeats(state);
   state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : [{ id: "default", name: "기본", color: "#8fa9c4" }];
   return state;
 }
@@ -250,8 +252,9 @@ async function toggleTask(taskId) {
     await writeState((current) => {
       const task = current.tasks.find((item) => item.id === taskId);
       if (!task) return;
-      task.done = !task.done;
-      task.completedAt = task.done ? new Date().toISOString() : null;
+      if (task.recurrence?.frequency) completeRepeatingTask(current, task, new Date());
+      else if (task.done && task.repeatRule) undoRepeatingTaskCompletion(current, task);
+      else { task.done = !task.done; task.completedAt = task.done ? new Date().toISOString() : null; }
     }, "project-plan-task-check");
   } catch (error) {
     console.error("프로젝트 할일 완료 변경 실패", error);

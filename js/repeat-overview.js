@@ -87,6 +87,19 @@ function nextOccurrence(recurrence, baseDate, startDate = todayKey(), limit = 37
   return null;
 }
 
+function completionRepeatLabel(recurrence) {
+  const frequency = recurrence?.frequency;
+  const interval = Math.max(1, Number(recurrence?.interval || 1));
+  if (frequency === "daily") return interval === 1 ? "완료 후 1일" : `완료 후 ${interval}일`;
+  if (frequency === "weekly") {
+    const weekdays = Array.isArray(recurrence.weekdays) ? recurrence.weekdays : [];
+    if (weekdays.length > 1) return "완료 후 다음 지정 요일";
+    return interval === 1 ? "완료 후 1주" : `완료 후 ${interval}주`;
+  }
+  if (frequency === "monthly") return interval === 1 ? "완료 후 1개월" : `완료 후 ${interval}개월`;
+  return "완료 후 반복";
+}
+
 function shortDate(value) {
   if (!value) return "";
   const date = fromKey(value);
@@ -100,15 +113,16 @@ function groupColor(state, item) {
 
 function rowMarkup(state, item, kind) {
   const baseDate = kind === "task" ? item.date : key(new Date(item.start));
-  const next = nextOccurrence(item.recurrence, baseDate);
+  const next = kind === "task" ? item.date : nextOccurrence(item.recurrence, baseDate);
   const ended = item.recurrence?.until && item.recurrence.until < todayKey();
-  const nextText = ended ? "종료됨" : next ? `다음 ${shortDate(next)}` : "다음 일정 없음";
+  const nextText = ended ? "종료됨" : next ? `${kind === "task" ? "예정" : "다음"} ${shortDate(next)}` : "다음 일정 없음";
   const kindLabel = kind === "task" ? (item.isHabit ? "습관" : "할일") : "일정";
+  const repeatText = kind === "task" ? completionRepeatLabel(item.recurrence) : recurrenceLabel(item.recurrence, baseDate);
   return `<div class="onekan-repeat-row" data-context-kind="${kind}" data-context-id="${esc(item.id)}" style="--repeat-group:${groupColor(state, item)}">
     <span class="onekan-repeat-dot" aria-hidden="true"></span>
     <div class="onekan-repeat-main">
       <strong>${esc(item.title || "이름 없음")}</strong>
-      <div class="onekan-repeat-meta"><span>${esc(recurrenceLabel(item.recurrence, baseDate))}</span><span>·</span><span class="next">${esc(nextText)}</span></div>
+      <div class="onekan-repeat-meta"><span>${esc(repeatText)}</span><span>·</span><span class="next">${esc(nextText)}</span></div>
     </div>
     <span class="onekan-repeat-kind">${kindLabel}</span>
   </div>`;

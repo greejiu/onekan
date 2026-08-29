@@ -26,6 +26,7 @@ function installStyle(){
     .uw-task-repeat-pop .uw-repeat-custom[hidden],.uw-task-repeat-pop .uw-repeat-weekdays[hidden],.uw-task-repeat-pop .uw-repeat-interval[hidden]{display:none!important}
     .uw-task-repeat-pop .uw-repeat-until{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:4px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
     .uw-task-repeat-pop .uw-repeat-until input{min-height:32px}
+    .uw-task-repeat-note{margin:0;padding:7px 8px;border-radius:8px;background:var(--panel-soft);color:var(--muted);font-size:10px;line-height:1.45}
     @media(max-width:600px){.uw-task-input-tool{width:34px;height:34px}.uw-task-repeat-pop{position:fixed;left:12px;right:12px;top:auto;bottom:14px;width:auto}}
   `;
   document.head.appendChild(style)
@@ -58,8 +59,9 @@ function decorate(form,removedItem=null){
   const tools=icons(),dateButton=$(".uw-task-date-button",tools),repeatButton=$(".uw-task-repeat-button",tools);
   const dateInput=document.createElement("input");dateInput.type="date";dateInput.className="uw-task-date-native";dateInput.value=initial;
   const panel=document.createElement("div");panel.className="uw-task-repeat-pop";panel.hidden=true;
-  const existing=[$(".uw-repeat-select",form),$(".uw-repeat-custom",form),$(".uw-repeat-until",form)].filter(Boolean);
+  const existing=[$(".uw-repeat-select",form),$(".uw-repeat-custom",form),$(".uw-repeat-weekdays",form),$(".uw-repeat-until",form)].filter(Boolean);
   if(existing.length)existing.forEach(node=>panel.appendChild(node));else{panel.innerHTML=repeatMarkup();wireRepeat(panel,initial||todayKey())}
+  if(entryKind==="task"&&!$(".uw-task-repeat-note",panel)){const note=document.createElement("p");note.className="uw-task-repeat-note";note.textContent="완료한 날을 기준으로 다음 예정일이 자동으로 만들어져요.";panel.appendChild(note)}
   form.append(tools,dateInput,panel);
   const updateState=()=>{
     const date=form.dataset.uwTaskSelectedDate||"";

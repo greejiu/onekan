@@ -1,6 +1,7 @@
 import { supabase } from "./supabase.js";
 import { setupAuth } from "./auth.js";
 import { confirmAction, showToast } from "./ui-feedback.js";
+import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -28,6 +29,7 @@ function appDayKey(now = new Date()) {
 function recurringOnDate(item, targetKey) {
   if (!item?.date) return false;
   const recurrence = item.recurrence;
+  if (recurrence?.completionBased) return item.date === targetKey;
   if (!recurrence?.frequency) return item.date === targetKey;
   if (targetKey < item.date || (recurrence.until && targetKey > recurrence.until)) return false;
   const first = new Date(`${item.date}T12:00:00`);
@@ -48,6 +50,7 @@ function recurringOnDate(item, targetKey) {
 }
 
 function taskCompletedOn(task, dateKey) {
+  if (task.recurrence?.completionBased) return Boolean(task.done);
   return task.recurrence?.frequency ? Boolean(task.recurrenceDone?.[dateKey]) : Boolean(task.done);
 }
 
@@ -187,6 +190,7 @@ function normalizeState(raw) {
     block.duration = duration;
     delete task.timeBlockTemplateId;
   }
+  normalizeCompletionRepeats(normalized);
   return normalized;
 }
 
@@ -304,8 +308,9 @@ function renderTasks() {
     row.innerHTML = `<button class="check ${task.done ? "checked" : ""}" type="button" aria-label="완료">${task.done ? "✓" : ""}</button><span class="row-title">${esc(task.title)}</span>`;
 
     row.querySelector(".check").addEventListener("click", () => {
-      task.done = !task.done;
-      task.completedAt = task.done ? new Date().toISOString() : null;
+      if (task.recurrence?.frequency) completeRepeatingTask(state, task, new Date());
+      else if (task.done && task.repeatRule) undoRepeatingTaskCompletion(state, task);
+      else { task.done = !task.done; task.completedAt = task.done ? new Date().toISOString() : null; }
       save();
       renderHome();
       renderTracking();
