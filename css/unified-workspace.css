@@ -272,9 +272,9 @@
 #page-home #homeLeftColumn{
   position:relative;
   display:flex;
-  height:760px;
+  height:auto;
   min-height:0;
-  overflow:hidden;
+  overflow:visible;
   border:1px solid var(--line);
   border-radius:24px;
   background:var(--panel);
@@ -314,7 +314,7 @@
 #page-home #homeLeftColumn .home-timeline-card{
   flex:1 1 auto;
   min-height:0;
-  overflow:auto;
+  overflow:visible;
   border:0;
   border-radius:0;
   box-shadow:none;
@@ -323,8 +323,9 @@
   display:grid;
   grid-template-rows:minmax(0,1fr) minmax(0,1fr);
   gap:22px;
-  height:760px;
+  height:100%;
   min-height:0;
+  align-self:stretch;
 }
 #page-home #homeRightColumn:has(.uw-upcoming-card:not([open])){
   grid-template-rows:auto minmax(0,1fr);
@@ -386,13 +387,13 @@
 @media(max-width:1050px){
   #page-home #homeLeftColumn,
   #page-home #homeRightColumn{height:auto;min-height:0}
-  #page-home #homeLeftColumn{height:620px}
+  #page-home #homeLeftColumn{height:auto}
   #page-home #homeRightColumn{grid-template-rows:auto auto}
   #page-home #homeRightColumn .uw-side-toggle[open]{min-height:320px}
   #page-home #homeRightColumn .uw-side-toggle .card-body{height:auto;max-height:520px}
 }
 @media(max-width:600px){
-  #page-home #homeLeftColumn{height:540px;min-height:0;border-radius:20px}
+  #page-home #homeLeftColumn{height:auto;min-height:0;border-radius:20px}
   #page-home #homeLeftColumn .uw-home-view-controls{top:auto;padding:14px 14px 11px}
   #page-home #homeLeftColumn .uw-home-controls-primary{align-items:flex-start}
   #page-home #homeLeftColumn .uw-home-primary-actions{align-items:flex-end;flex-direction:column}
