@@ -1,0 +1,36 @@
+name: Keep schedule all inline add
+
+on:
+  push:
+    paths:
+      - ".github/workflows/keep-schedule-all-inline-add.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python3 scripts/keep-schedule-all-inline-add.py
+      - name: Syntax check
+        run: node --input-type=module --check < js/unified-workspace.js
+      - name: Verify
+        run: |
+          grep -q 'const add=`<div class="uw-list uw-task-main-list" data-uw-add-kind="event"' js/unified-workspace.js
+          grep -q 'unified-workspace.js?v=75' index.html
+      - name: Remove helpers
+        run: |
+          rm -f scripts/keep-schedule-all-inline-add.py
+          rm -f .github/workflows/keep-schedule-all-inline-add.yml
+      - name: Commit result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: keep schedule input in flat all list"
+          git push origin HEAD:main
