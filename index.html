@@ -37,6 +37,7 @@
         <button class="nav-item active" data-page="home" type="button"><span class="nav-icon">⌂</span><span class="nav-label">집</span></button>
         <button class="nav-item" data-page="calendar" type="button"><span class="nav-icon">□</span><span class="nav-label">일정</span></button>
         <button class="nav-item" data-page="tasks" type="button"><span class="nav-icon">✓</span><span class="nav-label">할일</span></button>
+        <button class="nav-item" data-page="projects" type="button"><span class="nav-icon">▦</span><span class="nav-label">프로젝트</span></button>
         <button class="nav-item" data-page="repeat" type="button"><span class="nav-icon">↻</span><span class="nav-label">반복</span></button>
         <button class="nav-item" data-page="tracking" type="button"><span class="nav-icon">◷</span><span class="nav-label">시간추적</span></button>
       </nav>
@@ -127,6 +128,11 @@
           <button class="primary-btn" type="submit">추가</button>
         </form>
         <div class="habit-history" id="habitHistory"></div>
+      </section>
+
+      <section class="page" id="page-projects">
+        <div class="page-head"><div><h1 class="page-title">프로젝트 현황</h1></div></div>
+        <div id="projectStatusRoot"></div>
       </section>
 
       <section class="page" id="page-repeat">
@@ -223,6 +229,7 @@
   <script type="module" src="./js/time-block-v2-settings.js?v=4"></script>
   <script type="module" src="./js/unified-workspace.js?v=67"></script>
   <script type="module" src="./js/repeat-overview.js?v=2"></script>
+  <script type="module" src="./js/project-status.js?v=1"></script>
   <script type="module" src="./js/habit-history-view.js?v=1"></script>
   <script type="module" src="./js/daily-focus-mode.js?v=3"></script>
   <script type="module" src="./js/task-completed-groups.js?v=5"></script>
