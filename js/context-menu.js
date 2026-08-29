@@ -216,6 +216,7 @@ function renderProjectChoices(state, target) {
     return;
   }
   const selectedId = item?.projectId || "";
+  if (button) button.innerHTML = `${selectedId ? "프로젝트 변경" : "프로젝트 추가"} <span class="context-menu-arrow">›</span>`;
   const normalize = (value) => {
     const raw = String(value ?? "").trim().toLowerCase();
     if (["done", "완료", "달성", "complete", "completed"].includes(raw)) return "done";

@@ -80,8 +80,8 @@ function installStyle() {
     .onekan-plan-task-meta{color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-plan-add{justify-self:start;margin:5px 3px 0;padding:7px 4px;border:0;background:transparent;color:var(--muted,#6d737d);font:inherit;font-size:11px;cursor:pointer}
     .onekan-plan-add:hover{color:var(--text,#1f2328)}
-    .onekan-plan-add-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;margin:4px 3px 0}
-    .onekan-plan-add-form input{height:34px;padding:0 9px;border:1px solid var(--line,#d2d7df);border-radius:7px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px;outline:none}
+    .onekan-plan-add-form{display:grid;grid-template-columns:minmax(0,1fr) 132px 92px auto;gap:7px;margin:4px 3px 0}
+    .onekan-plan-add-form input{height:34px;min-width:0;padding:0 9px;border:1px solid var(--line,#d2d7df);border-radius:7px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px;outline:none}
     .onekan-plan-add-form input:focus{border-color:var(--accent,#8fa9c4);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#8fa9c4) 12%,transparent)}
     .onekan-plan-add-form button{height:34px;padding:0 10px;border:1px solid var(--line,#d2d7df);border-radius:7px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:11px;cursor:pointer}
     .onekan-plan-empty{padding:26px 10px;color:var(--muted,#6d737d);font-size:11px;text-align:center}
@@ -93,7 +93,7 @@ function installStyle() {
     .onekan-plan-date-row label{display:grid;gap:5px;color:var(--muted,#6d737d);font-size:10px}
     .onekan-plan-date-row input{height:36px;padding:0 9px;border:1px solid var(--line,#d2d7df);border-radius:8px;font:inherit;font-size:12px}
     .onekan-plan-dialog-actions{display:flex;justify-content:flex-end;gap:7px}
-    @media(max-width:700px){.onekan-plan-card{min-height:360px}.onekan-plan-top{grid-template-columns:1fr}.onekan-plan-period{justify-content:flex-end;padding:4px 10px 8px}.onekan-plan-task{grid-template-columns:24px minmax(0,1fr)}.onekan-plan-task-meta{grid-column:2}.onekan-plan-date-row{grid-template-columns:1fr}}
+    @media(max-width:700px){.onekan-plan-card{min-height:360px}.onekan-plan-top{grid-template-columns:1fr}.onekan-plan-period{justify-content:flex-end;padding:4px 10px 8px}.onekan-plan-task{grid-template-columns:24px minmax(0,1fr)}.onekan-plan-task-meta{grid-column:2}.onekan-plan-date-row{grid-template-columns:1fr}.onekan-plan-add-form{grid-template-columns:minmax(0,1fr) 1fr}.onekan-plan-add-form input[type="text"]{grid-column:1/-1}}
   `;
   document.head.appendChild(style);
 }
@@ -182,7 +182,7 @@ async function saveProjectPeriod() {
 }
 
 function addFormMarkup() {
-  return `<form class="onekan-plan-add-form" data-plan-add-form><input maxlength="120" autocomplete="off" placeholder="할일 입력" aria-label="프로젝트 할일 입력"><button type="submit">추가</button></form>`;
+  return `<form class="onekan-plan-add-form" data-plan-add-form><input class="onekan-plan-add-title" type="text" maxlength="120" autocomplete="off" placeholder="할일 입력" aria-label="프로젝트 할일 입력"><input class="onekan-plan-add-date" type="date" aria-label="할일 날짜"><input class="onekan-plan-add-time" type="time" aria-label="할일 시간"><button type="submit">추가</button></form>`;
 }
 
 function renderMarkup() {
@@ -198,14 +198,23 @@ function renderMarkup() {
   return `<section class="onekan-plan-card"><div class="onekan-plan-top"><select class="onekan-plan-project-select" id="onekanPlanProjectSelect" aria-label="진행 중 프로젝트 선택"><option disabled>프로젝트 선택</option>${options}</select><div class="onekan-plan-period"><span>${esc(projectPeriod(project))}</span><button type="button" data-plan-period aria-label="프로젝트 기간 수정" title="프로젝트 기간 수정">▣</button></div></div><div class="onekan-plan-body" id="onekanPlanTaskList">${tasks.length ? tasks.map(taskRow).join("") : '<div class="onekan-plan-empty">이 프로젝트에 연결된 할일이 아직 없어요.</div>'}<button class="onekan-plan-add" data-plan-add type="button">＋ 할일 추가</button></div></section>`;
 }
 
-async function addTask(title) {
+async function addTask(title, dateValue = "", timeValue = "") {
   const value = String(title || "").trim();
+  const taskDate = /^\d{4}-\d{2}-\d{2}$/.test(dateValue || "") ? dateValue : null;
+  const taskTime = /^\d{2}:\d{2}$/.test(timeValue || "") ? timeValue : "";
   if (!value || !selectedProjectId) return;
+  if (taskTime && !taskDate) return showToast("시간을 정하려면 날짜도 함께 선택해 주세요.");
   try {
     await writeState((current) => {
       current.tasks = Array.isArray(current.tasks) ? current.tasks : [];
       const groupId = current.eventGroups?.[0]?.id || "default";
-      current.tasks.push({ id: uid(), title: value, date: null, done: false, groupId, projectId: selectedProjectId, createdAt: new Date().toISOString() });
+      const task = { id: uid(), title: value, date: taskDate, done: false, groupId, projectId: selectedProjectId, createdAt: new Date().toISOString() };
+      if (taskDate && taskTime) {
+        const start = new Date(`${taskDate}T${taskTime}:00`);
+        task.notionStart = start.toISOString();
+        task.notionEnd = new Date(start.getTime() + 30 * 60000).toISOString();
+      }
+      current.tasks.push(task);
     }, "project-plan-task-add");
   } catch (error) {
     console.error("프로젝트 할일 추가 실패", error);
@@ -244,15 +253,17 @@ function wireRoot(root) {
     const add = event.target.closest("[data-plan-add]");
     if (add) {
       add.replaceWith(document.createRange().createContextualFragment(addFormMarkup()));
-      requestAnimationFrame(() => $("[data-plan-add-form] input", root)?.focus());
+      requestAnimationFrame(() => $("[data-plan-add-form] .onekan-plan-add-title", root)?.focus());
     }
   });
   root.addEventListener("submit", (event) => {
     const form = event.target.closest("[data-plan-add-form]");
     if (!form) return;
     event.preventDefault();
-    const input = $("input", form);
-    addTask(input?.value);
+    const titleInput = $(".onekan-plan-add-title", form);
+    const dateInput = $(".onekan-plan-add-date", form);
+    const timeInput = $(".onekan-plan-add-time", form);
+    addTask(titleInput?.value, dateInput?.value, timeInput?.value);
   });
   root.addEventListener("dragstart", (event) => {
     const row = event.target.closest("[data-plan-task-id]");
