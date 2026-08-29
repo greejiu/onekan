@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/patch-step3-task-list.yml'
+      - '.github/scripts/patch-step3-task-list.mjs'
 
 permissions:
   contents: write
@@ -17,7 +18,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Apply patch
         run: node .github/scripts/patch-step3-task-list.mjs
       - name: Check JavaScript
