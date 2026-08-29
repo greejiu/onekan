@@ -62,7 +62,8 @@ function migrate(current) {
     if (item.status === "완료") item.status = "done";
     if (item.status === "종료") item.status = "closed";
     if (item.kind === "goal") {
-      item.status = item.status === "done" ? "done" : item.status === "closed" ? "closed" : "doing";
+      if (item.status === "closed") item.status = "archived";
+      if (!["before", "doing", "done", "archived"].includes(item.status)) item.status = "doing";
       if (!["short", "long"].includes(item.goalTerm)) item.goalTerm = "short";
     } else if (!statusDefs.some((status) => status.id === item.status)) {
       item.status = "before";
