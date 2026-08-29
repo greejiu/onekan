@@ -1484,7 +1484,6 @@ function renderAll() {
   renderHome();
   renderCalendar();
   renderTracking();
-  renderProjects();
   renderSettings();
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "app-render" } }));
 }
