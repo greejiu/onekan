@@ -1,8 +1,4 @@
 import "./auth-guard.js?v=1";
-import "./notes.js?v=1";
-import "./notes-board-view.js?v=3";
-import "./notes-interactions-v2.js?v=2";
-import "./notes-section-controls.js?v=1";
 import "./management.js?v=3";
 import "./management-section-context.js?v=1";
 import "./management-items.js?v=3";
@@ -17,6 +13,7 @@ import "./habit-period-direct-save.js?v=1";
 import "./home-timeline-dynamic-columns.js?v=2";
 import "./goal-board-v2.js?v=3";
 import "./goal-quick-add.js?v=2";
+import "./goal-status-drag.js?v=1";
 
 // Compatibility + interaction safeguards loaded before app.js initializes.
 // Safe to load more than once because cached module URLs may coexist during deployment.
