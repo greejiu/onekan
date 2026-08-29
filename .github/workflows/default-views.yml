@@ -1,0 +1,67 @@
+name: Set default views
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/default-views.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Set page defaults
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          unified = Path('js/unified-workspace.js')
+          text = unified.read_text()
+          replacements = {
+              'let schedulePageMode="list",scheduleCalendarLayout="board";': 'let schedulePageMode="calendar",scheduleCalendarLayout="board";',
+              'let taskPageMode="list",taskListTab="all",taskCalendarView="month",taskCalendarLayout="board",taskCalendarCursor=fromKey(todayKey()),habitCursor=fromKey(todayKey());': 'let taskPageMode="calendar",taskListTab="all",taskCalendarView="week",taskCalendarLayout="board",taskCalendarCursor=fromKey(todayKey()),habitCursor=fromKey(todayKey());',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'unified token not found: {old}')
+              text = text.replace(old, new, 1)
+          unified.write_text(text)
+
+          index = Path('index.html')
+          text = index.read_text()
+          replacements = {
+              '<button class="active" data-uw-home-mode="timeline" type="button">타임라인</button>': '<button class="active" data-uw-home-mode="timeline" type="button">타임블럭</button>',
+              '<div class="card-header"><div class="card-title">오늘 타임라인</div>': '<div class="card-header"><div class="card-title">오늘 타임블럭</div>',
+              '<button class="active" data-uw-schedule-mode="list" type="button">목록</button><button data-uw-schedule-mode="calendar" type="button">캘린더</button>': '<button data-uw-schedule-mode="list" type="button">목록</button><button class="active" data-uw-schedule-mode="calendar" type="button">캘린더</button>',
+              '<button class="active" data-uw-task-mode="list" type="button">목록</button><button data-uw-task-mode="calendar" type="button">캘린더</button>': '<button data-uw-task-mode="list" type="button">목록</button><button class="active" data-uw-task-mode="calendar" type="button">캘린더</button>',
+              './js/unified-workspace.js?v=64': './js/unified-workspace.js?v=65',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'index token not found: {old}')
+              text = text.replace(old, new, 1)
+          index.write_text(text)
+          PY
+
+      - name: Check JavaScript syntax
+        run: node --check js/unified-workspace.js
+
+      - name: Commit changes
+        run: |
+          rm .github/workflows/default-views.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html js/unified-workspace.js .github/workflows/default-views.yml
+          git commit -m 'ui: set default planner views'
+          git push
