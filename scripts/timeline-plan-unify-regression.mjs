@@ -70,8 +70,13 @@ assert.match(c,/#page-home #homeRightColumn:has\(\.uw-someday-card:not\(\[open\]
 assert.match(c,/#page-home #homeRightColumn \.uw-side-toggle\[open\]\{\s*overflow:hidden;/,'open side cards must clip content to their fixed grid row');
 assert.match(c,/#page-home #homeRightColumn \.uw-side-toggle \.card-body\{[\s\S]*?height:calc\(100% - 53px\);[\s\S]*?max-height:calc\(100% - 53px\);[\s\S]*?overflow-y:scroll;/,'side card bodies must have an explicit scroll viewport inside details');
 assert.match(c,/#page-home #homeRightColumn \.uw-side-toggle \.card-body::-webkit-scrollbar\{\s*width:9px;/,'side card scrollbar must remain visibly styled');
-assert.match(i,/unified-workspace\.js\?v=79/);
+assert.match(u,/function upcomingGroups\(limit=7,horizon=366\)/,'home upcoming must search future dates until seven actual items are found');
+assert.doesNotMatch(u,/function upcomingKeys\(\)/,'home upcoming must not stop at the next seven calendar days');
+assert.doesNotMatch(u,/uw-date-label[^`]+uw-icon-btn[^`]+data-uw-add-kind/,'upcoming date rows must not show redundant plus buttons');
+assert.doesNotMatch(u,/uw-someday-add uw-empty-hit/,'someday must not show the redundant add button');
+assert.doesNotMatch(i,/id="addTimeBlockBtn"/,'home planner must not show a non-working bottom add button');
+assert.match(i,/unified-workspace\.js\?v=80/);
 assert.match(i,/workspace-pages\.js\?v=12/);
 assert.match(i,/context-menu\.js\?v=28/);
-assert.match(i,/unified-workspace\.css\?v=49/);
+assert.match(i,/unified-workspace\.css\?v=50/);
 console.log('timeline plan unify regression: ok');
