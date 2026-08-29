@@ -47,6 +47,8 @@ async function readState() {
   state.habitTemplates = Array.isArray(state.habitTemplates) ? state.habitTemplates : [];
   state.habitDays = state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
+  state.directionGoals = Array.isArray(state.directionGoals) ? state.directionGoals : [];
+  state.identities = Array.isArray(state.identities) ? state.identities : [];
   state.projectGroups = Array.isArray(state.projectGroups) ? state.projectGroups : [];
   state.sessions = Array.isArray(state.sessions) ? state.sessions : [];
   return { user: session.user, state };
@@ -70,6 +72,8 @@ function getItem(state, target) {
   if (target.kind === "timeBlock") return state.timeBlocks.find((item) => item.id === target.id);
   if (target.kind === "habit") return state.habitTemplates.find((item) => item.id === target.id);
   if (target.kind === "project") return state.projects.find((item) => item.id === target.id);
+  if (target.kind === "goal") return state.directionGoals.find((item) => item.id === target.id);
+  if (target.kind === "identity") return state.identities.find((item) => item.id === target.id);
   if (target.kind === "session") return state.sessions.find((item) => item.id === target.id);
   return null;
 }
@@ -170,7 +174,7 @@ function schedulable(kind) {
 }
 
 function duplicable(kind) {
-  return ["task", "event", "timeBlock", "habit", "project"].includes(kind);
+  return ["task", "event", "timeBlock", "habit", "project", "goal", "identity"].includes(kind);
 }
 
 function newId() {
@@ -299,6 +303,8 @@ function editableTitleElement(root) {
     ".multi-entry strong",
     ".project-row strong",
     ".onekan-project-title",
+    ".onekan-goal-title",
+    ".onekan-identity-title",
     ".template-row > span",
   ].join(",")) || root.querySelector("strong");
 }
@@ -376,7 +382,7 @@ async function deleteTarget() {
   try {
     const loaded = await readState();
     const item = loaded ? getItem(loaded.state, target) : null;
-    const labels = { task: "할일", event: "일정", timeBlock: "시간 계획", habit: "습관", project: item?.kind === "goal" ? "목표" : "프로젝트", session: "시간 기록" };
+    const labels = { task: "할일", event: "일정", timeBlock: "시간 계획", habit: "습관", project: "프로젝트", goal: "목표", identity: "정체성", session: "시간 기록" };
     const label = labels[target.kind] || "항목";
     const title = item?.title || item?.detail || item?.sourceTitle || "선택한 항목";
     const confirmed = await confirmAction({ title: `${label}을 삭제할까요?`, message: `‘${title}’\n삭제한 내용은 되돌릴 수 없어요.` });
@@ -397,6 +403,12 @@ async function deleteTarget() {
         state.projects = state.projects.filter((item) => item.id !== target.id);
         state.tasks.forEach((task) => { if (task.projectId === target.id) delete task.projectId; if (task.goalId === target.id) delete task.goalId; });
         if (removed?.kind === "goal") state.projects.forEach((item) => { if (item.goalId === target.id) item.goalId = null; });
+      } else if (target.kind === "goal") {
+        state.directionGoals = state.directionGoals.filter((item) => item.id !== target.id);
+        state.projects.forEach((project) => { if (project.goalId === target.id) project.goalId = null; });
+      } else if (target.kind === "identity") {
+        state.identities = state.identities.filter((item) => item.id !== target.id);
+        state.directionGoals.forEach((goal) => { if (goal.identityId === target.id) goal.identityId = null; });
       } else if (target.kind === "session") {
         state.sessions = state.sessions.filter((item) => item.id !== target.id);
       }
@@ -428,13 +440,15 @@ async function duplicateTarget() {
         copy.sourceTitle = copy.detail;
       } else if (target.kind === "habit") {
         copy.title = `${item.title} 복사`;
-      } else if (target.kind === "project") {
+      } else if (target.kind === "project" || target.kind === "goal" || target.kind === "identity") {
         copy.title = `${item.title} 복사`;
       }
       const collection = target.kind === "task" ? state.tasks
         : target.kind === "event" ? state.events
         : target.kind === "timeBlock" ? state.timeBlocks
         : target.kind === "habit" ? state.habitTemplates
+        : target.kind === "goal" ? state.directionGoals
+        : target.kind === "identity" ? state.identities
         : state.projects;
       const index = collection.findIndex((entry) => entry.id === target.id);
       collection.splice(index >= 0 ? index + 1 : collection.length, 0, copy);
