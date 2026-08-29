@@ -85,13 +85,14 @@ function listHabits(tab){
 }
 function projectName(task){return state.projects.find(project=>project.id===task.projectId)?.title||""}
 
-function itemMarkup(task,{compact=false,manual=false,date=""}={}){
-  const area=group(task),repeat=repeatLabel(task),project=projectName(task),rowDate=date||displayDate(task)||"";
+function itemMarkup(task,{compact=false,manual=false,date="",dateLabel=""}={}){
+  const area=group(task),repeat=repeatLabel(task),project=projectName(task),rowDate=date||displayDate(task)||"",listDate=dateLabel?String(dateLabel):"";
   const manualAttrs=manual?` data-manual-row data-manual-kind="task" data-manual-id="${esc(task.id)}"`:"";
   return `<div class="uw-item uw-task${task.done?" done":""}" style="--uw-group:${esc(area?.color||"#8fa9c4")}" data-context-kind="task" data-context-id="${esc(task.id)}" data-habit-item="1" data-uw-kind="task" data-id="${esc(task.id)}" data-date="${esc(rowDate)}"${manualAttrs}>
     <button class="uw-check${task.done?" checked":""}" style="--uw-check-color:${esc(area?.color||"#8fa9c4")}" data-habit-complete="${esc(task.id)}" type="button" aria-label="${task.done?"완료 취소":"완료"}">${task.done?"✓":""}</button>
     <span class="uw-event-dot" aria-hidden="true"></span>
     <span class="uw-item-title">${esc(task.title||"이름 없는 습관")}</span>
+    ${listDate?`<span class="uw-item-time">${esc(listDate)}</span>`:""}
     ${compact?"":`${repeat?`<span class="uw-item-time">↻ ${esc(repeat)}</span>`:""}${project?`<span class="uw-item-time">${esc(project)}</span>`:""}`}
     <button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button>
   </div>`
@@ -102,6 +103,10 @@ function quickAdd(dateValue="",compact=false){
 
 function listMarkup(){
   const rows=listHabits(habitListTab);
+  if(habitListTab==="all"){
+    const add=`<div class="uw-list uw-task-main-list" data-date="${todayKey()}">${quickAdd(todayKey())}</div>`;
+    return add+(rows.length?`<div class="uw-list uw-task-main-list uw-flat-all-list">${rows.map(task=>{const date=displayDate(task);return itemMarkup(task,{date,dateLabel:date?dayLabel(fromKey(date)):"언젠가"})}).join("")}</div>`:'<div class="empty">표시할 습관이 없어요.</div>')
+  }
   if(habitListTab==="someday"){
     const grouped=state.eventGroups.map(groupInfo=>({groupInfo,rows:rows.filter(task=>group(task).id===groupInfo.id)})).filter(entry=>entry.rows.length);
     const add=`<div class="uw-list uw-task-main-list" data-date="" data-uw-someday-drop>${quickAdd("")}</div>`;
@@ -188,6 +193,27 @@ async function addHabit(title,date){
     },"habit-add")
   }catch(error){console.error("habit add failed",error);showToast("습관을 추가하지 못했어요.")}
 }
+function openHabitInline(button,dateValue=""){
+  if(!button?.isConnected)return;
+  const form=document.createElement("form");
+  form.className="uw-inline-form";
+  form.innerHTML='<input type="text" placeholder="습관 입력" aria-label="습관 입력" autocomplete="off">';
+  button.replaceWith(form);
+  const input=$("input",form);
+  let saving=false,cancelled=false;
+  const commit=async()=>{
+    if(saving||cancelled)return;
+    const title=input?.value.trim()||"";
+    if(!title){cancelled=true;scheduleRender(0);return}
+    saving=true;
+    await addHabit(title,dateValue||null)
+  };
+  form.addEventListener("submit",event=>{event.preventDefault();commit()});
+  form.addEventListener("keydown",event=>{if(event.key==="Escape"){event.preventDefault();cancelled=true;scheduleRender(0)}});
+  form.addEventListener("focusout",()=>setTimeout(()=>{if(!cancelled&&!saving&&form.isConnected&&!form.contains(document.activeElement))commit()},120));
+  requestAnimationFrame(()=>input?.focus())
+}
+
 async function toggleHabit(id){
   try{
     await writeState(current=>{
@@ -218,7 +244,7 @@ function wire(){
     const check=event.target.closest("[data-habit-complete]");
     if(check){event.preventDefault();event.stopPropagation();toggleHabit(check.dataset.habitComplete);return}
     const quick=event.target.closest("[data-habit-quick-add]");
-    if(quick){event.preventDefault();const title=window.prompt("습관 이름");if(title)addHabit(title,quick.dataset.habitQuickAdd||null);return}
+    if(quick){event.preventDefault();event.stopPropagation();openHabitInline(quick,quick.dataset.habitQuickAdd||"");return}
     if(event.target.closest('[data-page="repeat"]'))scheduleRender(30)
   },true);
   document.addEventListener("onekan:state-changed",event=>{

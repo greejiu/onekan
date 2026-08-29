@@ -312,7 +312,7 @@ function timeBlockV2Assignable(entry){return!entry.timed&&(entry.kind==="task"||
 function timeBlockV2EntryToken(entry,k){return timeBlockOccurrenceToken(entry.kind,entry.item,k)}
 function timeBlockV2ItemMarkup(entry,k,templates,assignment=null){
   const kind=entry.kind,item=entry.item,done=itemDoneOn(kind,item,k),repeat=recurrenceLabel(item,kind),occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"",time=entry.timed?timeBlockV2MinuteText(entry.time):"",token=timeBlockV2EntryToken(entry,k),assignable=timeBlockV2Assignable(entry),planningClass=entry.timed?" fixed-anchor":assignable?" plan-draggable":"",planningAttrs=entry.timed?` data-time-block-anchor="${esc(token)}" data-time="${Number(entry.time)}" data-duration="${Math.max(SLOT,Number(entry.duration)||SLOT)}"`:assignable?` data-time-block-token="${esc(token)}"${assignment?` data-time-block-block-id="${esc(assignment.blockId)}" data-time-block-after-anchor="${esc(assignment.afterAnchor||TIME_BLOCK_START_ANCHOR)}" data-time-block-order="${Math.max(1,Number(assignment.order)||1)}"`:""}`:"";
-  return`<div class="uw-item uw-${kind} uw-time-block-v2-item${entry.timed?" timed":" untimed"}${planningClass}${done?" done":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${planningAttrs} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
+  return`<div class="uw-item uw-${kind} uw-time-block-v2-item${entry.timed?" timed":" untimed"}${planningClass}${done?" done":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${planningAttrs} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${listDate?`<span class="uw-item-time">${esc(listDate)}</span>`:""}${repeat?`<span class="uw-repeat-badge">↻ ${repeat}</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
 }
 function timeBlockV2ManualGroup(entries,k,templates,assignments,anchor){
   return entries.filter(entry=>{const token=timeBlockV2EntryToken(entry,k),assignment=assignments[token];return(assignment?.afterAnchor||TIME_BLOCK_START_ANCHOR)===anchor}).sort((a,b)=>{const at=timeBlockV2EntryToken(a,k),bt=timeBlockV2EntryToken(b,k),aa=assignments[at],ba=assignments[bt];return(Number(aa?.order)||1)-(Number(ba?.order)||1)||at.localeCompare(bt)}).map(entry=>timeBlockV2ItemMarkup(entry,k,templates,assignments[timeBlockV2EntryToken(entry,k)])).join("")
@@ -369,10 +369,11 @@ function checkMarkup(kind,item,k){
   const occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"";
   return`<button class="uw-check${done?" checked":""}" style="--uw-check-color:${color}" data-uw-check="${kind}" data-id="${item.id}" data-date="${k}"${occurrence} type="button">${done?"✓":""}</button>`
 }
-function itemMarkup(kind,item,k,compact=false,manual=false){
+function itemMarkup(kind,item,k,compact=false,manual=false,listDateLabel=""){
   const done=itemDoneOn(kind,item,k);
   const time=kind==="event"&&!item.allDay?timeOf(item.start):"";
   const repeat=recurrenceLabel(item,kind);
+  const listDate=listDateLabel?String(listDateLabel):"";
   const occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"";
   const manualAttrs=manual?` data-manual-row data-manual-kind="${kind}" data-manual-id="${esc(item.id)}"`:"";
   const move='<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button>';
@@ -680,11 +681,16 @@ function scheduleListRows(tab){
 }
 function scheduleList(){
   if(scheduleListTab==="someday")return '<div class="uw-schedule-list"><div class="empty">날짜 없는 일정이 없어요.</div></div>';
-  const rows=scheduleListRows(scheduleListTab),groups=new Map();
+  const rows=scheduleListRows(scheduleListTab);
+  if(!rows.length)return '<div class="uw-schedule-list"><div class="empty">표시할 일정이 없어요.</div></div>';
+  if(scheduleListTab==="all"){
+    const ordered=[...rows].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||manualOrderValue(a.item)-manualOrderValue(b.item)||new Date(a.item.start)-new Date(b.item.start)||String(a.item.title||"").localeCompare(String(b.item.title||""),"ko"));
+    return `<div class="uw-schedule-list"><div class="uw-list uw-task-main-list uw-flat-all-list">${ordered.map(row=>itemMarkup("event",row.item,row.date,false,false,dayLabel(fromKey(row.date)))).join("")}</div></div>`
+  }
+  const groups=new Map();
   rows.forEach(row=>{if(!groups.has(row.date))groups.set(row.date,[]);groups.get(row.date).push(row.item)});
   const dates=[...groups.keys()].sort((a,b)=>scheduleListTab==="upcoming"?a.localeCompare(b):b.localeCompare(a));
-  if(!dates.length)return '<div class="uw-schedule-list"><div class="empty">표시할 일정이 없어요.</div></div>';
-  const canAdd=scheduleListTab==="all"||scheduleListTab==="upcoming";
+  const canAdd=scheduleListTab==="upcoming";
   return`<div class="uw-schedule-list">${dates.map(date=>{const items=groups.get(date).sort((a,b)=>manualOrderValue(a)-manualOrderValue(b)||new Date(a.start)-new Date(b.start)||String(a.title||"").localeCompare(String(b.title||""),"ko"));return`<section class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list uw-task-main-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}" data-manual-list>${items.map(event=>itemMarkup("event",event,date,false,true)).join("")}${canAdd?scheduleInput(date):""}</div></section>`}).join("")}</div>`
 }
 function scheduleMonthBoard(){const y=calendarCursor.getFullYear(),m=calendarCursor.getMonth(),first=new Date(y,m,1),start=addDays(first,-first.getDay());return`<div class="uw-task-month-grid">${["일","월","화","수","목","금","토"].map(x=>`<div class="uw-task-dow">${x}</div>`).join("")}${Array.from({length:42},(_,i)=>{const d=addDays(start,i),date=key(d);return`<section class="uw-task-month-cell uw-month-cell${d.getMonth()!==m?" outside":""}${date===todayKey()?" today":""}" data-uw-add-kind="event" data-date="${date}"><span class="uw-task-day-number">${d.getDate()}</span><div class="uw-list" data-uw-add-kind="event" data-date="${date}" data-task-drop-date="${date}">${schedules(date).map(event=>itemMarkup("event",event,date,true)).join("")}${scheduleInput(date,true)}</div></section>`}).join("")}</div>`}
@@ -733,7 +739,7 @@ function visibleTasks(tab){
 function renderTasks(){renderTasksV2()}
 
 function taskRowsForDate(k){return taskOccurrencesForDate(k).filter(task=>!task.isHabit).sort((a,b)=>+taskDoneOn(a,k)-+taskDoneOn(b,k)||String(a.notionStart||"").localeCompare(String(b.notionStart||""))||String(a.title).localeCompare(String(b.title),"ko"))}
-function taskListMarkup(tasks,k,compact=false,manual=false){return tasks.map(task=>{const date=Object.prototype.hasOwnProperty.call(task,"_occurrenceDate")?task._occurrenceDate||"":task.date||k;return itemMarkup("task",task,date,compact,manual)}).join("")}
+function taskListMarkup(tasks,k,compact=false,manual=false,showListDate=false){return tasks.map(task=>{const date=Object.prototype.hasOwnProperty.call(task,"_occurrenceDate")?task._occurrenceDate||"":task.date||k;const listDate=showListDate?(taskListDate(task)?dayLabel(fromKey(taskListDate(task))):"언젠가"):"";return itemMarkup("task",task,date,compact,manual,listDate)}).join("")}
 function taskListInput(date,compact=false){return`<button class="uw-empty-hit uw-task-inline-add" data-uw-add-kind="task" data-date="${date||""}" type="button" aria-label="할일 입력">${compact?"＋":"＋ 할일 입력"}</button>`}
 function taskCalendarTitle(){if(taskCalendarView==="month")return`${taskCalendarCursor.getFullYear()}년 ${taskCalendarCursor.getMonth()+1}월`;if(taskCalendarView==="week"){const start=addDays(taskCalendarCursor,-taskCalendarCursor.getDay());return`${dayLabel(start)} – ${dayLabel(addDays(start,6))}`}return dayLabel(taskCalendarCursor,true)}
 function taskCalendarNav(){return`<div class="uw-task-calendar-nav"><button class="uw-icon-btn" data-task-cal-prev type="button" aria-label="이전 기간">‹</button><strong>${taskCalendarTitle()}</strong><div><button class="uw-task-today" data-task-cal-today type="button">오늘</button><button class="uw-icon-btn" data-task-cal-next type="button" aria-label="다음 기간">›</button></div></div>`}
@@ -772,6 +778,11 @@ function renderTasksV2(){
   renderTaskSubnav();
   if(taskPageMode==="list"){
     const rows=visibleTasks(taskListTab);
+    if(taskListTab==="all"){
+      const add=`<div class="uw-list uw-task-main-list" data-uw-add-kind="task" data-date="">${taskListInput("")}</div>`;
+      root.innerHTML=add+(rows.length?`<div class="uw-list uw-task-main-list uw-flat-all-list">${taskListMarkup(rows,"",false,false,true)}</div>`:'<div class="empty">표시할 할일이 없어요.</div>');
+      return
+    }
     if(taskListTab==="someday"){
       const grouped=state.eventGroups
         .map(groupInfo=>({groupInfo,rows:rows.filter(task=>group(task).id===groupInfo.id)}))
