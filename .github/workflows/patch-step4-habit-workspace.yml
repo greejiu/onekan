@@ -1,0 +1,40 @@
+name: Patch step 4 habit workspace
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-step4-habit-workspace.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply patch
+        run: node .github/scripts/patch-step4-habit-workspace.mjs
+      - name: Check JavaScript
+        run: |
+          node --check js/repeat-overview.js
+          node --check js/habit-history-view.js
+      - name: Check diff
+        run: git diff --check
+      - name: Commit feature
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html js/repeat-overview.js js/habit-history-view.js
+          git commit -m "feat: give habits calendar and list views"
+          git push
+      - name: Remove patch files
+        run: |
+          git rm .github/workflows/patch-step4-habit-workspace.yml .github/scripts/patch-step4-habit-workspace.mjs
+          git commit -m "chore: remove step 4 habit workspace patch files"
+          git push
