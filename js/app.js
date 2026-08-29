@@ -1435,10 +1435,7 @@ function renderSettings() {
   const groupList = $("#eventGroupList");
   if (groupList) {
     groupList.innerHTML = state.eventGroups.map((group, index) => `<div class="event-group-row" data-event-group-id="${esc(group.id)}">
-      <div class="event-group-order" aria-label="영역 순서">
-        <button class="ghost-btn" type="button" data-event-group-up aria-label="${esc(group.name)} 위로 이동" title="위로"${index <= 1 ? " disabled" : ""}>↑</button>
-        <button class="ghost-btn" type="button" data-event-group-down aria-label="${esc(group.name)} 아래로 이동" title="아래로"${index === 0 || index === state.eventGroups.length - 1 ? " disabled" : ""}>↓</button>
-      </div>
+      <button class="event-group-drag-handle" type="button" data-event-group-drag aria-label="${esc(group.name)} 순서 이동" title="끌어서 순서 변경"${index === 0 ? " disabled" : ""}>⠿</button>
       <input type="color" value="${safeColor(group.color)}" aria-label="${esc(group.name)} 색" data-event-group-color />
       <input value="${esc(group.name)}" aria-label="영역 이름" data-event-group-name />
       <button class="ghost-btn danger-text" type="button" data-event-group-delete${index === 0 ? " disabled" : ""}>삭제</button>
@@ -1453,18 +1450,54 @@ function renderSettings() {
       refreshEventGroupInputs();
       renderCalendar();
     }));
-    groupList.querySelectorAll("[data-event-group-up], [data-event-group-down]").forEach((button) => button.addEventListener("click", () => {
-      const id = button.closest("[data-event-group-id]")?.dataset.eventGroupId;
-      const index = state.eventGroups.findIndex((group) => group.id === id);
-      if (index < 1) return;
-      const nextIndex = index + (button.hasAttribute("data-event-group-up") ? -1 : 1);
-      if (nextIndex < 1 || nextIndex >= state.eventGroups.length) return;
-      [state.eventGroups[index], state.eventGroups[nextIndex]] = [state.eventGroups[nextIndex], state.eventGroups[index]];
-      save();
-      renderSettings();
-      refreshEventGroupInputs();
-      renderCalendar();
-    }));
+    groupList.querySelectorAll("[data-event-group-drag]:not(:disabled)").forEach((handle) => {
+      let draggingRow = null;
+      let pointerId = null;
+      let moved = false;
+      handle.addEventListener("pointerdown", (event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        draggingRow = handle.closest("[data-event-group-id]");
+        if (!draggingRow) return;
+        pointerId = event.pointerId;
+        moved = false;
+        handle.setPointerCapture?.(pointerId);
+        draggingRow.classList.add("dragging");
+        event.preventDefault();
+      });
+      handle.addEventListener("pointermove", (event) => {
+        if (!draggingRow || event.pointerId !== pointerId) return;
+        const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".event-group-row");
+        if (!target || target === draggingRow || target.parentElement !== groupList) return;
+        const firstRow = groupList.querySelector(".event-group-row");
+        if (target === firstRow) {
+          firstRow.after(draggingRow);
+          moved = true;
+          return;
+        }
+        const rect = target.getBoundingClientRect();
+        groupList.insertBefore(draggingRow, event.clientY > rect.top + rect.height / 2 ? target.nextSibling : target);
+        moved = true;
+      });
+      const finishDrag = (event) => {
+        if (!draggingRow || event.pointerId !== pointerId) return;
+        handle.releasePointerCapture?.(pointerId);
+        draggingRow.classList.remove("dragging");
+        const changed = moved;
+        draggingRow = null;
+        pointerId = null;
+        moved = false;
+        if (!changed) return;
+        const ids = [...groupList.querySelectorAll("[data-event-group-id]")].map((row) => row.dataset.eventGroupId);
+        const byId = new Map(state.eventGroups.map((group) => [group.id, group]));
+        state.eventGroups = ids.map((id) => byId.get(id)).filter(Boolean);
+        save();
+        refreshEventGroupInputs();
+        renderCalendar();
+        renderSettings();
+      };
+      handle.addEventListener("pointerup", finishDrag);
+      handle.addEventListener("pointercancel", finishDrag);
+    });
     groupList.querySelectorAll("[data-event-group-delete]").forEach((button) => button.addEventListener("click", async () => {
       const id = button.closest("[data-event-group-id]")?.dataset.eventGroupId;
       if (!id || id === state.eventGroups[0]?.id) return;
