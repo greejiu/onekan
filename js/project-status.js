@@ -248,7 +248,7 @@ function fillGoalSelect(selectedId) {
   select.value = selectedExists ? selectedId : "";
 }
 
-async function openEditor({ projectId = null, status = "doing", groupId = null, focusPeriod = false } = {}) {
+async function openEditor({ projectId = null, status = "doing", groupId = null, goalId = null, focusPeriod = false } = {}) {
   await readState();
   const dialog = ensureDialog();
   editingProjectId = projectId;
@@ -256,7 +256,7 @@ async function openEditor({ projectId = null, status = "doing", groupId = null, 
   $("#onekanProjectDialogTitle", dialog).textContent = project ? "프로젝트 수정" : "프로젝트 추가";
   $("#onekanProjectTitle", dialog).value = project?.title || "";
   $("#onekanProjectStatus", dialog).value = project ? normalizeStatus(project.status) : status;
-  fillGoalSelect(project?.goalId || "");
+  fillGoalSelect(project?.goalId || goalId || "");
   fillGroupSelect(project ? projectGroupId(project) : (groupId || defaultGroupId()));
   const dates = projectDates(project);
   $("#onekanProjectStart", dialog).value = dates.start || "";
@@ -428,6 +428,10 @@ function init() {
   document.addEventListener("onekan:state-changed", (event) => {
     if (event.detail?.source === "app-render") return;
     if ($("#page-projects")?.classList.contains("active")) scheduleRender(100);
+  });
+  document.addEventListener("onekan:add-project", (event) => {
+    const goalId = event.detail?.goalId || null;
+    openEditor({ goalId, status: "doing", groupId: defaultGroupId() });
   });
   if ($("#page-projects")?.classList.contains("active")) scheduleRender(0);
 }
