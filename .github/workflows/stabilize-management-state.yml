@@ -1,0 +1,237 @@
+name: Stabilize management state reads
+
+on:
+  push:
+    paths:
+      - '.github/workflows/stabilize-management-state.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  stabilize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Reduce duplicate cloud reads and global reloads
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_one(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'pattern not found in {path}: {old[:100]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          # management.js: a management write already emits onekan:state-changed.
+          # Clicking the global reload button caused the whole app to reload cloud data again.
+          replace_one('js/management.js', '  $("#reloadCloudBtn")?.click();\n', '')
+
+          # management-items.js: DOM decoration must not hit Supabase on every mutation.
+          replace_one('js/management-items.js', 'async function renderItems() {', 'async function renderItems({ refresh = false } = {}) {')
+          replace_one('js/management-items.js', '    await readState();\n    if (!state) return;', '    if (refresh || !state) await readState();\n    if (!state) return;')
+          replace_one('js/management-items.js', '''function scheduleRender(delay = 40) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderItems, delay);
+}''', '''function scheduleRender(delay = 40, refresh = false) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => renderItems({ refresh }), delay);
+}''')
+          replace_one('js/management-items.js', '  $("#reloadCloudBtn")?.click();\n', '')
+          replace_one('js/management-items.js', '''const observer = new MutationObserver(() => scheduleRender(30));
+observer.observe(document.body, { childList: true, subtree: true });
+document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source !== "management-items") scheduleRender(60);
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  user = session?.user || null;
+  if (user) scheduleRender(100);
+});
+scheduleRender(120);''', '''const managementPage = $("#page-management");
+if (managementPage) {
+  const observer = new MutationObserver(() => scheduleRender(30, false));
+  observer.observe(managementPage, { childList: true, subtree: true });
+}
+document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source !== "management-items") scheduleRender(60, true);
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  user = session?.user || null;
+  if (user) scheduleRender(100, true);
+});
+scheduleRender(120, true);''')
+
+          # management schedule: use cached state for DOM-only decoration.
+          replace_one('js/management-item-schedule.js', 'async function renderSchedule() {', 'async function renderSchedule({ refresh = false } = {}) {')
+          replace_one('js/management-item-schedule.js', '    await readState();\n    if (!state) return;', '    if (refresh || !state) await readState();\n    if (!state) return;')
+          replace_one('js/management-item-schedule.js', '''function scheduleRender(delay = 35) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderSchedule, delay);
+}''', '''function scheduleRender(delay = 35, refresh = false) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => renderSchedule({ refresh }), delay);
+}''')
+          replace_one('js/management-item-schedule.js', '  $("#reloadCloudBtn")?.click();\n', '')
+          replace_one('js/management-item-schedule.js', '''const observer = new MutationObserver(() => scheduleRender(30));
+observer.observe(document.body, { childList: true, subtree: true });
+document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source === "management-items" && pendingSave) {
+    void applyPendingSave();
+    return;
+  }
+  if (event.detail?.source !== "management-schedule") scheduleRender(60);
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  user = session?.user || null;
+  if (user) scheduleRender(100);
+});
+scheduleRender(120);''', '''const managementPage = $("#page-management");
+if (managementPage) {
+  const observer = new MutationObserver(() => scheduleRender(30, false));
+  observer.observe(managementPage, { childList: true, subtree: true });
+}
+document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source === "management-items" && pendingSave) {
+    void applyPendingSave();
+    return;
+  }
+  if (event.detail?.source !== "management-schedule") scheduleRender(60, true);
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  user = session?.user || null;
+  if (user) scheduleRender(100, true);
+});
+scheduleRender(120, true);''')
+
+          # management history: page mutations only redecorate cached data.
+          replace_one('js/management-history.js', 'async function renderHistoryDecorations() {', 'async function renderHistoryDecorations({ refresh = false } = {}) {')
+          replace_one('js/management-history.js', '    await readState();\n    if (!state) return;', '    if (refresh || !state) await readState();\n    if (!state) return;')
+          replace_one('js/management-history.js', '''function scheduleRender(delay = 35) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderHistoryDecorations, delay);
+}''', '''function scheduleRender(delay = 35, refresh = false) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => renderHistoryDecorations({ refresh }), delay);
+}''')
+          replace_one('js/management-history.js', '''document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source !== "management-history") scheduleRender(55);
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  user = session?.user || null;
+  if (user) scheduleRender(100);
+});''', '''document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source !== "management-history") scheduleRender(55, true);
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  user = session?.user || null;
+  if (user) scheduleRender(100, true);
+});''')
+
+          # management home: home DOM changes are frequent; never query cloud because of layout mutations.
+          replace_one('js/management-home.js', 'async function renderHomeManagement() {', 'async function renderHomeManagement({ refresh = false } = {}) {')
+          replace_one('js/management-home.js', '    await readState();\n    if (!state) return;', '    if (refresh || !state) await readState();\n    if (!state) return;')
+          replace_one('js/management-home.js', '''function scheduleRender(delay = 45) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderHomeManagement, delay);
+}''', '''function scheduleRender(delay = 45, refresh = false) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => renderHomeManagement({ refresh }), delay);
+}''')
+          replace_one('js/management-home.js', '''document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source !== "management-home") scheduleRender(80);
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  user = session?.user || null;
+  if (user) scheduleRender(100);
+});
+scheduleRender(140);''', '''document.addEventListener("onekan:state-changed", (event) => {
+  if (event.detail?.source !== "management-home") scheduleRender(80, true);
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  user = session?.user || null;
+  if (user) scheduleRender(100, true);
+});
+scheduleRender(140, true);''')
+
+          # Cross-section overview decorator: same rule, cached state for DOM-only changes.
+          replace_one('js/management-section-item-drag.js', 'async function decorateOverview() {', 'async function decorateOverview({ refresh = false } = {}) {')
+          replace_one('js/management-section-item-drag.js', '    await readState();\n    if (!state) return;', '    if (refresh || !state) await readState();\n    if (!state) return;')
+          replace_one('js/management-section-item-drag.js', '''function scheduleDecorate(delay = 40) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(decorateOverview, delay);
+}''', '''function scheduleDecorate(delay = 40, refresh = false) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => decorateOverview({ refresh }), delay);
+}''')
+          replace_one('js/management-section-item-drag.js', '''const observer = new MutationObserver(() => scheduleDecorate(30));
+const pageObserverTarget = $("#page-management") || document.body;
+observer.observe(pageObserverTarget, { childList: true, subtree: true });
+document.addEventListener("onekan:state-changed", () => scheduleDecorate(70));
+supabase.auth.onAuthStateChange(() => scheduleDecorate(100));
+scheduleDecorate(100);''', '''const pageObserverTarget = $("#page-management");
+if (pageObserverTarget) {
+  const observer = new MutationObserver(() => scheduleDecorate(30, false));
+  observer.observe(pageObserverTarget, { childList: true, subtree: true });
+}
+document.addEventListener("onekan:state-changed", () => scheduleDecorate(70, true));
+supabase.auth.onAuthStateChange(() => scheduleDecorate(100, true));
+scheduleDecorate(100, true);''')
+
+          # Drag helper does not read cloud on mutations, but it still does not need a body-wide observer.
+          replace_one('js/management-item-drag-fix.js', '  $("#reloadCloudBtn")?.click();\n', '')
+          replace_one('js/management-item-drag-fix.js', '''const observer = new MutationObserver(scheduleDisable);
+observer.observe(document.body, { childList: true, subtree: true });
+document.addEventListener("onekan:state-changed", scheduleDisable);''', '''const managementPage = $("#page-management");
+if (managementPage) {
+  const observer = new MutationObserver(scheduleDisable);
+  observer.observe(managementPage, { childList: true, subtree: true });
+}
+document.addEventListener("onekan:state-changed", scheduleDisable);''')
+
+          # Cache-bust only the patched management bundle.
+          loader = Path('js/interaction-fixes.js')
+          text = loader.read_text()
+          versions = {
+              './management.js?v=3': './management.js?v=4',
+              './management-items.js?v=3': './management-items.js?v=4',
+              './management-item-drag-fix.js?v=3': './management-item-drag-fix.js?v=4',
+              './management-section-item-drag.js?v=1': './management-section-item-drag.js?v=2',
+              './management-item-schedule.js?v=2': './management-item-schedule.js?v=3',
+              './management-home.js?v=2': './management-home.js?v=3',
+              './management-history.js?v=3': './management-history.js?v=4',
+          }
+          for old, new in versions.items():
+              if old not in text:
+                  raise SystemExit(f'import version not found: {old}')
+              text = text.replace(old, new, 1)
+          loader.write_text(text)
+
+          index = Path('index.html')
+          text = index.read_text()
+          if './js/interaction-fixes.js?v=26' not in text:
+              raise SystemExit('interaction-fixes v26 not found')
+          index.write_text(text.replace('./js/interaction-fixes.js?v=26', './js/interaction-fixes.js?v=27', 1))
+          PY
+          node --check js/management.js
+          node --check js/management-items.js
+          node --check js/management-item-drag-fix.js
+          node --check js/management-section-item-drag.js
+          node --check js/management-item-schedule.js
+          node --check js/management-home.js
+          node --check js/management-history.js
+          node --check js/interaction-fixes.js
+      - name: Commit stabilization
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/stabilize-management-state.yml
+          git add index.html js/interaction-fixes.js js/management.js js/management-items.js js/management-item-drag-fix.js js/management-section-item-drag.js js/management-item-schedule.js js/management-home.js js/management-history.js
+          git commit -m "fix: stabilize management state refresh"
+          git push origin main
