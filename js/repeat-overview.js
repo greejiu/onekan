@@ -99,7 +99,7 @@ function itemMarkup(task,{compact=false,manual=false,date="",dateLabel=""}={}){
     <span class="uw-event-dot" aria-hidden="true"></span>
     <span class="uw-item-title">${esc(task.title||"이름 없는 습관")}</span>
     ${listDate?`<span class="uw-item-time">${esc(listDate)}</span>`:""}
-    ${compact?"":`${repeat?`<span class="uw-item-time">↻ ${esc(repeat)}</span>`:""}${project?`<span class="uw-item-time">${esc(project)}</span>`:""}`}
+    ${repeat?`<span class="uw-repeat-badge" title="${esc(repeat)}" aria-label="반복 · ${esc(repeat)}">↻</span>`:""}${compact?"":`${project?`<span class="uw-item-time">${esc(project)}</span>`:""}`}
     <button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button>
   </div>`
 }
