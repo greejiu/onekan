@@ -637,7 +637,25 @@ function plannerDay(d,index=0){
 }
 function renderPlanner(){const card=$(".home-timeline-card");if(!card)return;$$("[data-uw-home-mode]").forEach(b=>b.classList.toggle("active",b.dataset.uwHomeMode===homeMode));const daySelect=$("[data-uw-home-days-select]");if(daySelect)daySelect.value=String(homeDays);const dateLabel=$("#uwHomeDateLabel");if(dateLabel)dateLabel.textContent=homeDays===1?dayLabel(homeCursor):`${dayLabel(homeCursor)} – ${dayLabel(addDays(homeCursor,homeDays-1))}`;const sessionButton=$(".uw-home-view-controls [data-uw-toggle-sessions]");if(sessionButton){const visible=state.ui.showSessionsOnTimeline;sessionButton.textContent=`시간 추적 ${visible?"숨기기":"보기"}`;sessionButton.setAttribute("aria-pressed",String(visible))}const dayRenderer=homeMode==="timeline"?plannerDay:plannerListDay;card.innerHTML=`<div class="uw-home-planner"><div class="uw-planner-days ${homeMode==="list"?"uw-planner-list-days":""}" style="--uw-days:${homeDays}">${Array.from({length:homeDays},(_,i)=>dayRenderer(addDays(homeCursor,i),i)).join("")}</div></div>`}
 function upcomingKeys(){return Array.from({length:7},(_,i)=>key(addDays(fromKey(todayKey()),i+1)))}
-function renderUpcoming(){const root=$("#upcomingList");if(!root)return;const groups=upcomingKeys().map(date=>({date,rows:[...schedules(date).map(item=>({kind:"event",item})),...taskOccurrencesForDate(date).filter(task=>!taskDoneOn(task,date)).map(item=>({kind:"task",item}))]})).filter(group=>group.rows.length);root.innerHTML=groups.length?groups.map(({date,rows})=>`<div class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list" data-uw-add-kind="task" data-date="${date}">${rows.map(x=>itemMarkup(x.kind,x.item,date)).join("")}</div></div>`).join(""):'<div class="empty">앞으로 7일간 일정이 없어요.</div>'}
+function upcomingTasksForDate(date){
+  const rows=taskOccurrencesForDate(date).filter(task=>!task.isHabit&&!taskDoneOn(task,date));
+  const seen=new Set(rows.map(task=>`${task.id}:${task._occurrenceSource||date}`));
+  for(const task of state.tasks){
+    if(task.isHabit||task.done||task.date!==date)continue;
+    const token=`${task.id}:${task._occurrenceSource||date}`;
+    if(seen.has(token))continue;
+    seen.add(token);rows.push(task)
+  }
+  return rows.sort((a,b)=>{
+    const at=a.notionStart?new Date(a.notionStart).getTime():Infinity,bt=b.notionStart?new Date(b.notionStart).getTime():Infinity;
+    return at-bt||manualOrderValue(a)-manualOrderValue(b)||String(a.title||"").localeCompare(String(b.title||""),"ko")
+  })
+}
+function renderUpcoming(){
+  const root=$("#upcomingList");if(!root)return;
+  const groups=upcomingKeys().map(date=>({date,rows:[...schedules(date).map(item=>({kind:"event",item})),...upcomingTasksForDate(date).map(item=>({kind:"task",item}))]})).filter(group=>group.rows.length);
+  root.innerHTML=groups.length?groups.map(({date,rows})=>`<div class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list" data-uw-add-kind="task" data-date="${date}">${rows.map(x=>itemMarkup(x.kind,x.item,date)).join("")}</div></div>`).join(""):'<div class="empty">앞으로 7일간 일정과 할일이 없어요.</div>'
+}
 function renderSomeday(){const root=$("#somedayHomeSlot");if(!root)return;const tasks=somedayTaskOccurrences().filter(task=>!taskDoneOn(task,task._occurrenceSource||""));root.innerHTML=`<div class="uw-list uw-someday-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop>${tasks.map(t=>itemMarkup("task",t,"")).join("")}</div>`}
 function renderSideTab(){$$('[data-uw-side-tab]').forEach(button=>{const active=button.dataset.uwSideTab===homeSideTab;button.classList.toggle("active",active);button.setAttribute("aria-selected",String(active))});$$('[data-uw-side-panel]').forEach(panel=>{panel.hidden=panel.dataset.uwSidePanel!==homeSideTab})}
 function overdueTasks(source=state){const today=todayKey();return(source?.tasks||[]).filter(task=>!task.done&&task.date&&task.date<today).sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.title).localeCompare(String(b.title),"ko"))}
