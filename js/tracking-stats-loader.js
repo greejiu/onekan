@@ -11,3 +11,7 @@ if (!document.getElementById(STATS_CSS_ID)) {
 import("./tracking-stats.js?v=1").catch((error) => {
   console.warn("시간 통계 모듈을 불러오지 못했습니다.", error);
 });
+
+import("./backup-manager.js?v=1").catch((error) => {
+  console.warn("백업 관리 모듈을 불러오지 못했습니다.", error);
+});
