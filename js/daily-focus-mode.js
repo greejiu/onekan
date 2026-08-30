@@ -29,7 +29,10 @@ function removeHabitRows(root = document) {
     '.uw-habit-item',
     '.uw-habit-row',
   ];
-  root.querySelectorAll(selectors.join(",")).forEach((node) => node.remove());
+  root.querySelectorAll(selectors.join(",")).forEach((node) => {
+    if (node.closest("#upcomingList")) return;
+    node.remove();
+  });
 }
 
 function cleanTracking() {
