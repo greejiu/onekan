@@ -1,19 +1,23 @@
 .onekan-project-bookmark {
   display: inline-grid;
   place-items: center;
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
-  margin: 0 0 0 2px;
+  position: absolute;
+  top: -2px;
+  right: 3px;
+  z-index: 8;
+  width: 20px;
+  height: 25px;
   padding: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: 0 0 6px 6px;
   background: transparent;
   color: var(--accent, #728d7a);
   cursor: pointer;
   opacity: .76;
-  position: relative;
-  z-index: 8;
+}
+
+.uw-item:has(> .onekan-project-bookmark) {
+  padding-right: 28px;
 }
 
 .onekan-project-bookmark:hover,
@@ -29,8 +33,8 @@
 }
 
 .onekan-project-bookmark svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 18px;
   overflow: visible;
   fill: none;
   stroke: currentColor;
@@ -41,6 +45,10 @@
 
 .onekan-project-bookmark[aria-expanded="true"] svg {
   fill: currentColor;
+}
+
+.uw-selection-active .onekan-project-bookmark {
+  display: none;
 }
 
 .onekan-project-popover {
