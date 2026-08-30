@@ -8,6 +8,7 @@ window.__ONEKAN_DAILY_FOCUS_MODE__ = true;
 const deferredModules = [
   "./task-input-controls.js?v=5",
   "./home-timeline-dynamic-columns.js?v=2",
+  "./tracking-context-menu.js?v=1",
 ];
 
 if (!window.__onekanInteractionFixesInstalled) {
