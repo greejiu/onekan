@@ -1,10 +1,17 @@
 import { supabase } from "./supabase.js";
 
 const CSS_ID = "onekanBackupManagerCss";
+const VISIBLE_REASONS = [
+  "daily_snapshot",
+  "pre_change_auto",
+  "manual_snapshot",
+  "pre_restore",
+  "post_incident_surviving_state",
+  "before_gallery_recovery",
+];
 const REASON_LABELS = {
   daily_snapshot: "매일 자동",
   pre_change_auto: "변경 전 자동",
-  before_update: "이전 변경 기록",
   manual_snapshot: "수동 백업",
   pre_restore: "복원 직전",
   post_incident_surviving_state: "사고 후 보존",
@@ -40,10 +47,8 @@ function stateSummary(data) {
   const projects = Array.isArray(state.projects) ? state.projects : [];
   const sessions = Array.isArray(state.sessions) ? state.sessions : [];
   const events = Array.isArray(state.events) ? state.events : [];
-  const habitCount = tasks.filter((item) => item?.isHabit).length + legacyHabits.length;
   return {
     items: tasks.length + legacyHabits.length,
-    habits: habitCount,
     projects: projects.length,
     sessions: sessions.length,
     events: events.length,
@@ -92,6 +97,7 @@ async function loadBackups() {
     .from("onekan_state_history")
     .select("id,archived_at,reason,data")
     .eq("user_id", user.id)
+    .in("reason", VISIBLE_REASONS)
     .order("archived_at", { ascending: false })
     .limit(40);
   if (error) throw error;
