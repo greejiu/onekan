@@ -101,6 +101,7 @@ function fmtDuration(ms) {
 function defaultState() {
   const normalized = {
     tasks: [],
+    homeMemo: "",
     habitTemplates: [],
     habitDays: {},
     timeBlocks: [],
@@ -140,6 +141,7 @@ function normalizeState(raw) {
     ...base,
     ...state,
     tasks: Array.isArray(state.tasks) ? state.tasks : [],
+    homeMemo: typeof state.homeMemo === "string" ? state.homeMemo : "",
     habitTemplates: Array.isArray(state.habitTemplates) ? state.habitTemplates : [],
     habitDays: state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {},
     timeBlocks: Array.isArray(state.timeBlocks) ? state.timeBlocks : [],
@@ -198,6 +200,7 @@ let currentUser = null;
 let loadedUserId = null;
 let state = defaultState();
 let saveChain = Promise.resolve();
+let homeMemoSaveTimer = null;
 let tickHandle = null;
 let timerFinishing = false;
 let editingBlockId = null;
@@ -1570,10 +1573,40 @@ function addHabit() {
   renderHome();
 }
 
+function resizeHomeMemo() {
+  const input = $("#homeMemoInput");
+  if (!input) return;
+  input.style.height = "0px";
+  input.style.height = `${Math.max(108, input.scrollHeight)}px`;
+}
+
+function renderHomeMemo() {
+  const input = $("#homeMemoInput");
+  if (!input) return;
+  if (document.activeElement !== input && input.value !== state.homeMemo) input.value = state.homeMemo;
+  resizeHomeMemo();
+}
+
+function queueHomeMemoSave(delay = 550) {
+  clearTimeout(homeMemoSaveTimer);
+  homeMemoSaveTimer = setTimeout(() => {
+    homeMemoSaveTimer = null;
+    save();
+  }, delay);
+}
+
+function flushHomeMemoSave() {
+  if (!homeMemoSaveTimer) return;
+  clearTimeout(homeMemoSaveTimer);
+  homeMemoSaveTimer = null;
+  save();
+}
+
 function renderAll() {
   ensureHabitDay();
   applySidebar();
   renderHome();
+  renderHomeMemo();
   renderCalendar();
   renderTracking();
   renderSettings();
@@ -1594,6 +1627,8 @@ async function resetForLogout() {
   currentUser = null;
   loadedUserId = null;
   state = defaultState();
+  clearTimeout(homeMemoSaveTimer);
+  homeMemoSaveTimer = null;
   clearInterval(tickHandle);
 }
 
@@ -1661,6 +1696,13 @@ function bindUI() {
   });
   $("#mobileMenuBtn").addEventListener("click", () => $("#app-section").classList.toggle("mobile-nav-open"));
   bindCalendarDirectEntry();
+  const homeMemoInput = $("#homeMemoInput");
+  homeMemoInput?.addEventListener("input", (event) => {
+    state.homeMemo = event.target.value;
+    resizeHomeMemo();
+    queueHomeMemoSave();
+  });
+  homeMemoInput?.addEventListener("blur", flushHomeMemoSave);
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".more")) $$(".menu.open").forEach((menu) => menu.classList.remove("open"));
     if (!event.target.closest("#blockEditor") && !event.target.closest(".time-block")) $("#blockEditor").classList.remove("open");
@@ -1803,6 +1845,10 @@ function bindUI() {
   });
 
   document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "hidden") {
+      flushHomeMemoSave();
+      return;
+    }
     if (document.visibilityState === "visible" && currentUser && !state.timer.running) {
       try {
         await saveChain;
