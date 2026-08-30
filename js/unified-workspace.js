@@ -1256,7 +1256,14 @@ function wireControlsV2(){
     g.nextDate=date;
     $$(".uw-month-cell").forEach(cell=>cell.classList.toggle("uw-range-selected",cell.dataset.date>=first&&cell.dataset.date<=last));
   };
-  const plannerDropAt=(g,pointed,clientY)=>{
+  const closestAt=(pointed,selector,clientX,clientY)=>{
+    const direct=pointed?.closest?.(selector);
+    if(direct)return direct;
+    const stack=document.elementsFromPoint?.(clientX,clientY)||[];
+    for(const element of stack){const match=element.closest?.(selector);if(match)return match}
+    return null
+  };
+  const plannerDropAt=(g,pointed,clientX,clientY)=>{
     const dateAllowed=date=>Boolean(date)&&(g.kind!=="habit"||date===g.date);
     const timelineAllDay=pointed?.closest(".uw-all-day[data-uw-all-day-drop]");
     if(timelineAllDay){
@@ -1264,18 +1271,19 @@ function wireControlsV2(){
       if(dateAllowed(date)){timelineAllDay.classList.add("uw-drop-target");return{dropType:"time-block-unassigned",date}}
       return null
     }
-    const timeline=pointed?.closest(".uw-timeline");
+    const timeline=closestAt(pointed,".uw-timeline",clientX,clientY);
     if(timeline){
       const day=timeline.closest(".uw-day"),date=day?.dataset.date;
       if(!dateAllowed(date))return null;
       const lane=timeline.querySelector(".uw-time-lane"),rect=lane?.getBoundingClientRect();
       if(!lane||!rect)return null;
       const minute=START+((clientY-rect.top)/SLOT_H)*SLOT,snappedMinute=minuteAt(lane,clientY),templates=effectiveTimeBlockTemplatesForDate(state,date),block=templates.find(candidate=>minute>=Number(candidate.startMinute)&&minute<Number(candidate.endMinute));
-      if(!block){
+      const planItem=closestAt(pointed,".uw-time-block-plan-item[data-time-block-token]",clientX,clientY),planRail=timeline.querySelector(".uw-time-block-plan-rail"),planRect=planRail?.getBoundingClientRect(),insidePlanRail=Boolean(planItem||(planRect&&clientX>=planRect.left&&clientX<=planRect.right));
+      if(!block||!insidePlanRail){
         timeline.querySelector(`.uw-time-hit[data-time="${snappedMinute}"]`)?.classList.add("uw-drop-target");
         return{dropType:"time",date,startMinute:snappedMinute}
       }
-      const blockId=String(block.id),planItem=pointed?.closest(".uw-time-block-plan-item[data-time-block-token]");
+      const blockId=String(block.id);
       if(planItem&&planItem.dataset.timeBlockToken!==g.planToken){
         const targetBlockId=planItem.dataset.timeBlockBlockId||blockId,afterAnchor=planItem.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR,bounds=planItem.getBoundingClientRect(),before=clientY<bounds.top+bounds.height/2;
         const peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.planToken&&row.dataset.timeBlockBlockId===targetBlockId&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor).sort((a,b)=>(+a.dataset.timeBlockOrder||1)-(+b.dataset.timeBlockOrder||1));
@@ -1478,7 +1486,7 @@ function wireControlsV2(){
     if(planSurface){
       const targetDate=planSurface.dataset.date||planSurface.closest("[data-date]")?.dataset.date||planSurface.querySelector?.("[data-date]")?.dataset.date||"";
       if(!g.planToken&&targetDate)g.planToken=timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource||targetDate},targetDate);
-      const target=plannerDropAt(g,pointed,e.clientY);
+      const target=plannerDropAt(g,pointed,e.clientX,e.clientY);
       g.validTarget=Boolean(target);
       g.dropType=target?.dropType||null;
       g.nextDate=target?.date||g.date;
@@ -1489,7 +1497,11 @@ function wireControlsV2(){
       if(g.ghost){g.ghost.style.left=`${e.clientX}px`;g.ghost.style.top=`${e.clientY}px`}
       return;
     }
-    const lane=pointed?.closest(".uw-time-lane");
+    let lane=closestAt(pointed,".uw-time-lane",e.clientX,e.clientY);
+    if(!lane){
+      const timeline=closestAt(pointed,".uw-timeline",e.clientX,e.clientY),candidate=timeline?.querySelector(".uw-time-lane"),bounds=candidate?.getBoundingClientRect();
+      if(bounds&&e.clientX>=bounds.left&&e.clientX<=bounds.right&&e.clientY>=bounds.top&&e.clientY<=bounds.bottom)lane=candidate
+    }
     const someday=pointed?.closest("[data-uw-someday-drop]");
     const allDay=pointed?.closest("[data-uw-all-day-drop]");
     const dateList=pointed?.closest("[data-task-drop-date],.uw-month-cell,.uw-list[data-date]");
