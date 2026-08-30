@@ -624,3 +624,8 @@
     overflow-y:auto!important;
   }
 }
+
+
+/* Timeline internal drag isolation */
+.uw-time-block-plan-rail,.uw-time-exact-lane{overflow:hidden;box-sizing:border-box}
+.uw-item.uw-dragging{pointer-events:none!important}
