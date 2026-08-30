@@ -657,14 +657,28 @@ function upcomingTasksForDate(date){
   })
 }
 function upcomingHabitsByDate(dates){
-  const rowsByDate=new Map(dates.map(date=>[date,[]]));
+  const rowsByDate=new Map(dates.map(date=>[date,[]])),seen=new Set(),today=todayKey();
+  for(const task of state.tasks){
+    if(!task.isHabit||task.done||seen.has(task.id))continue;
+    let target=dates.includes(task.date)?task.date:null;
+    if(!target&&task.recurrence?.frequency){
+      const base=task.date||today;
+      target=dates.find(date=>recurrenceOn(task,base,date))||null
+    }
+    if(!target)continue;
+    const item={...task,date:target,_occurrenceSource:task.date||target,_occurrenceDate:target,_upcomingHabit:true};
+    rowsByDate.get(target)?.push({kind:"task",item});
+    seen.add(task.id)
+  }
   for(const habit of state.habitTemplates){
+    if(seen.has(habit.id))continue;
     for(const date of dates){
       if(!habitOccursOn(habit,date))continue;
       const override=habitOverride(state,date,habit.id)||{};
       if(override.hidden||state.habitDays?.[date]?.[habit.id]===true)continue;
       const item=Object.prototype.hasOwnProperty.call(override,"title")?{...habit,title:override.title}:habit;
       rowsByDate.get(date)?.push({kind:"habit",item});
+      seen.add(habit.id);
       break
     }
   }
