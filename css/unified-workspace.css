@@ -485,7 +485,7 @@
 .uw-time-block-v2-item .uw-item-time{margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums}
 .uw-time-block-v2-item .uw-time-block-picker{margin-left:auto;max-width:180px;min-width:118px;height:28px;padding:2px 24px 2px 7px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text);font:inherit;font-size:11px}
 .uw-time-block-v2-empty{padding:8px 9px;color:var(--muted);font-size:12px}
-@media(max-width:620px){.uw-time-block-v2-item .uw-time-block-picker{max-width:142px;min-width:104px}.uw-time-block-v2-head{padding:7px 8px}.uw-time-block-v2-list{padding:3px 4px}}
+@media(max-width:620px){.uw-time-block-v2-item .uw-time-block-picker{max-width:142px;min-width:104px}.uw-time-block-v2-head{padding:1px 6px}.uw-time-block-v2-list{padding:3px 4px}}
 
 
 /* Time block V2 stage 3 */
