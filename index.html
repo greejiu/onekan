@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
   <link rel="stylesheet" href="./css/unified-workspace.css?v=59" />
+  <link rel="stylesheet" href="./css/home-memo.css?v=1" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -94,6 +95,16 @@
           </details>
           </div>
         </div>
+
+        <article class="card uw-home-memo-card" id="homeMemoCard">
+          <div class="card-header">
+            <div class="card-title">메모장</div>
+            <div class="card-meta">자동 저장</div>
+          </div>
+          <div class="uw-home-memo-body">
+            <textarea class="uw-home-memo-input" id="homeMemoInput" rows="4" aria-label="집 메모장" placeholder="할일을 쪼개거나, 지금 당장 할 행동을 적어보세요."></textarea>
+          </div>
+        </article>
       </section>
 
       <section class="page" id="page-calendar">
@@ -228,7 +239,7 @@
   </div>
 
   <script type="module" src="./js/interaction-fixes.js?v=38"></script>
-  <script type="module" src="./js/app.js?v=44"></script>
+  <script type="module" src="./js/app.js?v=45"></script>
   <script type="module" src="./js/load-recovery.js?v=1"></script>
   <script type="module" src="./js/context-menu.js?v=30"></script>
   <script type="module" src="./js/workspace-pages.js?v=12"></script>
