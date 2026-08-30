@@ -1,11 +1,17 @@
 /* Home rich memo */
 .uw-home-memo-card{
   --uw-memo-card-color:#fff;
+  display:flex;
+  flex-direction:column;
+  min-height:126px;
   margin:0 0 18px;
   overflow:visible;
   border-color:color-mix(in srgb,var(--uw-memo-card-color) 55%,var(--line));
   background:var(--uw-memo-card-color);
   transition:background .16s ease,border-color .16s ease;
+}
+#page-home:has(.page-head.has-custom-background) .uw-home-memo-card{
+  min-height:190px;
 }
 .uw-home-memo-header{
   display:none;
@@ -83,19 +89,24 @@
   color:var(--accent-dark);
 }
 .uw-home-memo-body{
+  display:flex;
+  flex:1 1 auto;
+  align-items:center;
+  min-height:0;
   padding:14px 18px 18px;
 }
 .uw-home-memo-card:focus-within .uw-home-memo-body{
   padding-top:8px;
 }
 .uw-home-memo-grid{
-  display:grid;
-  grid-template-columns:1fr;
-  align-items:start;
+  display:flex;
+  align-items:center;
+  width:100%;
+  min-height:0;
 }
 .uw-home-memo-editor{
   width:100%;
-  min-height:108px;
+  min-height:1.65em;
   box-sizing:border-box;
   padding:4px 0;
   overflow-wrap:anywhere;
@@ -177,7 +188,7 @@
   .uw-home-memo-card{margin-bottom:12px}
   .uw-home-memo-body{padding:10px 14px 14px}
   .uw-home-memo-card:focus-within .uw-home-memo-body{padding-top:7px}
-  .uw-home-memo-editor{min-height:108px;font-size:14px}
+  .uw-home-memo-editor{min-height:1.65em;font-size:14px}
   .uw-home-memo-format{max-width:100%;flex-wrap:wrap}
   .uw-home-memo-format button,
   .uw-home-memo-color{width:32px;height:32px}
