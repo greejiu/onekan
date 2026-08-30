@@ -1481,8 +1481,8 @@ function wireControlsV2(){
       }
     }
     const planningMove=g.canUseTimeBlock&&g.planToken&&g.start===null;
-    const listBlockSurface=g.canUseTimeBlock&&g.planToken&&pointed?.closest("[data-uw-time-block-drop-list],.uw-time-block-v2-section");
-    const planSurface=planningMove?pointed?.closest(".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section,.uw-timeline,.uw-all-day[data-uw-all-day-drop]"):listBlockSurface;
+    const listBlockSurface=g.canUseTimeBlock&&g.planToken&&closestAt(pointed,"[data-uw-time-block-drop-list],.uw-time-block-v2-section",e.clientX,e.clientY);
+    const planSurface=planningMove?closestAt(pointed,".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section,.uw-timeline,.uw-all-day[data-uw-all-day-drop]",e.clientX,e.clientY):listBlockSurface;
     if(planSurface){
       const targetDate=planSurface.dataset.date||planSurface.closest("[data-date]")?.dataset.date||planSurface.querySelector?.("[data-date]")?.dataset.date||"";
       if(!g.planToken&&targetDate)g.planToken=timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource||targetDate},targetDate);
