@@ -1,0 +1,113 @@
+.onekan-project-bookmark {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin: 0 0 0 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--accent, #728d7a);
+  cursor: pointer;
+  opacity: .76;
+  position: relative;
+  z-index: 8;
+}
+
+.onekan-project-bookmark:hover,
+.onekan-project-bookmark:focus-visible,
+.onekan-project-bookmark[aria-expanded="true"] {
+  background: #edf3ee;
+  opacity: 1;
+  outline: none;
+}
+
+.onekan-project-bookmark:focus-visible {
+  box-shadow: 0 0 0 2px rgba(114, 141, 122, .22);
+}
+
+.onekan-project-bookmark svg {
+  width: 15px;
+  height: 15px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.onekan-project-bookmark[aria-expanded="true"] svg {
+  fill: currentColor;
+}
+
+.onekan-project-popover {
+  position: fixed;
+  z-index: 10060;
+  width: min(320px, calc(100vw - 20px));
+  overflow: hidden;
+  border: 1px solid #dfe6e1;
+  border-radius: 13px;
+  background: #fff;
+  color: #303633;
+  box-shadow: 0 14px 36px rgba(43, 55, 48, .15), 0 2px 8px rgba(43, 55, 48, .08);
+}
+
+.onekan-project-popover[hidden] {
+  display: none !important;
+}
+
+.onekan-project-popover-title {
+  padding: 11px 14px;
+  background: #eef4ef;
+  color: #55705d;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .01em;
+}
+
+.onekan-project-chain {
+  margin: 0;
+  padding: 5px 14px 8px;
+}
+
+.onekan-project-chain > div {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-height: 34px;
+  padding: 8px 0;
+  border-bottom: 1px solid #edf0ee;
+}
+
+.onekan-project-chain > div:last-child {
+  border-bottom: 0;
+}
+
+.onekan-project-chain dt,
+.onekan-project-chain dd {
+  margin: 0;
+}
+
+.onekan-project-chain dt {
+  color: #89918c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.onekan-project-chain dd {
+  overflow-wrap: anywhere;
+  color: #333936;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .onekan-project-popover {
+    width: min(300px, calc(100vw - 20px));
+  }
+}
