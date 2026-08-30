@@ -10,6 +10,7 @@ const deferredModules = [
   "./home-timeline-dynamic-columns.js?v=2",
   "./tracking-context-menu.js?v=2",
   "./habit-area-list.js?v=1",
+  "./task-area-list.js?v=1",
 ];
 
 if (!window.__onekanInteractionFixesInstalled) {
