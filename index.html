@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./css/features.css?v=6" />
   <link rel="stylesheet" href="./css/white-theme.css?v=11" />
   <link rel="stylesheet" href="./css/unified-workspace.css?v=59" />
-  <link rel="stylesheet" href="./css/home-memo.css?v=1" />
+  <link rel="stylesheet" href="./css/home-memo.css?v=2" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -65,6 +65,31 @@
 
         <section class="uw-overdue-banner" id="overdueTaskBanner" hidden aria-live="polite"></section>
 
+        <article class="card uw-home-memo-card" id="homeMemoCard">
+          <div class="card-header uw-home-memo-header">
+            <div class="card-title">메모장</div>
+            <div class="uw-home-memo-controls">
+              <div class="uw-home-memo-format" role="toolbar" aria-label="메모 서식">
+                <button type="button" data-home-memo-command="bold" aria-label="굵게" title="굵게"><strong>B</strong></button>
+                <button type="button" data-home-memo-command="strikeThrough" aria-label="취소선" title="취소선"><s>S</s></button>
+                <button type="button" data-home-memo-command="insertUnorderedList" aria-label="글머리 목록" title="글머리 목록">•≡</button>
+                <button type="button" data-home-memo-command="checklist" aria-label="체크리스트" title="체크리스트">☑</button>
+                <label class="uw-home-memo-color uw-home-memo-text-color" title="글자색"><span aria-hidden="true">A</span><input id="homeMemoTextColor" type="color" value="#2f2f33" aria-label="글자색" /></label>
+                <label class="uw-home-memo-color uw-home-memo-highlight-color" title="글자 배경색"><span aria-hidden="true">A</span><input id="homeMemoHighlightColor" type="color" value="#fff0a8" aria-label="글자 배경색" /></label>
+                <label class="uw-home-memo-color uw-home-memo-card-color" title="카드 배경색"><span aria-hidden="true">▣</span><input id="homeMemoCardColor" type="color" value="#ffffff" aria-label="카드 배경색" /></label>
+              </div>
+              <div class="uw-home-memo-columns" role="group" aria-label="메모 열 수">
+                <button class="active" type="button" data-home-memo-columns="1" aria-pressed="true" title="1열">1</button>
+                <button type="button" data-home-memo-columns="2" aria-pressed="false" title="2열">2</button>
+                <button type="button" data-home-memo-columns="3" aria-pressed="false" title="3열">3</button>
+              </div>
+            </div>
+          </div>
+          <div class="uw-home-memo-body">
+            <div class="uw-home-memo-grid" id="homeMemoGrid"></div>
+          </div>
+        </article>
+
         <div class="home-columns home-columns-3 uw-home-layout">
           <div class="home-column" id="homeLeftColumn">
           <div class="uw-home-view-controls" aria-label="집 보기 설정">
@@ -96,15 +121,6 @@
           </div>
         </div>
 
-        <article class="card uw-home-memo-card" id="homeMemoCard">
-          <div class="card-header">
-            <div class="card-title">메모장</div>
-            <div class="card-meta">자동 저장</div>
-          </div>
-          <div class="uw-home-memo-body">
-            <textarea class="uw-home-memo-input" id="homeMemoInput" rows="4" aria-label="집 메모장" placeholder="할일을 쪼개거나, 지금 당장 할 행동을 적어보세요."></textarea>
-          </div>
-        </article>
       </section>
 
       <section class="page" id="page-calendar">
@@ -239,7 +255,7 @@
   </div>
 
   <script type="module" src="./js/interaction-fixes.js?v=38"></script>
-  <script type="module" src="./js/app.js?v=45"></script>
+  <script type="module" src="./js/app.js?v=46"></script>
   <script type="module" src="./js/load-recovery.js?v=1"></script>
   <script type="module" src="./js/context-menu.js?v=30"></script>
   <script type="module" src="./js/workspace-pages.js?v=12"></script>
