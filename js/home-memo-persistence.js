@@ -1,5 +1,5 @@
 import { supabase } from "./supabase.js";
-import "./tracking-stats-loader.js?v=1";
+import "./tracking-stats-loader.js?v=2";
 
 const BACKUP_PREFIX = "onekan:home-memo-backup:";
 const SAVE_DELAY = 220;
