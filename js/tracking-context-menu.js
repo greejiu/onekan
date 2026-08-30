@@ -2,22 +2,55 @@ if (!window.__onekanTrackingContextMenuInstalled) {
   window.__onekanTrackingContextMenuInstalled = true;
 
   function trackableRecord(target) {
-    const item = target?.closest?.('.uw-item[data-uw-kind]');
-    if (!item) return null;
+    if (!(target instanceof Element)) return null;
 
-    const rawKind = item.dataset.uwKind || '';
-    if (rawKind !== 'task' && rawKind !== 'habit') return null;
+    const explicit = target.closest('[data-context-kind][data-context-id]');
+    if (explicit) {
+      const rawKind = explicit.dataset.contextKind || '';
+      if (rawKind === 'task' || rawKind === 'habit') {
+        const id = explicit.dataset.contextId || '';
+        if (!id) return null;
+        const unifiedHabit = explicit.dataset.habitItem === '1' || Boolean(explicit.closest('#page-repeat'));
+        const title = explicit.querySelector('.uw-item-title,.uw-habit-title,.habit-title,.row-title,.workspace-task-title,strong')?.textContent?.trim() || '이름 없는 항목';
+        return {
+          id,
+          title,
+          sourceKind: rawKind === 'habit' ? 'habit' : 'task',
+          displayKind: unifiedHabit || rawKind === 'habit' ? 'habit' : 'task',
+        };
+      }
+    }
 
-    const id = item.dataset.id || item.dataset.contextId || '';
-    if (!id) return null;
+    const unified = target.closest('[data-uw-kind="task"][data-id],[data-uw-kind="habit"][data-id]');
+    if (unified) {
+      const rawKind = unified.dataset.uwKind || 'task';
+      const id = unified.dataset.id || '';
+      if (!id) return null;
+      const unifiedHabit = unified.dataset.habitItem === '1' || Boolean(unified.closest('#page-repeat'));
+      const title = unified.querySelector('.uw-item-title,.uw-habit-title,.habit-title,strong')?.textContent?.trim() || '이름 없는 항목';
+      return {
+        id,
+        title,
+        sourceKind: rawKind === 'habit' ? 'habit' : 'task',
+        displayKind: unifiedHabit || rawKind === 'habit' ? 'habit' : 'task',
+      };
+    }
 
-    const unifiedHabit = item.dataset.habitItem === '1';
-    const title = item.querySelector('.uw-item-title,.uw-habit-title,.habit-title')?.textContent?.trim() || '이름 없는 항목';
+    const legacyTask = target.closest('#taskList .row[data-id]');
+    if (legacyTask) {
+      const id = legacyTask.dataset.id || '';
+      const title = legacyTask.querySelector('.row-title,strong')?.textContent?.trim() || '이름 없는 할일';
+      return id ? { id, title, sourceKind: 'task', displayKind: 'task' } : null;
+    }
 
-    // 새 습관 화면은 task 객체 + isHabit 구조라 timer에서는 task:{id}로 연결한다.
-    const sourceKind = rawKind === 'habit' ? 'habit' : 'task';
-    const displayKind = unifiedHabit || rawKind === 'habit' ? 'habit' : 'task';
-    return { id, title, sourceKind, displayKind };
+    const somedayTask = target.closest('#featureSomedayList .row[data-task-id]');
+    if (somedayTask) {
+      const id = somedayTask.dataset.taskId || '';
+      const title = somedayTask.querySelector('.row-title,strong')?.textContent?.trim() || '이름 없는 할일';
+      return id ? { id, title, sourceKind: 'task', displayKind: 'task' } : null;
+    }
+
+    return null;
   }
 
   function ensureTrackingOption(record) {
@@ -63,7 +96,7 @@ if (!window.__onekanTrackingContextMenuInstalled) {
     let attempts = 0;
     const apply = () => {
       attempts += 1;
-      if (ensureTrackingOption(record) || attempts >= 8) return;
+      if (ensureTrackingOption(record) || attempts >= 10) return;
       setTimeout(apply, 80);
     };
     setTimeout(apply, 0);
@@ -73,14 +106,16 @@ if (!window.__onekanTrackingContextMenuInstalled) {
     const record = trackableRecord(event.target);
     if (!record) return;
 
-    // 기존 우클릭 핸들러가 메뉴를 그린 뒤 마지막에 항목만 덧붙인다.
+    // 기존 context-menu.js가 capture 단계에서 전파를 멈추므로
+    // 이 리스너도 capture에서 같은 이벤트를 받아 실제 전역 메뉴에 항목을 넣는다.
     setTimeout(() => {
-      const menu = document.querySelector('#uwContext');
+      const menu = document.querySelector('#globalContextMenu');
       if (!menu) return;
 
       menu.querySelector('[data-onekan-track-now]')?.remove();
       const button = document.createElement('button');
       button.type = 'button';
+      button.setAttribute('role', 'menuitem');
       button.dataset.onekanTrackNow = '1';
       button.dataset.trackId = record.id;
       button.dataset.trackSourceKind = record.sourceKind;
@@ -88,23 +123,27 @@ if (!window.__onekanTrackingContextMenuInstalled) {
       button.dataset.trackTitle = record.title;
       button.textContent = '시간추적하기';
 
-      const danger = menu.querySelector('.danger');
-      if (danger) menu.insertBefore(button, danger);
+      const deleteButton = menu.querySelector('[data-context-action="delete"]');
+      if (deleteButton) menu.insertBefore(button, deleteButton);
       else menu.appendChild(button);
 
-      if (!menu.classList.contains('open')) {
-        menu.style.left = `${Math.min(innerWidth - 170, event.clientX)}px`;
-        menu.style.top = `${Math.min(innerHeight - 190, event.clientY)}px`;
-        menu.classList.add('open');
+      // 기존 메뉴가 이미 열린 뒤 버튼이 추가되므로 위치를 한 번 더 화면 안으로 맞춘다.
+      if (menu.classList.contains('open')) {
+        const rect = menu.getBoundingClientRect();
+        const currentLeft = Number.parseFloat(menu.style.left) || event.clientX;
+        const currentTop = Number.parseFloat(menu.style.top) || event.clientY;
+        menu.style.left = `${Math.max(8, Math.min(currentLeft, innerWidth - rect.width - 8))}px`;
+        menu.style.top = `${Math.max(8, Math.min(currentTop, innerHeight - rect.height - 8))}px`;
       }
     }, 0);
-  });
+  }, true);
 
   document.addEventListener('click', (event) => {
-    const button = event.target.closest?.('[data-onekan-track-now]');
+    const button = event.target instanceof Element ? event.target.closest('[data-onekan-track-now]') : null;
     if (!button) return;
 
     event.preventDefault();
+    event.stopPropagation();
     event.stopImmediatePropagation();
 
     const record = {
@@ -113,7 +152,7 @@ if (!window.__onekanTrackingContextMenuInstalled) {
       displayKind: button.dataset.trackDisplayKind || 'task',
       title: button.dataset.trackTitle || '이름 없는 항목',
     };
-    document.querySelector('#uwContext')?.classList.remove('open');
+    document.querySelector('#globalContextMenu')?.classList.remove('open');
     if (record.id) openTracking(record);
   }, true);
 }
