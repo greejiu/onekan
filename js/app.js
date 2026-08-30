@@ -98,10 +98,79 @@ function fmtDuration(ms) {
   return `${minutes}분`;
 }
 
+function defaultHomeMemoBoard() {
+  return {
+    columns: 1,
+    cardColor: "#ffffff",
+    notes: [
+      { id: "home-memo-1", html: "" },
+      { id: "home-memo-2", html: "" },
+      { id: "home-memo-3", html: "" },
+    ],
+  };
+}
+
+function memoSafeHex(value, fallback = "#ffffff") {
+  const color = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : fallback;
+}
+
+function memoColorIsDark(value) {
+  const color = memoSafeHex(value).slice(1);
+  const [r, g, b] = [0, 2, 4].map((index) => Number.parseInt(color.slice(index, index + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 < 125;
+}
+
+function sanitizeMemoHtml(value) {
+  const template = document.createElement("template");
+  template.innerHTML = String(value || "");
+  const allowed = new Set(["DIV", "P", "BR", "STRONG", "B", "DEL", "S", "UL", "OL", "LI", "SPAN", "FONT"]);
+  const safeCssColor = (color) => /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]{1,20})$/i.test(String(color || "").trim());
+  for (const node of [...template.content.querySelectorAll("*")]) {
+    if (!allowed.has(node.tagName)) {
+      node.replaceWith(...node.childNodes);
+      continue;
+    }
+    const isChecklist = node.tagName === "UL" && node.classList.contains("uw-memo-checklist");
+    const isChecked = node.tagName === "LI" && node.dataset.checked === "true";
+    const color = node.tagName === "FONT" ? node.getAttribute("color") : node.style.color;
+    const backgroundColor = node.style.backgroundColor;
+    for (const attribute of [...node.attributes]) node.removeAttribute(attribute.name);
+    if (isChecklist) node.className = "uw-memo-checklist";
+    if (isChecked) node.dataset.checked = "true";
+    if (safeCssColor(color)) {
+      if (node.tagName === "FONT") node.setAttribute("color", color);
+      else node.style.color = color;
+    }
+    if (safeCssColor(backgroundColor)) node.style.backgroundColor = backgroundColor;
+  }
+  return template.innerHTML;
+}
+
+function normalizeHomeMemoBoard(rawBoard, legacyText = "") {
+  const base = defaultHomeMemoBoard();
+  const board = rawBoard && typeof rawBoard === "object" ? rawBoard : {};
+  const savedNotes = Array.isArray(board.notes) ? board.notes : [];
+  const legacyHtml = legacyText ? esc(legacyText).replace(/\r?\n/g, "<br>") : "";
+  const notes = base.notes.map((fallback, index) => {
+    const saved = savedNotes[index];
+    const html = typeof saved === "string" ? saved : saved?.html;
+    return {
+      id: typeof saved?.id === "string" && saved.id ? saved.id : fallback.id,
+      html: sanitizeMemoHtml(typeof html === "string" ? html : (index === 0 ? legacyHtml : "")),
+    };
+  });
+  return {
+    columns: Math.min(3, Math.max(1, Number(board.columns) || 1)),
+    cardColor: memoSafeHex(board.cardColor),
+    notes,
+  };
+}
+
 function defaultState() {
   const normalized = {
     tasks: [],
-    homeMemo: "",
+    homeMemoBoard: defaultHomeMemoBoard(),
     habitTemplates: [],
     habitDays: {},
     timeBlocks: [],
@@ -141,7 +210,7 @@ function normalizeState(raw) {
     ...base,
     ...state,
     tasks: Array.isArray(state.tasks) ? state.tasks : [],
-    homeMemo: typeof state.homeMemo === "string" ? state.homeMemo : "",
+    homeMemoBoard: normalizeHomeMemoBoard(state.homeMemoBoard, typeof state.homeMemo === "string" ? state.homeMemo : ""),
     habitTemplates: Array.isArray(state.habitTemplates) ? state.habitTemplates : [],
     habitDays: state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {},
     timeBlocks: Array.isArray(state.timeBlocks) ? state.timeBlocks : [],
@@ -193,6 +262,7 @@ function normalizeState(raw) {
     delete task.timeBlockTemplateId;
   }
   normalizeCompletionRepeats(normalized);
+  delete normalized.homeMemo;
   return normalized;
 }
 
@@ -201,6 +271,8 @@ let loadedUserId = null;
 let state = defaultState();
 let saveChain = Promise.resolve();
 let homeMemoSaveTimer = null;
+let activeHomeMemoEditor = null;
+let homeMemoSelection = null;
 let tickHandle = null;
 let timerFinishing = false;
 let editingBlockId = null;
@@ -1573,18 +1645,49 @@ function addHabit() {
   renderHome();
 }
 
-function resizeHomeMemo() {
-  const input = $("#homeMemoInput");
-  if (!input) return;
-  input.style.height = "0px";
-  input.style.height = `${Math.max(108, input.scrollHeight)}px`;
+function homeMemoBoard() {
+  state.homeMemoBoard = normalizeHomeMemoBoard(state.homeMemoBoard);
+  return state.homeMemoBoard;
 }
 
-function renderHomeMemo() {
-  const input = $("#homeMemoInput");
-  if (!input) return;
-  if (document.activeElement !== input && input.value !== state.homeMemo) input.value = state.homeMemo;
-  resizeHomeMemo();
+function syncHomeMemoEditor(editor, sanitize = false) {
+  const index = Number(editor?.dataset.memoIndex);
+  const note = homeMemoBoard().notes[index];
+  if (!note || !editor) return;
+  const html = sanitize ? sanitizeMemoHtml(editor.innerHTML) : editor.innerHTML;
+  if (sanitize && editor.innerHTML !== html) editor.innerHTML = html;
+  note.html = html;
+}
+
+function renderHomeMemo(force = false) {
+  const card = $("#homeMemoCard");
+  const grid = $("#homeMemoGrid");
+  if (!card || !grid) return;
+  const board = homeMemoBoard();
+  card.style.setProperty("--uw-memo-card-color", board.cardColor);
+  card.classList.toggle("uw-home-memo-dark", memoColorIsDark(board.cardColor));
+  $("#homeMemoCardColor").value = board.cardColor;
+  $("[data-home-memo-columns]").forEach((button) => {
+    const active = Number(button.dataset.homeMemoColumns) === board.columns;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  const visibleNotes = board.notes.slice(0, board.columns);
+  const signature = `${board.columns}:${visibleNotes.map((note) => note.id).join(",")}`;
+  if (force || grid.dataset.signature !== signature) {
+    grid.dataset.signature = signature;
+    grid.style.setProperty("--uw-memo-columns", String(board.columns));
+    grid.innerHTML = visibleNotes.map((note, index) => `<div class="uw-home-memo-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="메모 ${index + 1}" data-memo-index="${index}" data-placeholder="할일을 쪼개거나, 지금 당장 할 행동을 적어보세요.">${sanitizeMemoHtml(note.html)}</div>`).join("");
+  } else {
+    grid.style.setProperty("--uw-memo-columns", String(board.columns));
+    $(".uw-home-memo-editor", grid).forEach((editor) => {
+      if (document.activeElement === editor) return;
+      const note = board.notes[Number(editor.dataset.memoIndex)];
+      const html = sanitizeMemoHtml(note?.html || "");
+      if (editor.innerHTML !== html) editor.innerHTML = html;
+    });
+  }
 }
 
 function queueHomeMemoSave(delay = 550) {
@@ -1600,6 +1703,113 @@ function flushHomeMemoSave() {
   clearTimeout(homeMemoSaveTimer);
   homeMemoSaveTimer = null;
   save();
+}
+
+function captureHomeMemoSelection() {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  const editor = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+    ? range.commonAncestorContainer.closest?.(".uw-home-memo-editor")
+    : range.commonAncestorContainer.parentElement?.closest(".uw-home-memo-editor");
+  if (!editor) return;
+  activeHomeMemoEditor = editor;
+  homeMemoSelection = range.cloneRange();
+}
+
+function restoreHomeMemoSelection() {
+  if (!activeHomeMemoEditor?.isConnected) {
+    activeHomeMemoEditor = $(".uw-home-memo-editor");
+    homeMemoSelection = null;
+  }
+  if (!activeHomeMemoEditor) return false;
+  activeHomeMemoEditor.focus();
+  if (homeMemoSelection) {
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(homeMemoSelection);
+  }
+  return true;
+}
+
+function applyHomeMemoCommand(command, value = null) {
+  if (!restoreHomeMemoSelection()) return;
+  if (command === "checklist") {
+    document.execCommand("insertUnorderedList", false);
+    const selection = window.getSelection();
+    const anchor = selection?.anchorNode?.nodeType === Node.ELEMENT_NODE ? selection.anchorNode : selection?.anchorNode?.parentElement;
+    const list = anchor?.closest?.("ul");
+    if (list && activeHomeMemoEditor.contains(list)) list.classList.toggle("uw-memo-checklist");
+  } else {
+    document.execCommand(command, false, value);
+  }
+  syncHomeMemoEditor(activeHomeMemoEditor);
+  captureHomeMemoSelection();
+  queueHomeMemoSave();
+}
+
+function bindHomeMemo() {
+  const card = $("#homeMemoCard");
+  const grid = $("#homeMemoGrid");
+  if (!card || !grid) return;
+
+  document.addEventListener("selectionchange", captureHomeMemoSelection);
+  grid.addEventListener("focusin", (event) => {
+    const editor = event.target.closest(".uw-home-memo-editor");
+    if (editor) activeHomeMemoEditor = editor;
+  });
+  grid.addEventListener("input", (event) => {
+    const editor = event.target.closest(".uw-home-memo-editor");
+    if (!editor) return;
+    activeHomeMemoEditor = editor;
+    syncHomeMemoEditor(editor);
+    queueHomeMemoSave();
+  });
+  grid.addEventListener("paste", (event) => {
+    const editor = event.target.closest(".uw-home-memo-editor");
+    if (!editor) return;
+    event.preventDefault();
+    document.execCommand("insertText", false, event.clipboardData?.getData("text/plain") || "");
+  });
+  grid.addEventListener("focusout", (event) => {
+    const editor = event.target.closest(".uw-home-memo-editor");
+    if (!editor) return;
+    syncHomeMemoEditor(editor, true);
+    flushHomeMemoSave();
+  });
+  grid.addEventListener("click", (event) => {
+    const item = event.target.closest(".uw-memo-checklist > li");
+    if (!item || window.getSelection()?.toString()) return;
+    const rect = item.getBoundingClientRect();
+    if (event.clientX > rect.left + 28) return;
+    item.dataset.checked = item.dataset.checked === "true" ? "false" : "true";
+    const editor = item.closest(".uw-home-memo-editor");
+    syncHomeMemoEditor(editor);
+    queueHomeMemoSave();
+  });
+
+  $("[data-home-memo-command]").forEach((button) => {
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => applyHomeMemoCommand(button.dataset.homeMemoCommand));
+  });
+  $("#homeMemoTextColor")?.addEventListener("input", (event) => applyHomeMemoCommand("foreColor", event.target.value));
+  $("#homeMemoHighlightColor")?.addEventListener("input", (event) => {
+    applyHomeMemoCommand("hiliteColor", event.target.value);
+  });
+  $("#homeMemoCardColor")?.addEventListener("input", (event) => {
+    const color = memoSafeHex(event.target.value);
+    homeMemoBoard().cardColor = color;
+    card.style.setProperty("--uw-memo-card-color", color);
+    card.classList.toggle("uw-home-memo-dark", memoColorIsDark(color));
+    queueHomeMemoSave();
+  });
+  $("[data-home-memo-columns]").forEach((button) => button.addEventListener("click", () => {
+    homeMemoBoard().columns = Math.min(3, Math.max(1, Number(button.dataset.homeMemoColumns) || 1));
+    activeHomeMemoEditor = null;
+    homeMemoSelection = null;
+    renderHomeMemo(true);
+    queueHomeMemoSave();
+  }));
 }
 
 function renderAll() {
@@ -1696,13 +1906,7 @@ function bindUI() {
   });
   $("#mobileMenuBtn").addEventListener("click", () => $("#app-section").classList.toggle("mobile-nav-open"));
   bindCalendarDirectEntry();
-  const homeMemoInput = $("#homeMemoInput");
-  homeMemoInput?.addEventListener("input", (event) => {
-    state.homeMemo = event.target.value;
-    resizeHomeMemo();
-    queueHomeMemoSave();
-  });
-  homeMemoInput?.addEventListener("blur", flushHomeMemoSave);
+  bindHomeMemo();
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".more")) $$(".menu.open").forEach((menu) => menu.classList.remove("open"));
     if (!event.target.closest("#blockEditor") && !event.target.closest(".time-block")) $("#blockEditor").classList.remove("open");
