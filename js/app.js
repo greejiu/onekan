@@ -161,7 +161,7 @@ function normalizeHomeMemoBoard(rawBoard, legacyText = "") {
     };
   });
   return {
-    columns: Math.min(3, Math.max(1, Number(board.columns) || 1)),
+    columns: 1,
     cardColor: memoSafeHex(board.cardColor),
     notes,
   };
@@ -1664,32 +1664,25 @@ function renderHomeMemo(force = false) {
   const grid = $("#homeMemoGrid");
   if (!card || !grid) return;
   const board = homeMemoBoard();
+  const note = board.notes[0];
   card.style.setProperty("--uw-memo-card-color", board.cardColor);
   card.classList.toggle("uw-home-memo-dark", memoColorIsDark(board.cardColor));
-  $("#homeMemoCardColor").value = board.cardColor;
-  $("[data-home-memo-columns]").forEach((button) => {
-    const active = Number(button.dataset.homeMemoColumns) === board.columns;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
+  const cardColorInput = $("#homeMemoCardColor");
+  if (cardColorInput) cardColorInput.value = board.cardColor;
 
-  const visibleNotes = board.notes.slice(0, board.columns);
-  const signature = `${board.columns}:${visibleNotes.map((note) => note.id).join(",")}`;
+  const signature = `1:${note.id}`;
   if (force || grid.dataset.signature !== signature) {
     grid.dataset.signature = signature;
-    grid.style.setProperty("--uw-memo-columns", String(board.columns));
-    grid.innerHTML = visibleNotes.map((note, index) => `<div class="uw-home-memo-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="메모 ${index + 1}" data-memo-index="${index}" data-placeholder="할일을 쪼개거나, 지금 당장 할 행동을 적어보세요.">${sanitizeMemoHtml(note.html)}</div>`).join("");
+    grid.style.setProperty("--uw-memo-columns", "1");
+    grid.innerHTML = `<div class="uw-home-memo-editor" contenteditable="true" tabindex="0" spellcheck="true" role="textbox" aria-multiline="true" aria-label="빠른 메모" data-memo-index="0" data-placeholder="할일을 쪼개거나, 지금 당장 할 행동을 적어보세요.">${sanitizeMemoHtml(note.html)}</div>`;
   } else {
-    grid.style.setProperty("--uw-memo-columns", String(board.columns));
-    $(".uw-home-memo-editor", grid).forEach((editor) => {
-      if (document.activeElement === editor) return;
-      const note = board.notes[Number(editor.dataset.memoIndex)];
-      const html = sanitizeMemoHtml(note?.html || "");
+    const editor = grid.querySelector(".uw-home-memo-editor");
+    if (editor && document.activeElement !== editor) {
+      const html = sanitizeMemoHtml(note.html || "");
       if (editor.innerHTML !== html) editor.innerHTML = html;
-    });
+    }
   }
 }
-
 function queueHomeMemoSave(delay = 550) {
   clearTimeout(homeMemoSaveTimer);
   homeMemoSaveTimer = setTimeout(() => {
@@ -1754,6 +1747,12 @@ function bindHomeMemo() {
   if (!card || !grid) return;
 
   document.addEventListener("selectionchange", captureHomeMemoSelection);
+  grid.addEventListener("pointerdown", (event) => {
+    if (event.target.closest(".uw-home-memo-editor")) event.stopPropagation();
+  });
+  grid.addEventListener("keydown", (event) => {
+    if (event.target.closest(".uw-home-memo-editor")) event.stopPropagation();
+  });
   grid.addEventListener("focusin", (event) => {
     const editor = event.target.closest(".uw-home-memo-editor");
     if (editor) activeHomeMemoEditor = editor;
@@ -1803,13 +1802,6 @@ function bindHomeMemo() {
     card.classList.toggle("uw-home-memo-dark", memoColorIsDark(color));
     queueHomeMemoSave();
   });
-  $("[data-home-memo-columns]").forEach((button) => button.addEventListener("click", () => {
-    homeMemoBoard().columns = Math.min(3, Math.max(1, Number(button.dataset.homeMemoColumns) || 1));
-    activeHomeMemoEditor = null;
-    homeMemoSelection = null;
-    renderHomeMemo(true);
-    queueHomeMemoSave();
-  }));
 }
 
 function renderAll() {
