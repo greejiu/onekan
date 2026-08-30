@@ -474,7 +474,7 @@
 .uw-time-block-v2-day{display:flex;flex-direction:column;gap:10px;padding:2px 0 10px}
 .uw-time-block-v2-section{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
 .uw-time-block-v2-section.unassigned{border-style:dashed}
-.uw-time-block-v2-head{display:flex;align-items:baseline;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel-soft)}
+.uw-time-block-v2-head{display:flex;align-items:center;gap:7px;min-height:28px;padding:1px 6px;border-bottom:1px solid var(--line);background:var(--panel-soft)}
 .uw-time-block-v2-head strong{font-size:12px}
 .uw-time-block-v2-head span{font-size:11px;color:var(--muted)}
 .uw-time-block-v2-list{padding:4px 6px;min-height:38px;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
@@ -510,9 +510,10 @@
 .uw-time-block-v2-head{align-items:center;justify-content:space-between}
 .uw-time-block-v2-title{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
 .uw-time-block-v2-today-badge{display:inline-flex;align-items:center;min-height:20px;padding:1px 7px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);font-size:10px;line-height:1}
-.uw-time-block-v2-menu-button{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:18px;line-height:1;cursor:pointer}
+.uw-time-block-v2-menu-button{flex:none;width:24px;height:24px;border:0;border-radius:7px;background:transparent;color:var(--muted);font:inherit;font-size:17px;line-height:1;cursor:pointer}
 .uw-time-block-v2-menu-button:hover,.uw-time-block-v2-menu-button:focus-visible{background:var(--panel);color:var(--text);outline:none}
-@media(max-width:700px){.uw-time-block-v2-menu-button{width:38px;height:38px}}
+.uw-time-block-v2-head .uw-time-block-day-add{min-height:24px;padding:1px 6px}
+@media(max-width:700px){.uw-time-block-v2-menu-button{width:24px;height:24px}}
 
 
 /* Time block V2 timeline projection: same cards, different placement source */
