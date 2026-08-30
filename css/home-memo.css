@@ -1,0 +1,46 @@
+/* Home quick memo */
+.uw-home-memo-card{
+  margin-top:18px;
+  overflow:visible;
+}
+.uw-home-memo-card .card-header{
+  min-height:46px;
+}
+.uw-home-memo-card .card-meta{
+  min-width:54px;
+  text-align:right;
+}
+.uw-home-memo-body{
+  padding:0 14px 14px;
+}
+.uw-home-memo-input{
+  display:block;
+  width:100%;
+  min-height:108px;
+  box-sizing:border-box;
+  padding:12px 13px;
+  overflow:hidden;
+  resize:none;
+  border:1px solid var(--line);
+  border-radius:11px;
+  outline:none;
+  background:var(--panel-soft);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  line-height:1.65;
+  transition:border-color .16s ease,box-shadow .16s ease,background .16s ease;
+}
+.uw-home-memo-input::placeholder{
+  color:var(--muted);
+}
+.uw-home-memo-input:focus{
+  border-color:color-mix(in srgb,var(--accent) 62%,var(--line));
+  background:#fff;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent);
+}
+@media(max-width:600px){
+  .uw-home-memo-card{margin-top:12px}
+  .uw-home-memo-body{padding:0 10px 10px}
+  .uw-home-memo-input{min-height:108px;font-size:14px}
+}
