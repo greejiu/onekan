@@ -1,3 +1,5 @@
+import "./home-memo-persistence.js?v=1";
+
 const COMMANDS = [
   { id: "bold", label: "굵게", icon: "B", description: "입력할 글자를 굵게" },
   { id: "strikeThrough", label: "취소선", icon: "S", description: "입력할 글자에 취소선" },
@@ -199,7 +201,6 @@ function executeSelectedCommand() {
 
   editor.focus({ preventScroll: true });
 
-  // 메뉴를 연 '/' 한 글자만 지운 뒤, 같은 커서 위치에 서식을 적용한다.
   document.execCommand("delete", false);
 
   if (command.id === "checklist") {
