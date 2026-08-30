@@ -656,9 +656,25 @@ function upcomingTasksForDate(date){
     return at-bt||manualOrderValue(a)-manualOrderValue(b)||String(a.title||"").localeCompare(String(b.title||""),"ko")
   })
 }
+function upcomingHabitsByDate(dates){
+  const rowsByDate=new Map(dates.map(date=>[date,[]]));
+  for(const habit of state.habitTemplates){
+    for(const date of dates){
+      if(!habitOccursOn(habit,date))continue;
+      const override=habitOverride(state,date,habit.id)||{};
+      if(override.hidden||state.habitDays?.[date]?.[habit.id]===true)continue;
+      const item=Object.prototype.hasOwnProperty.call(override,"title")?{...habit,title:override.title}:habit;
+      rowsByDate.get(date)?.push({kind:"habit",item});
+      break
+    }
+  }
+  for(const rows of rowsByDate.values())rows.sort((a,b)=>String(a.item.title||"").localeCompare(String(b.item.title||""),"ko"));
+  return rowsByDate
+}
 function renderUpcoming(){
   const root=$("#upcomingList");if(!root)return;
-  const groups=upcomingKeys().map(date=>({date,rows:[...schedules(date).map(item=>({kind:"event",item})),...upcomingTasksForDate(date).map(item=>({kind:"task",item}))]}));
+  const dates=upcomingKeys(),habitsByDate=upcomingHabitsByDate(dates);
+  const groups=dates.map(date=>({date,rows:[...schedules(date).map(item=>({kind:"event",item})),...upcomingTasksForDate(date).map(item=>({kind:"task",item})),...(habitsByDate.get(date)||[])]}));
   root.innerHTML=groups.map(({date,rows})=>`<div class="uw-date-group" data-uw-add-kind="task" data-date="${date}"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list" data-uw-add-kind="task" data-date="${date}">${rows.map(x=>itemMarkup(x.kind,x.item,date)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div></div>`).join("")
 }
 function renderSomeday(){const root=$("#somedayHomeSlot");if(!root)return;const tasks=somedayTaskOccurrences().filter(task=>!taskDoneOn(task,task._occurrenceSource||"")).sort((a,b)=>manualOrderValue(a)-manualOrderValue(b)||String(a.createdAt||"").localeCompare(String(b.createdAt||""))||String(a.title||"").localeCompare(String(b.title||""),"ko"));root.innerHTML=`<div class="uw-list uw-someday-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop data-manual-list>${tasks.map(t=>itemMarkup("task",t,"",false,true)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div>`}
