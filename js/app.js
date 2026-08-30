@@ -1787,7 +1787,7 @@ function bindHomeMemo() {
     queueHomeMemoSave();
   });
 
-  $("[data-home-memo-command]").forEach((button) => {
+  document.querySelectorAll("[data-home-memo-command]").forEach((button) => {
     button.addEventListener("mousedown", (event) => event.preventDefault());
     button.addEventListener("click", () => applyHomeMemoCommand(button.dataset.homeMemoCommand));
   });
