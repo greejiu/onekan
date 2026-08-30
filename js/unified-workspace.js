@@ -556,6 +556,8 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
       }else{
         const taskDate=selectedDate;
         const task={id:uid(),title:value,date:taskDate,done:false,groupId:defaultGroup,createdAt:new Date().toISOString()};
+        const siblingOrders=current.tasks.filter(item=>(item.date||null)===(taskDate||null)).map(item=>Number(item.manualOrder)).filter(Number.isFinite);
+        task.manualOrder=(siblingOrders.length?Math.max(...siblingOrders):0)+1000;
         if(selectedProjectId)task.projectId=selectedProjectId;
         const recurrence=recurrenceFromEditor(form,taskDate);
         if(recurrence){recurrence.completionBased=true;task.recurrence=recurrence}
@@ -654,10 +656,10 @@ function upcomingTasksForDate(date){
 }
 function renderUpcoming(){
   const root=$("#upcomingList");if(!root)return;
-  const groups=upcomingKeys().map(date=>({date,rows:[...schedules(date).map(item=>({kind:"event",item})),...upcomingTasksForDate(date).map(item=>({kind:"task",item}))]})).filter(group=>group.rows.length);
-  root.innerHTML=groups.length?groups.map(({date,rows})=>`<div class="uw-date-group"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list" data-uw-add-kind="task" data-date="${date}">${rows.map(x=>itemMarkup(x.kind,x.item,date)).join("")}</div></div>`).join(""):'<div class="empty">앞으로 7일간 일정과 할일이 없어요.</div>'
+  const groups=upcomingKeys().map(date=>({date,rows:[...schedules(date).map(item=>({kind:"event",item})),...upcomingTasksForDate(date).map(item=>({kind:"task",item}))]}));
+  root.innerHTML=groups.map(({date,rows})=>`<div class="uw-date-group" data-uw-add-kind="task" data-date="${date}"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list" data-uw-add-kind="task" data-date="${date}">${rows.map(x=>itemMarkup(x.kind,x.item,date)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div></div>`).join("")
 }
-function renderSomeday(){const root=$("#somedayHomeSlot");if(!root)return;const tasks=somedayTaskOccurrences().filter(task=>!taskDoneOn(task,task._occurrenceSource||""));root.innerHTML=`<div class="uw-list uw-someday-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop>${tasks.map(t=>itemMarkup("task",t,"")).join("")}</div>`}
+function renderSomeday(){const root=$("#somedayHomeSlot");if(!root)return;const tasks=somedayTaskOccurrences().filter(task=>!taskDoneOn(task,task._occurrenceSource||"")).sort((a,b)=>manualOrderValue(a)-manualOrderValue(b)||String(a.createdAt||"").localeCompare(String(b.createdAt||""))||String(a.title||"").localeCompare(String(b.title||""),"ko"));root.innerHTML=`<div class="uw-list uw-someday-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop data-manual-list>${tasks.map(t=>itemMarkup("task",t,"",false,true)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div>`}
 function renderSideTab(){$$('[data-uw-side-tab]').forEach(button=>{const active=button.dataset.uwSideTab===homeSideTab;button.classList.toggle("active",active);button.setAttribute("aria-selected",String(active))});$$('[data-uw-side-panel]').forEach(panel=>{panel.hidden=panel.dataset.uwSidePanel!==homeSideTab})}
 function overdueTasks(source=state){const today=todayKey();return(source?.tasks||[]).filter(task=>!task.done&&task.date&&task.date<today).sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.title).localeCompare(String(b.title),"ko"))}
 function renderOverdue(){const root=$("#overdueTaskBanner");if(!root)return;const tasks=overdueTasks();root.hidden=!tasks.length;if(!tasks.length){root.innerHTML="";overdueExpanded=false;return}const groups=new Map();tasks.forEach(task=>{if(!groups.has(task.date))groups.set(task.date,[]);groups.get(task.date).push(task)});const details=[...groups].map(([date,items])=>`<div class="uw-overdue-date"><strong>${dayLabel(fromKey(date),true)}</strong><span>${items.length}개</span><ul>${items.map(task=>`<li>${esc(task.title)}</li>`).join("")}</ul></div>`).join("");root.innerHTML=`<div class="uw-overdue-row"><strong>지연된 일이 있습니다. 오늘로 옮길까요?</strong><div class="uw-overdue-actions"><button class="soft-btn" data-uw-overdue-view type="button" aria-expanded="${overdueExpanded}">${overdueExpanded?"닫기":"보기"}</button><button class="primary-btn" data-uw-overdue-move type="button">네</button></div></div><div class="uw-overdue-details"${overdueExpanded?"":" hidden"}>${details}</div>`}
@@ -881,6 +883,24 @@ function coarse(){return matchMedia("(hover:none),(pointer:coarse)").matches}
 function toggleSelection(item){const occurrenceSource=item.dataset.occurrenceSource||null,token=`${item.dataset.uwKind}:${item.dataset.id}:${item.dataset.date||""}:${occurrenceSource||""}`;if(selected.has(token)){selected.delete(token);item.classList.remove("selected")}else{selected.set(token,{kind:item.dataset.uwKind,id:item.dataset.id,date:item.dataset.date||null,occurrenceSource});item.classList.add("selected")}document.body.classList.toggle("uw-selection-active",selected.size>0);$("#uwSelectionBar")?.classList.toggle("open",selected.size>0)}
 function clearSelection(){selected.clear();document.body.classList.remove("uw-selection-active");$("#uwSelectionBar")?.classList.remove("open");$$('.uw-item.selected').forEach(x=>x.classList.remove("selected"))}
 function showGroupPicker(records){pendingGroupRecords=records;const menu=$("#uwContext");menu.innerHTML=`<strong style="padding:7px 9px;font-size:11px">영역 선택</strong>${state.eventGroups.map(g=>`<button data-uw-group-id="${g.id}"><span style="display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:50%;background:${g.color}"></span>${esc(g.name)}</button>`).join("")}`;menu.style.left="auto";menu.style.right="14px";menu.style.top="auto";menu.style.bottom="64px";menu.classList.add("open")}
+function askTaskEventDate(taskTitle=""){
+  return new Promise(resolve=>{
+    const dialog=document.createElement("dialog");
+    dialog.className="app-dialog uw-convert-date-dialog";
+    dialog.innerHTML='<form class="uw-convert-date-form"><h3>일정 날짜 선택</h3><p></p><label><span>날짜</span><input type="date" required></label><div class="dialog-actions"><button class="soft-btn" type="button" data-convert-date-cancel>취소</button><button class="primary-btn" type="submit">일정으로 변경</button></div></form>';
+    const form=$("form",dialog),input=$('input[type="date"]',dialog),message=$("p",dialog);
+    message.textContent=taskTitle?`‘${taskTitle}’을 일정으로 바꿀 날짜를 선택해 주세요.`:"일정으로 바꿀 날짜를 선택해 주세요.";
+    let settled=false;
+    const finish=value=>{if(settled)return;settled=true;resolve(value||null);dialog.close()};
+    form.addEventListener("submit",event=>{event.preventDefault();if(!input.value){input.reportValidity();return}finish(input.value)});
+    $("[data-convert-date-cancel]",dialog).addEventListener("click",()=>finish(null));
+    dialog.addEventListener("cancel",event=>{event.preventDefault();finish(null)});
+    dialog.addEventListener("close",()=>{if(!settled){settled=true;resolve(null)}dialog.remove()},{once:true});
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    requestAnimationFrame(()=>input.focus())
+  })
+}
 async function action(name,records=[...selected.values()]){
   if(name==="cancel"){clearSelection();return}
   if(name==="edit"&&records.length===1){const r=records[0],occurrence=r.occurrenceSource?`[data-occurrence-source="${CSS.escape(r.occurrenceSource)}"]`:"",el=$(`.uw-item[data-uw-kind="${r.kind}"][data-id="${CSS.escape(r.id)}"]${occurrence}`);clearSelection();if(el)openInline(el,{kind:r.kind,date:r.date,editId:r.id,occurrenceSource:r.occurrenceSource,withTime:r.kind==="event"&&calendarView==="day"});return}
@@ -923,7 +943,17 @@ async function action(name,records=[...selected.values()]){
     if(!records.length){clearSelection();return}
   }
   if(name==="duplicate"){await write(current=>records.forEach(record=>{const list=record.kind==="event"?current.events:record.kind==="habit"?current.habitTemplates:current.tasks;const item=list.find(value=>value.id===record.id);if(item){const copy={...item,id:uid(),title:`${item.title} 복사`,done:false,completedAt:null};if(record.kind==="task"){delete copy.repeatSeriesId;delete copy.repeatRule;delete copy.repeatScheduledDate;delete copy.repeatGeneratedNextId;delete copy.completedDate;if(copy.recurrence?.frequency){copy.recurrence={...copy.recurrence,completionBased:true};copy.recurrenceDone={}}}list.push(copy)}}))}
-  else if(name==="convert"){await write(current=>records.forEach(record=>{if(record.kind==="task"){const task=current.tasks.find(item=>item.id===record.id);if(!task)return;const date=task.date||todayKey();current.events.push({id:uid(),title:task.title,type:"schedule",groupId:task.groupId,allDay:!task.notionStart,start:task.notionStart||new Date(`${date}T12:00:00`).toISOString(),end:task.notionEnd||new Date(`${date}T12:00:00`).toISOString(),...(task.recurrence?{recurrence:{...task.recurrence}}:{})});current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id)}else if(record.kind==="event"){const event=current.events.find(item=>item.id===record.id);if(!event)return;current.tasks.push({id:uid(),title:event.title,date:key(new Date(event.start)),done:false,groupId:event.groupId,...(!event.allDay?{notionStart:event.start,notionEnd:event.end}:{}),...(event.recurrence?{recurrence:{...event.recurrence}}:{})});current.events=current.events.filter(item=>item.id!==record.id)}}))}
+  else if(name==="convert"){
+    const requiredDates=new Map();
+    for(const record of records){
+      if(record.kind!=="task")continue;
+      const task=state.tasks.find(item=>item.id===record.id);if(!task)continue;
+      const existingDate=task.date||(task.notionStart?key(new Date(task.notionStart)):"")||record.date||"";
+      if(existingDate)requiredDates.set(record.id,existingDate);
+      else{const chosen=await askTaskEventDate(task.title);if(!chosen){clearSelection();return}requiredDates.set(record.id,chosen)}
+    }
+    await write(current=>records.forEach(record=>{if(record.kind==="task"){const task=current.tasks.find(item=>item.id===record.id);if(!task)return;const date=task.date||(task.notionStart?key(new Date(task.notionStart)):"")||record.date||requiredDates.get(record.id);if(!date)return;current.events.push({id:uid(),title:task.title,type:"schedule",groupId:task.groupId,allDay:!task.notionStart,start:task.notionStart||new Date(`${date}T12:00:00`).toISOString(),end:task.notionEnd||new Date(`${date}T12:00:00`).toISOString(),...(task.recurrence?{recurrence:{...task.recurrence,anchorDate:task.recurrence.anchorDate||date}}:{})});current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id);Object.values(current.taskOverrides||{}).forEach(day=>delete day[record.id])}else if(record.kind==="event"){const event=current.events.find(item=>item.id===record.id);if(!event)return;const eventDate=key(new Date(event.start));const siblingOrders=current.tasks.filter(item=>(item.date||null)===eventDate).map(item=>Number(item.manualOrder)).filter(Number.isFinite);current.tasks.push({id:uid(),title:event.title,date:eventDate,done:false,groupId:event.groupId,manualOrder:(siblingOrders.length?Math.max(...siblingOrders):0)+1000,...(!event.allDay?{notionStart:event.start,notionEnd:event.end}:{}),...(event.recurrence?{recurrence:{...event.recurrence}}:{})});current.events=current.events.filter(item=>item.id!==record.id)}}))
+  }
   else if(name==="delete"){await write(current=>records.forEach(record=>{if(record.kind==="event")current.events=current.events.filter(item=>item.id!==record.id);if(record.kind==="task"){current.tasks=current.tasks.filter(item=>item.id!==record.id);current.timeBlocks=current.timeBlocks.filter(item=>item.taskId!==record.id);Object.values(current.taskOverrides||{}).forEach(day=>delete day[record.id])}}))}
   clearSelection()
 }
