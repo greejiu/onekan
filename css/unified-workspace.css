@@ -518,8 +518,8 @@
 
 /* Time block V2 timeline projection: same cards, different placement source */
 .uw-time-exact-lane{position:absolute;inset:0;min-width:0;pointer-events:none}.uw-time-exact-lane .uw-time-entry{pointer-events:auto}
-.uw-time-block-plan-rail{position:absolute;top:0;right:1px;bottom:0;left:52%;z-index:4;pointer-events:none}
-.uw-has-time-block-plan .uw-time-exact-lane{right:50%}
+.uw-time-block-plan-rail{position:absolute;top:0;right:52%;bottom:0;left:1px;z-index:4;pointer-events:none}
+.uw-has-time-block-plan .uw-time-exact-lane{right:0;left:50%}
 .uw-time-block-plan-group{position:absolute;right:0;left:0;z-index:4;pointer-events:none}
 .uw-time-block-plan-rows{display:grid;gap:2px}
 .uw-time-block-plan-item{min-height:18px;padding:2px 4px;font-size:9px;pointer-events:auto;overflow:hidden}
@@ -530,7 +530,7 @@
 .uw-time-block-plan-item.uw-time-block-drop-before::before,.uw-time-entry.uw-time-block-drop-before::before{top:0}
 .uw-time-block-plan-item.uw-time-block-drop-after::after,.uw-time-entry.uw-time-block-drop-after::after{bottom:0}
 .uw-time-block-plan-rail.uw-time-block-drop-bottom{outline:2px solid color-mix(in srgb,var(--accent) 65%,transparent);outline-offset:-2px;border-radius:7px}
-@media(max-width:700px){.uw-time-block-plan-rail{left:50%}.uw-has-time-block-plan .uw-time-exact-lane{right:52%}.uw-time-block-plan-item{min-height:24px}.uw-time-block-plan-item .uw-item-title{font-size:11px}}
+@media(max-width:700px){.uw-time-block-plan-rail{right:50%;left:1px}.uw-has-time-block-plan .uw-time-exact-lane{right:0;left:52%}.uw-time-block-plan-item{min-height:24px}.uw-time-block-plan-item .uw-item-title{font-size:11px}}
 
 /* Time block V2 stage 5: full-row planning drag */
 .uw-time-block-v2-list{position:relative}
