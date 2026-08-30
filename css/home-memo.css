@@ -83,10 +83,10 @@
   color:var(--accent-dark);
 }
 .uw-home-memo-body{
-  padding:14px;
+  padding:14px 18px 18px;
 }
 .uw-home-memo-card:focus-within .uw-home-memo-body{
-  padding-top:10px;
+  padding-top:8px;
 }
 .uw-home-memo-grid{
   display:grid;
@@ -97,12 +97,12 @@
   width:100%;
   min-height:108px;
   box-sizing:border-box;
-  padding:12px 13px;
+  padding:4px 0;
   overflow-wrap:anywhere;
-  border:1px solid color-mix(in srgb,var(--line) 88%,transparent);
-  border-radius:11px;
+  border:0;
+  border-radius:0;
   outline:none;
-  background:color-mix(in srgb,var(--uw-memo-card-color) 18%,#fff);
+  background:transparent;
   color:var(--text);
   font:inherit;
   font-size:12px;
@@ -113,7 +113,6 @@
   user-select:text;
   -webkit-user-select:text;
   touch-action:manipulation;
-  transition:border-color .16s ease,box-shadow .16s ease,background .16s ease;
 }
 .uw-home-memo-editor:empty::before{
   content:attr(data-placeholder);
@@ -121,9 +120,10 @@
   pointer-events:none;
 }
 .uw-home-memo-editor:focus{
-  border-color:color-mix(in srgb,var(--accent) 62%,var(--line));
-  background:#fff;
-  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent);
+  border:0;
+  outline:none;
+  background:transparent;
+  box-shadow:none;
 }
 .uw-home-memo-editor ul,
 .uw-home-memo-editor ol{
@@ -175,8 +175,8 @@
 }
 @media(max-width:600px){
   .uw-home-memo-card{margin-bottom:12px}
-  .uw-home-memo-body{padding:10px}
-  .uw-home-memo-card:focus-within .uw-home-memo-body{padding-top:8px}
+  .uw-home-memo-body{padding:10px 14px 14px}
+  .uw-home-memo-card:focus-within .uw-home-memo-body{padding-top:7px}
   .uw-home-memo-editor{min-height:108px;font-size:14px}
   .uw-home-memo-format{max-width:100%;flex-wrap:wrap}
   .uw-home-memo-format button,
