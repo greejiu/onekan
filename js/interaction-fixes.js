@@ -93,6 +93,40 @@ if (!window.__onekanInteractionFixesInstalled) {
   document.addEventListener("pointerup", clearTemporaryMoveSelection, true);
   document.addEventListener("pointercancel", clearTemporaryMoveSelection, true);
 
+  // unified-workspace의 타임블럭 계획 레일은 오른쪽 절반 전체를 드롭 영역으로 본다.
+  // 그래서 항목이 없는 30분 슬롯 위에서도 '정확한 시간' 대신 타임블럭 정렬로 판정됐다.
+  // 드래그 중 실제 최상단 요소가 빈 .uw-time-hit이면 계획 레일 바깥으로 판정되게 해,
+  // 항목 위 = 앞/뒤 정렬, 빈 시간칸 = 정확한 시간 이동 규칙을 유지한다.
+  if (!window.__onekanEmptyTimelineDropFixInstalled) {
+    window.__onekanEmptyTimelineDropFixInstalled = true;
+    let pointerX = Number.NaN;
+    let pointerY = Number.NaN;
+    const nativeGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+
+    document.addEventListener(
+      "pointermove",
+      (event) => {
+        if (!event.isPrimary) return;
+        pointerX = event.clientX;
+        pointerY = event.clientY;
+      },
+      { capture: true, passive: true },
+    );
+
+    Element.prototype.getBoundingClientRect = function onekanGetBoundingClientRect() {
+      const rect = nativeGetBoundingClientRect.call(this);
+      if (!(this instanceof HTMLElement) || !this.classList.contains("uw-time-block-plan-rail")) return rect;
+      if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) return rect;
+
+      const pointed = document.elementFromPoint(pointerX, pointerY);
+      const emptyTimeHit = pointed?.closest?.(".uw-time-hit");
+      if (!emptyTimeHit) return rect;
+      if (emptyTimeHit.closest(".uw-timeline") !== this.closest(".uw-timeline")) return rect;
+
+      return new DOMRect(rect.right + 1, rect.top, 0, rect.height);
+    };
+  }
+
   const interactionStyle = document.createElement("style");
   interactionStyle.dataset.onekanInteractionFix = "1";
   interactionStyle.textContent = `
