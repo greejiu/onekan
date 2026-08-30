@@ -1482,7 +1482,8 @@ function wireControlsV2(){
     }
     const planningMove=g.canUseTimeBlock&&g.planToken&&g.start===null;
     const listBlockSurface=g.canUseTimeBlock&&g.planToken&&closestAt(pointed,"[data-uw-time-block-drop-list],.uw-time-block-v2-section",e.clientX,e.clientY);
-    const planSurface=planningMove?closestAt(pointed,".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section,.uw-timeline,.uw-all-day[data-uw-all-day-drop]",e.clientX,e.clientY):listBlockSurface;
+    const internalTimelineSurface=(g.kind==="task"||g.kind==="habit")&&g.planToken&&closestAt(pointed,".uw-timeline",e.clientX,e.clientY);
+    const planSurface=internalTimelineSurface||(planningMove?closestAt(pointed,".uw-time-block-plan-item[data-time-block-token],[data-uw-time-block-drop-list],.uw-time-block-v2-section,.uw-timeline,.uw-all-day[data-uw-all-day-drop]",e.clientX,e.clientY):listBlockSurface);
     if(planSurface){
       const targetDate=planSurface.dataset.date||planSurface.closest("[data-date]")?.dataset.date||planSurface.querySelector?.("[data-date]")?.dataset.date||"";
       if(!g.planToken&&targetDate)g.planToken=timeBlockOccurrenceToken(g.kind,{id:g.id,_occurrenceSource:g.occurrenceSource||targetDate},targetDate);
@@ -1576,11 +1577,15 @@ function wireControlsV2(){
       return
     }
     if(g.dropType==="time-block"&&g.planToken&&g.nextBlockId){
-      if(g.start!==null||g.kind==="event"||seriesMove){
+      const placementToken=dateChanged&&!recurring?timeBlockOccurrenceToken(g.kind,{id:g.id},g.nextDate):g.planToken;
+      const timedPlanToBlock=g.start!==null&&(g.kind==="task"||g.kind==="habit")&&!seriesMove;
+      if(timedPlanToBlock){
+        await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
+        await write(next=>placeTimeBlockOccurrence(next,g.nextDate,placementToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));
+      }else if(g.start!==null||g.kind==="event"||seriesMove){
         const targetBlock=effectiveTimeBlockTemplatesForDate(state,g.nextDate).find(block=>String(block.id)===String(g.nextBlockId));
         if(targetBlock)await saveTimedChange(g.kind,g.id,g.nextDate,Number(targetBlock.startMinute),g.duration,g.occurrenceSource,g.planDate,g.planToken,scope);
       }else{
-        const placementToken=dateChanged&&!recurring?timeBlockOccurrenceToken(g.kind,{id:g.id},g.nextDate):g.planToken;
         if(dateChanged)await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
         await write(next=>placeTimeBlockOccurrence(next,g.nextDate,placementToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder))
       }
