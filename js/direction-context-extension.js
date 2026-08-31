@@ -6,6 +6,7 @@ const $ = (selector, root = document) => root?.querySelector?.(selector) || null
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
 let activeTarget = null;
 let rendering = false;
+let wired = false;
 
 function directionTarget(element) {
   const root = element?.closest?.("[data-context-kind][data-context-id]");
@@ -45,6 +46,14 @@ function ensureParts() {
   if (!menu) return null;
   let identityButton = $("[data-direction-context-action='identity']", menu);
   if (identityButton) {
+    let lifecycleButton = $("[data-goal-lifecycle-action]", menu);
+    if (!lifecycleButton) {
+      lifecycleButton = document.createElement("button");
+      lifecycleButton.type = "button";
+      lifecycleButton.className = "hidden";
+      lifecycleButton.setAttribute("role", "menuitem");
+      menu.insertBefore(lifecycleButton, $("[data-context-action='delete']", menu));
+    }
     return {
       menu,
       identityButton,
@@ -53,7 +62,7 @@ function ensureParts() {
       projectList: $("#onekanGoalProjectContextList", menu),
       goalButton: $("[data-direction-context-action='goals']", menu),
       goalList: $("#onekanIdentityGoalContextList", menu),
-      lifecycleButton: $("[data-goal-lifecycle-action]", menu),
+      lifecycleButton,
     };
   }
 
@@ -248,6 +257,8 @@ async function changeGoalLifecycle(action) {
 function installListeners() {
   document.addEventListener("contextmenu", (event) => {
     activeTarget = directionTarget(event.target);
+    if (!activeTarget) hideDirectionParts();
+    else setTimeout(renderDirectionMenu, 0);
   }, true);
   document.addEventListener("pointerdown", (event) => {
     if (event.target.closest?.("#globalContextMenu")) return;
@@ -294,10 +305,14 @@ function installListeners() {
   if (menu) observer.observe(menu, { attributes: true, attributeFilter: ["class"] });
 }
 
-function init() {
-  if (document.documentElement.dataset.directionContextWired) return;
+function init(attempt = 0) {
+  if (wired || document.documentElement.dataset.directionContextWired) return;
+  if (!ensureParts()) {
+    if (attempt < 40) setTimeout(() => init(attempt + 1), 100);
+    return;
+  }
+  wired = true;
   document.documentElement.dataset.directionContextWired = "1";
-  ensureParts();
   installListeners();
 }
 
