@@ -36,3 +36,7 @@ Supabase 프로젝트 `when-did-i-do-it`의 Auth를 함께 사용합니다. 따�
 - `js/supabase.js` — Supabase 연결
 - `js/auth.js` — 로그인 / 회원가입 / 로그아웃
 - `js/app.js` — 할일, 습관, 시간계획, 달력, 시간추적, 작업현황, 동기화
+
+## Google 캘린더 연동
+
+사용자별 읽기 전용 Google 캘린더 연동 설정은 [`docs/google-calendar-setup.md`](docs/google-calendar-setup.md)를 참고합니다.

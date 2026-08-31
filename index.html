@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./css/timeline-layout-restore.css?v=1" />
   <link rel="stylesheet" href="./css/home-memo.css?v=4" />
   <link rel="stylesheet" href="./css/project-bookmark.css?v=2" />
+  <link rel="stylesheet" href="./css/google-calendar.css?v=1" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -233,6 +234,19 @@
             <div id="eventGroupList"></div>
             <div class="event-group-add"><input id="newEventGroupName" placeholder="새 영역 이름" /><input id="newEventGroupColor" type="color" value="#8fa9c4" aria-label="새 영역 색" /><button class="soft-btn" id="addEventGroupBtn" type="button">추가</button></div>
           </section>
+          <section class="setting-section google-calendar-settings">
+            <div class="google-calendar-heading">
+              <div><h3>Google 캘린더</h3><div class="setting-desc">Google의 일정과 색상을 그대로 불러와 오늘한칸에서 함께 볼 수 있어요.</div></div>
+              <span class="google-calendar-status" id="googleCalendarStatus">연결 상태 확인 중…</span>
+            </div>
+            <div class="google-calendar-account" id="googleCalendarAccount">각 사용자가 자신의 Google 계정을 연결할 수 있어요.</div>
+            <div class="google-calendar-actions">
+              <button class="soft-btn" id="connectGoogleCalendar" type="button">Google 캘린더 연결</button>
+              <button class="ghost-btn danger-text" id="disconnectGoogleCalendar" type="button" hidden>연결 해제</button>
+            </div>
+            <div class="google-calendar-list" id="googleCalendarList" hidden></div>
+            <div class="setting-desc">기본 캘린더만 처음 표시돼요. 다른 캘린더는 눈 아이콘을 누르면 바로 표시할 수 있어요.</div>
+          </section>
           <section class="setting-section">
             <h3>동기화</h3><div class="setting-desc">로그인한 계정 기준으로 Supabase에 저장됩니다. PC와 모바일에서 같은 계정으로 로그인하면 같은 데이터를 봅니다.</div>
             <button class="soft-btn" id="reloadCloudBtn" type="button">서버 데이터 다시 불러오기</button>
@@ -258,7 +272,7 @@
   <script type="module" src="./js/workspace-pages.js?v=12"></script>
   <script type="module" src="./js/appearance.js?v=4"></script>
   <script type="module" src="./js/time-block-v2-settings.js?v=4"></script>
-  <script type="module" src="./js/unified-workspace.js?v=95"></script>
+  <script type="module" src="./js/unified-workspace.js?v=96"></script>
   <script type="module" src="./js/repeat-overview.js?v=10"></script>
   <script type="module" src="./js/project-status-automation.js?v=2"></script>
   <script type="module" src="./js/project-status.js?v=12"></script>
