@@ -1,5 +1,6 @@
 import { supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
+import { applyGoalStatus, goalProjectStats, normalizeGoalStatus, restartStatusForGoal } from "./project-status-automation.js?v=2";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
@@ -31,26 +32,6 @@ let draggedDirection = null;
 
 function isProject(item) {
   return !!item && (item.kind === "project" || !item.kind);
-}
-
-function normalizeGoalStatus(value) {
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (["doing", "진행 중", "진행중", "active", "in progress"].includes(raw)) return "doing";
-  if (["done", "달성", "완료", "complete", "completed"].includes(raw)) return "done";
-  if (["archived", "보관", "closed", "archive"].includes(raw)) return "archived";
-  return "before";
-}
-
-function applyGoalStatus(goal, nextStatus) {
-  const status = normalizeGoalStatus(nextStatus);
-  const previous = normalizeGoalStatus(goal.status);
-  const now = new Date().toISOString();
-  goal.status = status;
-  goal.updatedAt = now;
-  if (status === "done" && previous !== "done") goal.completedAt = goal.completedAt || now;
-  if (["before", "doing"].includes(status)) delete goal.completedAt;
-  if (status === "archived") goal.archivedAt = goal.archivedAt || now;
-  else delete goal.archivedAt;
 }
 
 function installStyle() {
@@ -88,6 +69,8 @@ function installStyle() {
     .onekan-goal-identity{color:var(--accent,#8fa9c4)}
     .onekan-goal-period{display:flex;align-items:center;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-direction-actions{display:flex;align-items:center;gap:3px}
+    .onekan-goal-suggestion{height:27px;padding:0 9px;border:1px solid color-mix(in srgb,var(--accent,#8fa9c4) 50%,#fff);border-radius:999px;background:#fff;color:var(--accent,#6f8195);font:inherit;font-size:9px;font-weight:700;white-space:nowrap;cursor:pointer}
+    .onekan-goal-suggestion:hover{background:color-mix(in srgb,var(--accent,#8fa9c4) 10%,#fff)}
     .onekan-direction-icon{display:grid;place-items:center;width:30px;height:30px;padding:0;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted,#6d737d);cursor:pointer}
     .onekan-direction-icon:hover{border-color:var(--line,#d2d7df);background:var(--panel-soft,#f4f5f6);color:var(--accent,#8fa9c4)}
     .onekan-direction-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -244,7 +227,14 @@ function goalRows(goals, projects = [], identities = []) {
     .sort((a, b) => manualOrder(a, b, (left, right) => String(left.startDate || "9999-99-99").localeCompare(String(right.startDate || "9999-99-99")) || String(left.title || "").localeCompare(String(right.title || ""), "ko")))
     .map((goal) => {
       const identity = identityName(goal.identityId, identities);
-      return `<div class="onekan-goal-row" draggable="true" data-direction-kind="goal" data-direction-id="${esc(goal.id)}" data-goal-status="${normalizeGoalStatus(goal.status)}" data-context-kind="goal" data-context-id="${esc(goal.id)}"><div class="onekan-goal-main"><span class="onekan-goal-title">${esc(goal.title || "이름 없는 목표")}</span>${identity ? `<span class="onekan-goal-identity">정체성 · ${esc(identity)}</span>` : ""}<span class="onekan-goal-projects">${esc(linkedProjectText(goal.id, projects))}</span></div><span class="onekan-goal-period">${esc(goalPeriod(goal))}</span><div class="onekan-direction-actions"><button class="onekan-direction-icon" type="button" data-goal-project-add="${esc(goal.id)}" aria-label="프로젝트 추가" title="프로젝트 추가"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5h7l2 2h9v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M12 12v6M9 15h6"></path></svg></button><button class="onekan-direction-icon" type="button" data-goal-settings="${esc(goal.id)}" aria-label="목표 설정" title="목표 설정"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1A1.7 1.7 0 0 0 2.5 13.6H2.4V9.6h.1A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.66 3.8l.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6A1.7 1.7 0 0 0 10 2.5v-.1h4v.1a1.7 1.7 0 0 0 1 1.7 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1v4h-.1a1.7 1.7 0 0 0-1.7 1z"></path></svg></button></div></div>`;
+      const status = normalizeGoalStatus(goal.status);
+      const stats = goalProjectStats({ projects }, goal.id);
+      const suggestion = status === "doing" && stats.allDone
+        ? `<button class="onekan-goal-suggestion" type="button" data-goal-suggestion="achieve" data-goal-suggestion-id="${esc(goal.id)}">달성할까요?</button>`
+        : (["done", "archived"].includes(status) && stats.unfinished > 0
+          ? `<button class="onekan-goal-suggestion" type="button" data-goal-suggestion="restart" data-goal-suggestion-id="${esc(goal.id)}">다시 시작할까요?</button>`
+          : "");
+      return `<div class="onekan-goal-row" draggable="true" data-direction-kind="goal" data-direction-id="${esc(goal.id)}" data-goal-status="${status}" data-context-kind="goal" data-context-id="${esc(goal.id)}"><div class="onekan-goal-main"><span class="onekan-goal-title">${esc(goal.title || "이름 없는 목표")}</span>${identity ? `<span class="onekan-goal-identity">정체성 · ${esc(identity)}</span>` : ""}<span class="onekan-goal-projects">${esc(linkedProjectText(goal.id, projects))}</span></div><span class="onekan-goal-period">${esc(goalPeriod(goal))}</span><div class="onekan-direction-actions">${suggestion}<button class="onekan-direction-icon" type="button" data-goal-project-add="${esc(goal.id)}" aria-label="프로젝트 추가" title="프로젝트 추가"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5h7l2 2h9v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M12 12v6M9 15h6"></path></svg></button><button class="onekan-direction-icon" type="button" data-goal-settings="${esc(goal.id)}" aria-label="목표 설정" title="목표 설정"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1A1.7 1.7 0 0 0 2.5 13.6H2.4V9.6h.1A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.66 3.8l.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6A1.7 1.7 0 0 0 10 2.5v-.1h4v.1a1.7 1.7 0 0 0 1 1.7 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1v4h-.1a1.7 1.7 0 0 0-1.7 1z"></path></svg></button></div></div>`;
     })
     .join("");
 }
@@ -335,7 +325,6 @@ async function saveGoal() {
       } else {
         const now = new Date().toISOString();
         const goal = { id: uid(), title, status: "before", identityId: validIdentityId, startDate, endDate, createdAt: now, updatedAt: now };
-        applyGoalStatus(goal, status);
         current.directionGoals.push(goal);
       }
     });
@@ -538,7 +527,10 @@ async function persistGoalDrop(goalId, status) {
     await writeGoalState((state) => {
       const goal = state.directionGoals.find((item) => item.id === goalId);
       if (!goal) return;
-      applyGoalStatus(goal, status);
+      const nextStatus = normalizeGoalStatus(goal.status) === "archived" && status !== "archived"
+        ? restartStatusForGoal(state, goal.id)
+        : status;
+      applyGoalStatus(goal, nextStatus);
       const byId = new Map(ids.map((id, index) => [id, (index + 1) * 10]));
       state.directionGoals.forEach((item) => {
         if (byId.has(item.id)) item.sortOrder = byId.get(item.id);
@@ -550,6 +542,22 @@ async function persistGoalDrop(goalId, status) {
     console.error("목표 상태 저장 실패", error);
     showToast("목표 상태를 저장하지 못했어요.");
     render();
+  }
+}
+
+async function applyGoalSuggestion(goalId, action) {
+  if (!goalId || !["achieve", "restart"].includes(action)) return;
+  try {
+    await writeGoalState((state) => {
+      const goal = state.directionGoals.find((item) => item.id === goalId);
+      if (!goal) return;
+      applyGoalStatus(goal, action === "achieve" ? "done" : restartStatusForGoal(state, goal.id));
+    }, `direction-goal-${action}`);
+    showToast(action === "achieve" ? "목표를 달성했어요." : "목표를 다시 시작했어요.");
+    await renderGoalView();
+  } catch (error) {
+    console.error("목표 제안 적용 실패", error);
+    showToast("목표 상태를 변경하지 못했어요.");
   }
 }
 
@@ -620,6 +628,11 @@ function init() {
     renderGoalView();
   });
   document.addEventListener("click", (event) => {
+    const suggestion = event.target.closest?.("[data-goal-suggestion][data-goal-suggestion-id]");
+    if (suggestion) {
+      applyGoalSuggestion(suggestion.dataset.goalSuggestionId, suggestion.dataset.goalSuggestion);
+      return;
+    }
     const button = event.target.closest("[data-project-direction-tab]");
     if (button) {
       activeTab = button.dataset.projectDirectionTab || "project";
