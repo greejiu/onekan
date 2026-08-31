@@ -135,23 +135,27 @@ async function renderProjectExtensions() {
   try {
     const current = await readState();
     if (!current || id !== activeProjectId) return;
-    const project = current.state.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
-    if (!project) return hideExtensions();
-    const selectedGoalId = project.goalId || "";
-    const goals = current.state.directionGoals;
-    parts.goalButton.classList.remove("hidden");
-    parts.statusButton.classList.remove("hidden");
-    parts.lifecycleButton.classList.remove("hidden");
-    parts.goalButton.innerHTML = `목표 연결 <span class="context-menu-arrow">›</span>`;
-    parts.goalList.innerHTML = `<button type="button" data-project-goal-id="" role="menuitemradio" aria-checked="${!selectedGoalId}"><span></span><span>목표 없음</span>${!selectedGoalId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>${goals.map((goal) => `<button type="button" data-project-goal-id="${esc(goal.id)}" role="menuitemradio" aria-checked="${goal.id === selectedGoalId}"><span class="context-group-dot" style="--group-color:#8fa9c4"></span><span>${esc(goal.title || "이름 없는 목표")}</span>${goal.id === selectedGoalId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`).join("")}`;
-    const selectedStatus = normalizeStatus(project.status);
-    parts.lifecycleButton.dataset.projectLifecycleAction = ["done", "archived"].includes(selectedStatus) ? "restart" : "archive";
-    parts.lifecycleButton.textContent = ["done", "archived"].includes(selectedStatus) ? "다시 시작하기" : "보관하기";
-    parts.statusList.innerHTML = STATUSES.map((status) => `<button type="button" data-project-status-id="${status.id}" role="menuitemradio" aria-checked="${status.id === selectedStatus}"><span></span><span>${status.label}</span>${status.id === selectedStatus ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`).join("");
+    populateProjectExtensions(parts, current.state, id);
   } catch (error) {
     console.error("프로젝트 메뉴 확장 실패", error);
     hideExtensions();
   }
+}
+
+function populateProjectExtensions(parts, currentState, projectId) {
+  const project = currentState?.projects?.find((item) => item.id === projectId && (item.kind === "project" || !item.kind));
+  if (!project) return hideExtensions();
+  const selectedGoalId = project.goalId || "";
+  const goals = Array.isArray(currentState.directionGoals) ? currentState.directionGoals : [];
+  parts.goalButton.classList.remove("hidden");
+  parts.statusButton.classList.remove("hidden");
+  parts.lifecycleButton.classList.remove("hidden");
+  parts.goalButton.innerHTML = `목표 연결 <span class="context-menu-arrow">›</span>`;
+  parts.goalList.innerHTML = `<button type="button" data-project-goal-id="" role="menuitemradio" aria-checked="${!selectedGoalId}"><span></span><span>목표 없음</span>${!selectedGoalId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>${goals.map((goal) => `<button type="button" data-project-goal-id="${esc(goal.id)}" role="menuitemradio" aria-checked="${goal.id === selectedGoalId}"><span class="context-group-dot" style="--group-color:#8fa9c4"></span><span>${esc(goal.title || "이름 없는 목표")}</span>${goal.id === selectedGoalId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`).join("")}`;
+  const selectedStatus = normalizeStatus(project.status);
+  parts.lifecycleButton.dataset.projectLifecycleAction = ["done", "archived"].includes(selectedStatus) ? "restart" : "archive";
+  parts.lifecycleButton.textContent = ["done", "archived"].includes(selectedStatus) ? "다시 시작하기" : "보관하기";
+  parts.statusList.innerHTML = STATUSES.map((status) => `<button type="button" data-project-status-id="${status.id}" role="menuitemradio" aria-checked="${status.id === selectedStatus}"><span></span><span>${status.label}</span>${status.id === selectedStatus ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`).join("");
 }
 
 async function changeGoal(goalId) {
@@ -302,6 +306,17 @@ function wire() {
     else hideExtensionLists(parts);
   });
   observer.observe(parts.menu, { attributes: true, attributeFilter: ["class"] });
+
+  document.addEventListener("onekan:context-menu-opened", (event) => {
+    const target = event.detail?.target;
+    if (target?.kind !== "project") {
+      activeProjectId = null;
+      hideExtensions();
+      return;
+    }
+    activeProjectId = target.id;
+    populateProjectExtensions(parts, event.detail?.state, target.id);
+  });
 
   document.addEventListener("contextmenu", (event) => {
     const element = event.target instanceof Element ? event.target : null;
