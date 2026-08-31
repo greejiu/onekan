@@ -130,41 +130,50 @@ async function renderDirectionMenu() {
   try {
     const loaded = await readState();
     if (!loaded || !parts.menu.classList.contains("open")) return;
-    const { state } = loaded;
-    hideDirectionParts(parts);
-
-    if (activeTarget.kind === "goal") {
-      const goal = state.directionGoals.find((item) => item.id === activeTarget.id);
-      if (!goal) return;
-      parts.identityButton.classList.remove("hidden");
-      parts.projectButton.classList.remove("hidden");
-      parts.lifecycleButton.classList.remove("hidden");
-      const status = normalizeGoalStatus(goal.status);
-      parts.lifecycleButton.dataset.goalLifecycleAction = ["done", "archived"].includes(status) ? "restart" : "archive";
-      parts.lifecycleButton.textContent = ["done", "archived"].includes(status) ? "다시 시작하기" : "보관하기";
-      parts.identityList.innerHTML = `<button type="button" data-connect-identity-id="" role="menuitemradio" aria-checked="${!goal.identityId}"><span>정체성 없음</span>${checks(!goal.identityId)}</button>${state.identities.map((identity) => {
-        const selected = goal.identityId === identity.id;
-        return `<button type="button" data-connect-identity-id="${esc(identity.id)}" role="menuitemradio" aria-checked="${selected}"><span>${esc(identity.title || "이름 없는 정체성")}</span>${checks(selected)}</button>`;
-      }).join("")}`;
-      const projects = state.projects.filter(isProject);
-      parts.projectList.innerHTML = projects.length ? projects.map((project) => {
-        const selected = project.goalId === goal.id;
-        return `<button type="button" data-connect-project-id="${esc(project.id)}" role="menuitemcheckbox" aria-checked="${selected}"><span>${esc(project.title || "이름 없는 프로젝트")}</span>${checks(selected)}</button>`;
-      }).join("") : '<button type="button" disabled><span>연결할 프로젝트가 없어요</span><span></span></button>';
-    } else {
-      const identity = state.identities.find((item) => item.id === activeTarget.id);
-      if (!identity) return;
-      parts.goalButton.classList.remove("hidden");
-      parts.goalList.innerHTML = state.directionGoals.length ? state.directionGoals.map((goal) => {
-        const selected = goal.identityId === identity.id;
-        return `<button type="button" data-connect-goal-id="${esc(goal.id)}" role="menuitemcheckbox" aria-checked="${selected}"><span>${esc(goal.title || "이름 없는 목표")}</span>${checks(selected)}</button>`;
-      }).join("") : '<button type="button" disabled><span>연결할 목표가 없어요</span><span></span></button>';
-    }
+    populateDirectionMenu(parts, loaded.state, activeTarget);
   } catch (error) {
     console.error("방향 연결 메뉴 렌더링 실패", error);
     hideDirectionParts(parts);
   } finally {
     rendering = false;
+  }
+}
+
+function populateDirectionMenu(parts, state, target) {
+  hideDirectionParts(parts);
+  if (!state || !target) return;
+
+  if (target.kind === "goal") {
+    const goal = state.directionGoals?.find((item) => item.id === target.id);
+    if (!goal) return;
+    parts.identityButton.classList.remove("hidden");
+    parts.projectButton.classList.remove("hidden");
+    parts.lifecycleButton.classList.remove("hidden");
+    const status = normalizeGoalStatus(goal.status);
+    parts.lifecycleButton.dataset.goalLifecycleAction = ["done", "archived"].includes(status) ? "restart" : "archive";
+    parts.lifecycleButton.textContent = ["done", "archived"].includes(status) ? "다시 시작하기" : "보관하기";
+    const identities = Array.isArray(state.identities) ? state.identities : [];
+    parts.identityList.innerHTML = `<button type="button" data-connect-identity-id="" role="menuitemradio" aria-checked="${!goal.identityId}"><span>정체성 없음</span>${checks(!goal.identityId)}</button>${identities.map((identity) => {
+      const selected = goal.identityId === identity.id;
+      return `<button type="button" data-connect-identity-id="${esc(identity.id)}" role="menuitemradio" aria-checked="${selected}"><span>${esc(identity.title || "이름 없는 정체성")}</span>${checks(selected)}</button>`;
+    }).join("")}`;
+    const projects = (Array.isArray(state.projects) ? state.projects : []).filter(isProject);
+    parts.projectList.innerHTML = projects.length ? projects.map((project) => {
+      const selected = project.goalId === goal.id;
+      return `<button type="button" data-connect-project-id="${esc(project.id)}" role="menuitemcheckbox" aria-checked="${selected}"><span>${esc(project.title || "이름 없는 프로젝트")}</span>${checks(selected)}</button>`;
+    }).join("") : '<button type="button" disabled><span>연결할 프로젝트가 없어요</span><span></span></button>';
+    return;
+  }
+
+  if (target.kind === "identity") {
+    const identity = state.identities?.find((item) => item.id === target.id);
+    if (!identity) return;
+    const goals = Array.isArray(state.directionGoals) ? state.directionGoals : [];
+    parts.goalButton.classList.remove("hidden");
+    parts.goalList.innerHTML = goals.length ? goals.map((goal) => {
+      const selected = goal.identityId === identity.id;
+      return `<button type="button" data-connect-goal-id="${esc(goal.id)}" role="menuitemcheckbox" aria-checked="${selected}"><span>${esc(goal.title || "이름 없는 목표")}</span>${checks(selected)}</button>`;
+    }).join("") : '<button type="button" disabled><span>연결할 목표가 없어요</span><span></span></button>';
   }
 }
 
@@ -255,6 +264,18 @@ async function changeGoalLifecycle(action) {
 }
 
 function installListeners() {
+  document.addEventListener("onekan:context-menu-opened", (event) => {
+    const target = event.detail?.target;
+    if (!target || !["goal", "identity"].includes(target.kind)) {
+      activeTarget = null;
+      hideDirectionParts();
+      return;
+    }
+    activeTarget = target;
+    const parts = ensureParts();
+    if (parts) populateDirectionMenu(parts, event.detail?.state, target);
+  });
+
   document.addEventListener("contextmenu", (event) => {
     activeTarget = directionTarget(event.target);
     if (!activeTarget) hideDirectionParts();
