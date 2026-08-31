@@ -179,9 +179,7 @@ function projectRow(project) {
   const stats = projectTaskStats(state, project.id);
   const suggestion = status === "doing" && stats.total > 0 && stats.incomplete === 0
     ? `<button class="onekan-project-suggestion" type="button" data-project-suggestion="complete" data-project-suggestion-id="${esc(project.id)}">완료할까요?</button>`
-    : (["done", "archived"].includes(status) && stats.incomplete > 0
-      ? `<button class="onekan-project-suggestion" type="button" data-project-suggestion="restart" data-project-suggestion-id="${esc(project.id)}">다시 시작할까요?</button>`
-      : "");
+    : "";
   return `<div class="onekan-project-row" style="--uw-group:${esc(projectGroupColor(project))}" draggable="true" data-project-status-id="${esc(project.id)}" data-context-kind="project" data-context-id="${esc(project.id)}">
     <span class="onekan-project-title" data-project-edit="${esc(project.id)}">${esc(project.title || "이름 없는 프로젝트")}</span>
     <span class="onekan-project-row-actions">${suggestion}<span class="onekan-project-period"><span>${esc(periodText(project))}</span><button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span></span>
@@ -339,14 +337,14 @@ async function moveProject(projectId, { status = null, groupId = null } = {}) {
 }
 
 async function applySuggestion(projectId, action) {
-  if (!projectId || !["complete", "restart"].includes(action)) return;
+  if (!projectId || action !== "complete") return;
   try {
     await writeState((current) => {
       const project = current.projects.find((item) => item.id === projectId && isProject(item));
       if (!project) return;
-      applyProjectStatus(project, action === "complete" ? "done" : restartStatusForProject(current, project.id));
+      applyProjectStatus(project, "done");
     }, `project-${action}-suggestion`);
-    showToast(action === "complete" ? "프로젝트를 완료했어요." : "프로젝트를 다시 시작했어요.");
+    showToast("프로젝트를 완료했어요.");
   } catch (error) {
     console.error("프로젝트 제안 적용 실패", error);
     showToast("프로젝트 상태를 변경하지 못했어요.");
