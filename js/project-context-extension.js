@@ -390,3 +390,7 @@ function init(attempt = 0) {
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => init(), { once: true });
 else init();
+
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (session?.user && !wired) setTimeout(() => init(), 0);
+});
