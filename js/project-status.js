@@ -1,5 +1,6 @@
 import { supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
+import { applyProjectStatus, projectTaskStats, restartStatusForProject } from "./project-status-automation.js?v=1";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
 const $$ = (selector, root = document) => [...(root?.querySelectorAll?.(selector) || [])];
@@ -63,6 +64,7 @@ function projectGroupColor(project, current = state) {
 
 function ensureWritableStructure(current) {
   current.projects = Array.isArray(current.projects) ? current.projects : [];
+  current.tasks = Array.isArray(current.tasks) ? current.tasks : [];
   current.directionGoals = Array.isArray(current.directionGoals) ? current.directionGoals : [];
   current.eventGroups = Array.isArray(current.eventGroups) && current.eventGroups.length
     ? current.eventGroups
@@ -77,6 +79,7 @@ async function readState() {
   if (error) throw error;
   state = data?.data && typeof data.data === "object" ? data.data : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
+  state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
   state.directionGoals = Array.isArray(state.directionGoals) ? state.directionGoals : [];
   state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : [{ id: "default", name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR }];
   return state;
@@ -115,6 +118,9 @@ function installStyle() {
     .onekan-project-row:hover{background:color-mix(in srgb,var(--uw-group,#8fa9c4) 23%,#fff)}
     .onekan-project-row.dragging{opacity:.45}
     .onekan-project-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:400;cursor:pointer}
+    .onekan-project-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;min-width:0}
+    .onekan-project-suggestion{height:25px;padding:0 8px;border:1px solid color-mix(in srgb,var(--accent,#8fa9c4) 50%,#fff);border-radius:999px;background:#fff;color:var(--accent,#6f8195);font:inherit;font-size:9px;font-weight:700;white-space:nowrap;cursor:pointer}
+    .onekan-project-suggestion:hover{background:color-mix(in srgb,var(--accent,#8fa9c4) 10%,#fff)}
     .onekan-project-period{display:flex;align-items:center;gap:6px;color:var(--muted,#6d737d);font-size:9px;white-space:nowrap}
     .onekan-project-period button{display:grid;place-items:center;width:25px;height:25px;padding:0;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
     .onekan-project-period button:hover{background:#fff}
@@ -143,7 +149,7 @@ function installStyle() {
     .onekan-project-fields input,.onekan-project-fields select{width:100%;height:36px;padding:0 10px;border:1px solid var(--project-line);border-radius:8px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px}
     .onekan-project-date-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
     .onekan-project-dialog-actions{display:flex;justify-content:flex-end;gap:7px}
-    @media(max-width:800px){.onekan-project-board-grid{grid-template-columns:1fr}.onekan-project-board{min-height:220px}.onekan-project-group-view{min-height:360px;padding:13px 10px}.onekan-project-row{grid-template-columns:minmax(0,1fr);gap:2px}.onekan-project-period{justify-content:flex-start}.onekan-project-date-row{grid-template-columns:1fr}}
+    @media(max-width:800px){.onekan-project-board-grid{grid-template-columns:1fr}.onekan-project-board{min-height:220px}.onekan-project-group-view{min-height:360px;padding:13px 10px}.onekan-project-row{grid-template-columns:minmax(0,1fr);gap:2px}.onekan-project-row-actions{justify-content:flex-start}.onekan-project-period{justify-content:flex-start}.onekan-project-date-row{grid-template-columns:1fr}}
   `;
   document.head.appendChild(style);
 }
@@ -169,9 +175,16 @@ function periodText(project) {
 }
 
 function projectRow(project) {
+  const status = normalizeStatus(project.status);
+  const stats = projectTaskStats(state, project.id);
+  const suggestion = status === "doing" && stats.total > 0 && stats.incomplete === 0
+    ? `<button class="onekan-project-suggestion" type="button" data-project-suggestion="complete" data-project-suggestion-id="${esc(project.id)}">완료할까요?</button>`
+    : (["done", "archived"].includes(status) && stats.incomplete > 0
+      ? `<button class="onekan-project-suggestion" type="button" data-project-suggestion="restart" data-project-suggestion-id="${esc(project.id)}">다시 시작할까요?</button>`
+      : "");
   return `<div class="onekan-project-row" style="--uw-group:${esc(projectGroupColor(project))}" draggable="true" data-project-status-id="${esc(project.id)}" data-context-kind="project" data-context-id="${esc(project.id)}">
     <span class="onekan-project-title" data-project-edit="${esc(project.id)}">${esc(project.title || "이름 없는 프로젝트")}</span>
-    <span class="onekan-project-period"><span>${esc(periodText(project))}</span><button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span>
+    <span class="onekan-project-row-actions">${suggestion}<span class="onekan-project-period"><span>${esc(periodText(project))}</span><button type="button" data-project-period="${esc(project.id)}" aria-label="기간 수정" title="기간 수정"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M8 3.5v4M16 3.5v4M3.5 10h17"></path></svg></button></span></span>
   </div>`;
 }
 
@@ -248,7 +261,7 @@ function fillGoalSelect(selectedId) {
   select.value = selectedExists ? selectedId : "";
 }
 
-async function openEditor({ projectId = null, status = "doing", groupId = null, goalId = null, focusPeriod = false } = {}) {
+async function openEditor({ projectId = null, status = "before", groupId = null, goalId = null, focusPeriod = false } = {}) {
   await readState();
   const dialog = ensureDialog();
   editingProjectId = projectId;
@@ -291,7 +304,7 @@ async function saveEditor() {
         project.endDate = endDate;
         project.updatedAt = new Date().toISOString();
       } else {
-        current.projects.push({ id: uid(), kind: "project", title, status, goalId: validGoalId, groupId, startDate, endDate, createdAt: new Date().toISOString() });
+        current.projects.push({ id: uid(), kind: "project", title, status: "before", goalId: validGoalId, groupId, startDate, endDate, createdAt: new Date().toISOString() });
       }
     }, id ? "project-edit" : "project-add");
     dialog.close();
@@ -307,7 +320,12 @@ async function moveProject(projectId, { status = null, groupId = null } = {}) {
     await writeState((current) => {
       const project = current.projects.find((item) => item.id === projectId && isProject(item));
       if (!project) return;
-      if (status) project.status = status;
+      if (status) {
+        const nextStatus = normalizeStatus(project.status) === "archived" && status !== "archived"
+          ? restartStatusForProject(current, project.id)
+          : status;
+        applyProjectStatus(project, nextStatus);
+      }
       if (groupId) {
         project.groupId = groupId;
         delete project.projectGroupId;
@@ -317,6 +335,21 @@ async function moveProject(projectId, { status = null, groupId = null } = {}) {
   } catch (error) {
     console.error("프로젝트 이동 실패", error);
     showToast("프로젝트를 이동하지 못했어요.");
+  }
+}
+
+async function applySuggestion(projectId, action) {
+  if (!projectId || !["complete", "restart"].includes(action)) return;
+  try {
+    await writeState((current) => {
+      const project = current.projects.find((item) => item.id === projectId && isProject(item));
+      if (!project) return;
+      applyProjectStatus(project, action === "complete" ? "done" : restartStatusForProject(current, project.id));
+    }, `project-${action}-suggestion`);
+    showToast(action === "complete" ? "프로젝트를 완료했어요." : "프로젝트를 다시 시작했어요.");
+  } catch (error) {
+    console.error("프로젝트 제안 적용 실패", error);
+    showToast("프로젝트 상태를 변경하지 못했어요.");
   }
 }
 
@@ -335,10 +368,12 @@ function wireRoot(root) {
     render();
   });
   root.addEventListener("click", (event) => {
+    const suggestion = event.target.closest("[data-project-suggestion][data-project-suggestion-id]");
+    if (suggestion) return applySuggestion(suggestion.dataset.projectSuggestionId, suggestion.dataset.projectSuggestion);
     const addStatus = event.target.closest("[data-project-add-status]");
-    if (addStatus) return openEditor({ status: addStatus.dataset.projectAddStatus, groupId: defaultGroupId() });
+    if (addStatus) return openEditor({ status: "before", groupId: defaultGroupId() });
     const addGroupProject = event.target.closest("[data-project-add-group]");
-    if (addGroupProject) return openEditor({ status: activeFilter === "all" ? "doing" : activeFilter, groupId: addGroupProject.dataset.projectAddGroup });
+    if (addGroupProject) return openEditor({ status: "before", groupId: addGroupProject.dataset.projectAddGroup });
     const period = event.target.closest("[data-project-period]");
     if (period) return openEditor({ projectId: period.dataset.projectPeriod, focusPeriod: true });
     const edit = event.target.closest("[data-project-edit]");
@@ -431,7 +466,7 @@ function init() {
   });
   document.addEventListener("onekan:add-project", (event) => {
     const goalId = event.detail?.goalId || null;
-    openEditor({ goalId, status: "doing" });
+    openEditor({ goalId, status: "before" });
   });
   if ($("#page-projects")?.classList.contains("active")) scheduleRender(0);
 }

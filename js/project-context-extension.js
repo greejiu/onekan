@@ -1,5 +1,6 @@
 import { supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
+import { applyProjectStatus, normalizeProjectStatus as normalizeStatus, restartStatusForProject } from "./project-status-automation.js?v=1";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
 const esc = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
@@ -16,14 +17,6 @@ let observer = null;
 let wired = false;
 let periodAnchor = null;
 
-function normalizeStatus(value) {
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (["before", "시작 전", "시작전", "todo", "planned"].includes(raw)) return "before";
-  if (["done", "완료", "달성", "complete", "completed"].includes(raw)) return "done";
-  if (["archived", "보관", "closed", "archive"].includes(raw)) return "archived";
-  return "doing";
-}
-
 function projectIdFromElement(element) {
   const row = element?.closest?.('[data-context-kind="project"][data-context-id], [data-project-status-id], .project-row[data-project-id]');
   if (!row) return null;
@@ -37,6 +30,7 @@ async function readState() {
   if (error) throw error;
   const state = data?.data && typeof data.data === "object" ? data.data : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
+  state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
   state.directionGoals = Array.isArray(state.directionGoals) ? state.directionGoals : [];
   return { user: session.user, state };
 }
@@ -57,10 +51,10 @@ function installStyle() {
   const style = document.createElement("style");
   style.id = "onekanProjectContextExtensionStyle";
   style.textContent = `
-    #globalContextMenu [data-project-context-action]{display:flex;align-items:center;justify-content:space-between}
+    #globalContextMenu [data-project-context-action],#globalContextMenu [data-project-lifecycle-action]{display:flex;align-items:center;justify-content:space-between}
     #globalContextMenu .onekan-project-context-list{margin:3px 0;padding:3px;border-top:1px solid var(--line,#d2d7df);border-bottom:1px solid var(--line,#d2d7df);max-height:min(260px,55vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
     #globalContextMenu .onekan-project-context-list button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
-    #globalContextMenu .onekan-project-context-list.hidden,#globalContextMenu [data-project-context-action].hidden{display:none}
+    #globalContextMenu .onekan-project-context-list.hidden,#globalContextMenu [data-project-context-action].hidden,#globalContextMenu [data-project-lifecycle-action].hidden{display:none}
     #onekanProjectEditor label:has(#onekanProjectGoal),#onekanProjectEditor label:has(#onekanProjectStatus){display:none}
     .onekan-project-period-pop{position:fixed;z-index:12020;width:min(310px,calc(100vw - 24px));padding:10px;border:1px solid var(--line,#d2d7df);border-radius:12px;background:var(--surface,#fff);box-shadow:0 12px 34px #0002;display:grid;gap:9px}
     .onekan-project-period-pop[hidden]{display:none!important}
@@ -79,6 +73,7 @@ function ensureMenuExtensions() {
   let goalList = $("#onekanProjectGoalContextList", menu);
   let statusButton = $("[data-project-context-action='status']", menu);
   let statusList = $("#onekanProjectStatusContextList", menu);
+  let lifecycleButton = $("[data-project-lifecycle-action]", menu);
   if (!goalButton) {
     goalButton = document.createElement("button");
     goalButton.type = "button";
@@ -96,13 +91,17 @@ function ensureMenuExtensions() {
     statusList = document.createElement("div");
     statusList.id = "onekanProjectStatusContextList";
     statusList.className = "onekan-project-context-list hidden";
+    lifecycleButton = document.createElement("button");
+    lifecycleButton.type = "button";
+    lifecycleButton.className = "hidden";
     const deleteButton = $("[data-context-action='delete']", menu);
     menu.insertBefore(goalButton, deleteButton);
     menu.insertBefore(goalList, deleteButton);
     menu.insertBefore(statusButton, deleteButton);
     menu.insertBefore(statusList, deleteButton);
+    menu.insertBefore(lifecycleButton, deleteButton);
   }
-  return { menu, goalButton, goalList, statusButton, statusList };
+  return { menu, goalButton, goalList, statusButton, statusList, lifecycleButton };
 }
 
 function hideExtensionLists(parts = ensureMenuExtensions()) {
@@ -116,6 +115,7 @@ function hideExtensions() {
   if (!parts) return;
   parts.goalButton.classList.add("hidden");
   parts.statusButton.classList.add("hidden");
+  parts.lifecycleButton.classList.add("hidden");
   hideExtensionLists(parts);
 }
 
@@ -141,9 +141,12 @@ async function renderProjectExtensions() {
     const goals = current.state.directionGoals;
     parts.goalButton.classList.remove("hidden");
     parts.statusButton.classList.remove("hidden");
+    parts.lifecycleButton.classList.remove("hidden");
     parts.goalButton.innerHTML = `목표 연결 <span class="context-menu-arrow">›</span>`;
     parts.goalList.innerHTML = `<button type="button" data-project-goal-id="" role="menuitemradio" aria-checked="${!selectedGoalId}"><span></span><span>목표 없음</span>${!selectedGoalId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>${goals.map((goal) => `<button type="button" data-project-goal-id="${esc(goal.id)}" role="menuitemradio" aria-checked="${goal.id === selectedGoalId}"><span class="context-group-dot" style="--group-color:#8fa9c4"></span><span>${esc(goal.title || "이름 없는 목표")}</span>${goal.id === selectedGoalId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`).join("")}`;
     const selectedStatus = normalizeStatus(project.status);
+    parts.lifecycleButton.dataset.projectLifecycleAction = ["done", "archived"].includes(selectedStatus) ? "restart" : "archive";
+    parts.lifecycleButton.textContent = ["done", "archived"].includes(selectedStatus) ? "다시 시작하기" : "보관하기";
     parts.statusList.innerHTML = STATUSES.map((status) => `<button type="button" data-project-status-id="${status.id}" role="menuitemradio" aria-checked="${status.id === selectedStatus}"><span></span><span>${status.label}</span>${status.id === selectedStatus ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`).join("");
   } catch (error) {
     console.error("프로젝트 메뉴 확장 실패", error);
@@ -176,13 +179,29 @@ async function changeStatus(statusId) {
     await writeState((state) => {
       const project = state.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
       if (!project) return;
-      project.status = statusId;
-      project.updatedAt = new Date().toISOString();
+      applyProjectStatus(project, statusId);
     }, "project-status-context");
     $("#globalContextMenu")?.classList.remove("open");
   } catch (error) {
     console.error("프로젝트 상태 변경 실패", error);
     showToast("상태를 변경하지 못했어요.");
+  }
+}
+
+async function changeLifecycle(action) {
+  const id = activeProjectId;
+  if (!id || !["archive", "restart"].includes(action)) return;
+  try {
+    await writeState((state) => {
+      const project = state.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
+      if (!project) return;
+      applyProjectStatus(project, action === "archive" ? "archived" : restartStatusForProject(state, id));
+    }, `project-${action}-context`);
+    $("#globalContextMenu")?.classList.remove("open");
+    showToast(action === "archive" ? "프로젝트를 보관했어요." : "프로젝트를 다시 시작했어요.");
+  } catch (error) {
+    console.error("프로젝트 보관/재시작 실패", error);
+    showToast("프로젝트 상태를 변경하지 못했어요.");
   }
 }
 
@@ -323,6 +342,13 @@ function wire() {
   }, true);
 
   parts.menu.addEventListener("click", (event) => {
+    const lifecycle = event.target.closest("[data-project-lifecycle-action]");
+    if (lifecycle) {
+      event.preventDefault();
+      event.stopPropagation();
+      changeLifecycle(lifecycle.dataset.projectLifecycleAction);
+      return;
+    }
     const toggle = event.target.closest("[data-project-context-action]");
     if (toggle) {
       event.preventDefault();
