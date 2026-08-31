@@ -231,9 +231,7 @@ function goalRows(goals, projects = [], identities = []) {
       const stats = goalProjectStats({ projects }, goal.id);
       const suggestion = status === "doing" && stats.allDone
         ? `<button class="onekan-goal-suggestion" type="button" data-goal-suggestion="achieve" data-goal-suggestion-id="${esc(goal.id)}">달성할까요?</button>`
-        : (["done", "archived"].includes(status) && stats.unfinished > 0
-          ? `<button class="onekan-goal-suggestion" type="button" data-goal-suggestion="restart" data-goal-suggestion-id="${esc(goal.id)}">다시 시작할까요?</button>`
-          : "");
+        : "";
       return `<div class="onekan-goal-row" draggable="true" data-direction-kind="goal" data-direction-id="${esc(goal.id)}" data-goal-status="${status}" data-context-kind="goal" data-context-id="${esc(goal.id)}"><div class="onekan-goal-main"><span class="onekan-goal-title">${esc(goal.title || "이름 없는 목표")}</span>${identity ? `<span class="onekan-goal-identity">정체성 · ${esc(identity)}</span>` : ""}<span class="onekan-goal-projects">${esc(linkedProjectText(goal.id, projects))}</span></div><span class="onekan-goal-period">${esc(goalPeriod(goal))}</span><div class="onekan-direction-actions">${suggestion}<button class="onekan-direction-icon" type="button" data-goal-project-add="${esc(goal.id)}" aria-label="프로젝트 추가" title="프로젝트 추가"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5h7l2 2h9v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M12 12v6M9 15h6"></path></svg></button><button class="onekan-direction-icon" type="button" data-goal-settings="${esc(goal.id)}" aria-label="목표 설정" title="목표 설정"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1A1.7 1.7 0 0 0 2.5 13.6H2.4V9.6h.1A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06L6.66 3.8l.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6A1.7 1.7 0 0 0 10 2.5v-.1h4v.1a1.7 1.7 0 0 0 1 1.7 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.1v4h-.1a1.7 1.7 0 0 0-1.7 1z"></path></svg></button></div></div>`;
     })
     .join("");
@@ -546,14 +544,14 @@ async function persistGoalDrop(goalId, status) {
 }
 
 async function applyGoalSuggestion(goalId, action) {
-  if (!goalId || !["achieve", "restart"].includes(action)) return;
+  if (!goalId || action !== "achieve") return;
   try {
     await writeGoalState((state) => {
       const goal = state.directionGoals.find((item) => item.id === goalId);
       if (!goal) return;
-      applyGoalStatus(goal, action === "achieve" ? "done" : restartStatusForGoal(state, goal.id));
+      applyGoalStatus(goal, "done");
     }, `direction-goal-${action}`);
-    showToast(action === "achieve" ? "목표를 달성했어요." : "목표를 다시 시작했어요.");
+    showToast("목표를 달성했어요.");
     await renderGoalView();
   } catch (error) {
     console.error("목표 제안 적용 실패", error);
