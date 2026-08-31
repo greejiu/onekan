@@ -10,6 +10,14 @@ export function normalizeProjectStatus(value) {
   return "doing";
 }
 
+export function normalizeGoalStatus(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (["doing", "진행 중", "진행중", "active", "in progress"].includes(raw)) return "doing";
+  if (["done", "달성", "완료", "complete", "completed"].includes(raw)) return "done";
+  if (["archived", "보관", "closed", "archive"].includes(raw)) return "archived";
+  return "before";
+}
+
 export function isRecurringProjectTask(task) {
   const frequency = task?.recurrence?.frequency || task?.repeatRule?.frequency || "";
   return Boolean(task?.isHabit || (frequency && frequency !== "none"));
@@ -54,6 +62,49 @@ export function promoteProjectsWithTasks(current) {
   return promoted;
 }
 
+export function goalProjectStats(current, goalId) {
+  const projects = (Array.isArray(current?.projects) ? current.projects : [])
+    .filter((project) => project && (!project.kind || project.kind === "project") && project.goalId === goalId)
+    .filter((project) => normalizeProjectStatus(project.status) !== "archived");
+  const done = projects.filter((project) => normalizeProjectStatus(project.status) === "done").length;
+  const unfinished = projects.length - done;
+  return { total: projects.length, done, unfinished, allDone: projects.length > 0 && unfinished === 0 };
+}
+
+export function restartStatusForGoal(current, goalId) {
+  return goalProjectStats(current, goalId).total > 0 ? "doing" : "before";
+}
+
+export function applyGoalStatus(goal, nextStatus) {
+  if (!goal) return;
+  const status = VALID_STATUSES.has(nextStatus) ? nextStatus : normalizeGoalStatus(nextStatus);
+  const previous = normalizeGoalStatus(goal.status);
+  const now = new Date().toISOString();
+  goal.status = status;
+  goal.updatedAt = now;
+  if (status === "doing" && previous === "before") goal.startedAt = goal.startedAt || now;
+  if (status === "done" && previous !== "done") goal.completedAt = goal.completedAt || now;
+  if (["before", "doing"].includes(status)) delete goal.completedAt;
+  if (status === "archived") goal.archivedAt = goal.archivedAt || now;
+  else delete goal.archivedAt;
+}
+
+export function reconcileGoalStatuses(current) {
+  current.directionGoals = Array.isArray(current.directionGoals) ? current.directionGoals : [];
+  current.projects = Array.isArray(current.projects) ? current.projects : [];
+  const changed = [];
+  current.directionGoals.forEach((goal) => {
+    if (!goal) return;
+    const status = normalizeGoalStatus(goal.status);
+    if (["done", "archived"].includes(status)) return;
+    const nextStatus = restartStatusForGoal(current, goal.id);
+    if (status === nextStatus) return;
+    applyGoalStatus(goal, nextStatus);
+    changed.push(goal.id);
+  });
+  return changed;
+}
+
 let syncing = false;
 let timer = null;
 
@@ -66,7 +117,9 @@ async function reconcile() {
     const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
     if (error) throw error;
     const current = data?.data && typeof data.data === "object" ? data.data : {};
-    if (!promoteProjectsWithTasks(current).length) return;
+    const promotedProjects = promoteProjectsWithTasks(current);
+    const changedGoals = reconcileGoalStatuses(current);
+    if (!promotedProjects.length && !changedGoals.length) return;
     const { error: saveError } = await supabase.from("onekan_state").upsert({ user_id: session.user.id, data: current }, { onConflict: "user_id" });
     if (saveError) throw saveError;
     document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "project-status-automation" } }));
