@@ -1,5 +1,6 @@
 import { supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
+import { applyGoalStatus, normalizeGoalStatus, restartStatusForGoal } from "./project-status-automation.js?v=2";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
@@ -52,6 +53,7 @@ function ensureParts() {
       projectList: $("#onekanGoalProjectContextList", menu),
       goalButton: $("[data-direction-context-action='goals']", menu),
       goalList: $("#onekanIdentityGoalContextList", menu),
+      lifecycleButton: $("[data-goal-lifecycle-action]", menu),
     };
   }
 
@@ -79,7 +81,11 @@ function ensureParts() {
   const projectList = makeList("onekanGoalProjectContextList");
   const goalButton = makeButton("goals", "목표 연결");
   const goalList = makeList("onekanIdentityGoalContextList");
-  [identityButton, identityList, projectButton, projectList, goalButton, goalList].forEach((node) => menu.insertBefore(node, deleteButton));
+  const lifecycleButton = document.createElement("button");
+  lifecycleButton.type = "button";
+  lifecycleButton.className = "hidden";
+  lifecycleButton.setAttribute("role", "menuitem");
+  [identityButton, identityList, projectButton, projectList, goalButton, goalList, lifecycleButton].forEach((node) => menu.insertBefore(node, deleteButton));
 
   if (!$("#onekanDirectionContextStyle")) {
     const style = document.createElement("style");
@@ -87,18 +93,19 @@ function ensureParts() {
     style.textContent = `
       .global-context-menu [data-direction-context-action]{align-items:center;justify-content:space-between}
       .global-context-menu [data-direction-context-action]:not(.hidden){display:flex}
+      .global-context-menu [data-goal-lifecycle-action]:not(.hidden){display:flex}
       .onekan-direction-context-list{margin:3px 0;padding:3px;border-top:1px solid var(--line,#d2d7df);border-bottom:1px solid var(--line,#d2d7df);max-height:min(260px,55vh);overflow-y:auto;overscroll-behavior:contain}
       .onekan-direction-context-list button{display:grid;grid-template-columns:minmax(0,1fr) 18px;align-items:center;gap:8px}
       .onekan-direction-context-list .context-group-check{text-align:right;color:var(--accent,#7666a8)}
     `;
     document.head.appendChild(style);
   }
-  return { menu, identityButton, identityList, projectButton, projectList, goalButton, goalList };
+  return { menu, identityButton, identityList, projectButton, projectList, goalButton, goalList, lifecycleButton };
 }
 
 function hideDirectionParts(parts = ensureParts()) {
   if (!parts) return;
-  [parts.identityButton, parts.projectButton, parts.goalButton].forEach((button) => button.classList.add("hidden"));
+  [parts.identityButton, parts.projectButton, parts.goalButton, parts.lifecycleButton].forEach((button) => button?.classList.add("hidden"));
   [parts.identityList, parts.projectList, parts.goalList].forEach((list) => list.classList.add("hidden"));
 }
 
@@ -122,6 +129,10 @@ async function renderDirectionMenu() {
       if (!goal) return;
       parts.identityButton.classList.remove("hidden");
       parts.projectButton.classList.remove("hidden");
+      parts.lifecycleButton.classList.remove("hidden");
+      const status = normalizeGoalStatus(goal.status);
+      parts.lifecycleButton.dataset.goalLifecycleAction = ["done", "archived"].includes(status) ? "restart" : "archive";
+      parts.lifecycleButton.textContent = ["done", "archived"].includes(status) ? "다시 시작하기" : "보관하기";
       parts.identityList.innerHTML = `<button type="button" data-connect-identity-id="" role="menuitemradio" aria-checked="${!goal.identityId}"><span>정체성 없음</span>${checks(!goal.identityId)}</button>${state.identities.map((identity) => {
         const selected = goal.identityId === identity.id;
         return `<button type="button" data-connect-identity-id="${esc(identity.id)}" role="menuitemradio" aria-checked="${selected}"><span>${esc(identity.title || "이름 없는 정체성")}</span>${checks(selected)}</button>`;
@@ -217,6 +228,23 @@ async function toggleGoal(goalId) {
   }
 }
 
+async function changeGoalLifecycle(action) {
+  const target = activeTarget;
+  if (target?.kind !== "goal" || !["archive", "restart"].includes(action)) return;
+  try {
+    await writeState((state) => {
+      const goal = state.directionGoals.find((item) => item.id === target.id);
+      if (!goal) return;
+      applyGoalStatus(goal, action === "archive" ? "archived" : restartStatusForGoal(state, goal.id));
+    });
+    $("#globalContextMenu")?.classList.remove("open");
+    showToast(action === "archive" ? "목표를 보관했어요." : "목표를 다시 시작했어요.");
+  } catch (error) {
+    console.error("목표 보관/재시작 실패", error);
+    showToast("목표 상태를 변경하지 못했어요.");
+  }
+}
+
 function installListeners() {
   document.addEventListener("contextmenu", (event) => {
     activeTarget = directionTarget(event.target);
@@ -229,6 +257,13 @@ function installListeners() {
   document.addEventListener("click", (event) => {
     const parts = ensureParts();
     if (!parts) return;
+    const lifecycle = event.target.closest?.("[data-goal-lifecycle-action]");
+    if (lifecycle) {
+      event.preventDefault();
+      event.stopPropagation();
+      changeGoalLifecycle(lifecycle.dataset.goalLifecycleAction);
+      return;
+    }
     const action = event.target.closest?.("[data-direction-context-action]");
     if (action) {
       event.preventDefault();
