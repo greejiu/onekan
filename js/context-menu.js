@@ -249,6 +249,7 @@ function showMenu(x, y, target, state) {
   renderGroupChoices(state, target);
   renderProjectChoices(state, target);
   menu.classList.add("open");
+  document.dispatchEvent(new CustomEvent("onekan:context-menu-opened", { detail: { target, state } }));
   menu.style.left = "0px";
   menu.style.top = "0px";
   const rect = menu.getBoundingClientRect();
