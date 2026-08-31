@@ -337,8 +337,9 @@ function init(attempt = 0) {
   installListeners();
 }
 
-const { data: { session } } = await supabase.auth.getSession();
-if (session?.user) init();
+init();
+
 supabase.auth.onAuthStateChange((_event, nextSession) => {
-  if (nextSession?.user) init();
+  if (nextSession?.user && !wired) init();
+  else if (!nextSession?.user) hideDirectionParts();
 });
