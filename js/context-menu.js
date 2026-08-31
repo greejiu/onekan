@@ -717,10 +717,8 @@ function init() {
   installListeners();
 }
 
-supabase.auth.onAuthStateChange((_event, session) => {
-  if (session?.user) setTimeout(init, 0);
-  else hideMenu();
-});
+init();
 
-const { data: { session } } = await supabase.auth.getSession();
-if (session?.user) init();
+supabase.auth.onAuthStateChange((_event, session) => {
+  if (!session?.user) hideMenu();
+});
