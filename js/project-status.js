@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
-import { applyProjectStatus, projectTaskStats, restartStatusForProject } from "./project-status-automation.js?v=1";
+import { applyProjectStatus, projectTaskStats, restartStatusForProject } from "./project-status-automation.js?v=2";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
 const $$ = (selector, root = document) => [...(root?.querySelectorAll?.(selector) || [])];
