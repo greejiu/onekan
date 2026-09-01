@@ -1,4 +1,4 @@
-import "./home-memo-persistence.js?v=1";
+import "./home-memo-persistence.js?v=2";
 
 const COMMANDS = [
   { id: "bold", label: "굵게", icon: "B", description: "입력할 글자를 굵게" },

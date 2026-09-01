@@ -12,6 +12,17 @@ const PERIOD_LABELS = {
   month: "이번 달",
 };
 
+const ITEM_COLORS = [
+  "#8fa9c4",
+  "#b9a7d6",
+  "#e6a57e",
+  "#7fb9ad",
+  "#d8b45f",
+  "#cf8fa5",
+  "#8da8d8",
+  "#a7b979",
+];
+
 const viewState = {
   home: { group: "project", period: "today" },
   tracking: { group: "project", period: "today" },
@@ -83,6 +94,28 @@ function sessionSource(state, session) {
   return null;
 }
 
+function safeColor(value, fallback = "#8fa9c4") {
+  const color = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+
+function stableItemColor(value) {
+  const text = String(value || "직접 기록");
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+  return ITEM_COLORS[Math.abs(hash) % ITEM_COLORS.length];
+}
+
+function groupById(state, groupId) {
+  return state.groups.find((item) => String(item?.id) === String(groupId || "")) || null;
+}
+
+function projectById(state, projectId) {
+  return state.projects.find((item) => String(item?.id) === String(projectId || "")) || null;
+}
+
 function inPeriod(session, period) {
   const stamp = session?.start || session?.end;
   if (!stamp) return false;
@@ -106,23 +139,36 @@ function inPeriod(session, period) {
   return sessionDate >= monday && sessionDate < nextMonday;
 }
 
-function projectLabel(state, session, source) {
+function projectInfo(state, session, source) {
   const projectId = session?.projectId || source?.projectId || null;
-  if (!projectId) return "프로젝트 미연결";
-  const project = state.projects.find((item) => String(item?.id) === String(projectId));
-  return String(project?.title || project?.name || "이름 없는 프로젝트").trim();
+  if (!projectId) return { key: "project:none", name: "프로젝트 미연결", color: "#aeb4bd" };
+  const project = projectById(state, projectId);
+  const group = groupById(state, project?.groupId);
+  return {
+    key: `project:${projectId}`,
+    name: String(project?.title || project?.name || "이름 없는 프로젝트").trim(),
+    color: safeColor(group?.color),
+  };
 }
 
-function itemLabel(session, source) {
+function itemInfo(session, source) {
   const title = String(source?.title || source?.name || session?.title || "직접 기록").trim();
-  return title || "직접 기록";
+  const name = title || "직접 기록";
+  const sourceKey = session?.taskId ? `task:${session.taskId}`
+    : session?.habitId ? `habit:${session.habitId}`
+    : `manual:${name}`;
+  return { key: sourceKey, name, color: stableItemColor(sourceKey) };
 }
 
-function areaLabel(state, session, source) {
+function areaInfo(state, session, source) {
   const groupId = session?.groupId || source?.groupId || null;
-  if (!groupId) return "영역 없음";
-  const group = state.groups.find((item) => String(item?.id) === String(groupId));
-  return String(group?.name || "영역 없음").trim();
+  if (!groupId) return { key: "area:none", name: "영역 없음", color: "#aeb4bd" };
+  const group = groupById(state, groupId);
+  return {
+    key: `area:${groupId}`,
+    name: String(group?.name || "영역 없음").trim(),
+    color: safeColor(group?.color),
+  };
 }
 
 function aggregate(raw, groupMode, period) {
@@ -135,18 +181,19 @@ function aggregate(raw, groupMode, period) {
     const duration = durationMs(session);
     if (duration <= 0) continue;
     const source = sessionSource(state, session);
-    let name = "";
-    if (groupMode === "project") name = projectLabel(state, session, source);
-    else if (groupMode === "area") name = areaLabel(state, session, source);
-    else name = itemLabel(session, source);
+    let info;
+    if (groupMode === "project") info = projectInfo(state, session, source);
+    else if (groupMode === "area") info = areaInfo(state, session, source);
+    else info = itemInfo(session, source);
 
-    const key = name || "이름 없음";
-    totals.set(key, (totals.get(key) || 0) + duration);
+    const previous = totals.get(info.key);
+    totals.set(info.key, previous
+      ? { ...previous, duration: previous.duration + duration }
+      : { name: info.name || "이름 없음", color: info.color, duration });
     total += duration;
   }
 
-  const rows = [...totals.entries()]
-    .map(([name, duration]) => ({ name, duration }))
+  const rows = [...totals.values()]
     .sort((a, b) => b.duration - a.duration || a.name.localeCompare(b.name, "ko"));
 
   return { rows, total };
@@ -177,7 +224,7 @@ function rowsMarkup(rows, total, limit = Infinity) {
   return visible.map((row) => {
     const ratio = total > 0 ? Math.max(3, Math.min(100, row.duration / total * 100)) : 0;
     return `
-      <div class="uw-stat-row" title="${esc(row.name)} · ${esc(formatDuration(row.duration))}">
+      <div class="uw-stat-row" style="--uw-stat-color:${esc(row.color)}" title="${esc(row.name)} · ${esc(formatDuration(row.duration))}">
         <span class="uw-stat-name">${esc(row.name)}</span>
         <span class="uw-stat-duration">${esc(formatDuration(row.duration))}</span>
         <span class="uw-stat-bar" aria-hidden="true"><i style="width:${ratio.toFixed(2)}%"></i></span>

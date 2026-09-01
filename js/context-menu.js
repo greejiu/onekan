@@ -215,7 +215,7 @@ function renderProjectChoices(state, target) {
   const button = menu?.querySelector('[data-context-action="projects"]');
   const list = $("#contextProjectList");
   const item = getItem(state, target);
-  const available = target.kind === "task";
+  const available = target.kind === "task" || target.kind === "session";
   button?.classList.toggle("hidden", !available);
   list?.classList.add("hidden");
   if (!available || !list) {
@@ -232,7 +232,10 @@ function renderProjectChoices(state, target) {
     return "doing";
   };
   const projects = (state.projects || []).filter((project) => (project?.kind === "project" || !project?.kind) && (normalize(project.status) === "doing" || project.id === selectedId)).sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ko"));
-  list.innerHTML = `<button type="button" role="menuitemradio" aria-checked="${!selectedId}" data-context-project-id=""><span></span><span>프로젝트 없음</span>${!selectedId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>${projects.map((project) => `<button type="button" role="menuitemradio" aria-checked="${project.id === selectedId}" data-context-project-id="${escapeAttr(project.id)}"><span class="context-group-dot" style="--group-color:#8fa9c4"></span><span>${escapeAttr(project.title || "이름 없는 프로젝트")}</span>${project.id === selectedId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`).join("")}`;
+  list.innerHTML = `<button type="button" role="menuitemradio" aria-checked="${!selectedId}" data-context-project-id=""><span></span><span>프로젝트 없음</span>${!selectedId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>${projects.map((project) => {
+    const group = state.eventGroups?.find((entry) => entry.id === project.groupId);
+    return `<button type="button" role="menuitemradio" aria-checked="${project.id === selectedId}" data-context-project-id="${escapeAttr(project.id)}"><span class="context-group-dot" style="--group-color:${escapeAttr(group?.color || "#8fa9c4")}"></span><span>${escapeAttr(project.title || "이름 없는 프로젝트")}</span>${project.id === selectedId ? '<span class="context-group-check">✓</span>' : '<span></span>'}</button>`;
+  }).join("")}`;
 }
 
 function showMenu(x, y, target, state) {
@@ -481,13 +484,14 @@ async function changeTargetGroup(groupId) {
 async function changeTargetProject(projectId) {
   const target = currentTarget;
   hideMenu();
-  if (!target || target.kind !== "task") return;
+  if (!target || !["task", "session"].includes(target.kind)) return;
   try {
     await writeState((state) => {
-      const task = state.tasks.find((item) => item.id === target.id);
-      if (!task) return;
-      if (projectId) task.projectId = projectId;
-      else delete task.projectId;
+      const item = getItem(state, target);
+      if (!item) return;
+      if (projectId && !state.projects.some((project) => project.id === projectId)) return;
+      if (projectId) item.projectId = projectId;
+      else delete item.projectId;
     });
   } catch (error) {
     console.error(error);
