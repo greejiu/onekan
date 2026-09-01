@@ -1,0 +1,153 @@
+.sidebar .nav {
+  min-height: 0;
+  max-height: calc(100vh - 190px);
+  padding-right: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.nav-section {
+  display: grid;
+  gap: 2px;
+}
+
+.nav-section-toggle {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 43px;
+  padding: 0 10px 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-section-toggle:hover {
+  color: var(--text);
+  background: var(--panel-soft);
+}
+
+.nav-section:has(.nav-item.active) > .nav-section-toggle {
+  color: var(--accent-dark);
+}
+
+.nav-section-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.nav-section-label {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-section-chevron {
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  transition: transform .16s ease;
+}
+
+.nav-section.is-collapsed .nav-section-chevron {
+  transform: rotate(-90deg);
+}
+
+.nav-section-items {
+  display: grid;
+  gap: 1px;
+}
+
+.nav-section.is-collapsed .nav-section-items {
+  display: none;
+}
+
+.nav-child {
+  min-height: 36px;
+  padding-left: 24px;
+  font-size: 13px;
+}
+
+.nav-child .nav-icon {
+  font-size: 14px;
+}
+
+.sidebar-placeholder {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  min-height: 360px;
+  gap: 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 20px;
+  background: var(--panel);
+  color: var(--muted);
+  text-align: center;
+}
+
+.sidebar-placeholder strong {
+  color: var(--text);
+  font-size: 16px;
+}
+
+.sidebar-placeholder span {
+  font-size: 12px;
+}
+
+#onekanProjectDirectionTabs {
+  display: none;
+}
+
+.app.sidebar-collapsed .sidebar .nav {
+  max-height: calc(100vh - 155px);
+  padding-right: 0;
+}
+
+.app.sidebar-collapsed .nav-section-toggle {
+  display: none;
+}
+
+.app.sidebar-collapsed .nav-section.is-collapsed .nav-section-items {
+  display: grid;
+}
+
+.app.sidebar-collapsed .nav-child {
+  min-height: 40px;
+  padding: 0;
+}
+
+@media (max-width: 900px) {
+  .sidebar .nav {
+    max-height: none;
+    padding-right: 0;
+    overflow: visible;
+  }
+
+  .nav-section {
+    display: contents;
+  }
+
+  .nav-section-toggle {
+    display: none;
+  }
+
+  .nav-section-items,
+  .nav-section.is-collapsed .nav-section-items,
+  .app.sidebar-collapsed .nav-section.is-collapsed .nav-section-items {
+    display: contents;
+  }
+
+  .nav-child {
+    padding: 4px 2px;
+    font-size: inherit;
+  }
+}
