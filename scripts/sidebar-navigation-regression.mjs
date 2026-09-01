@@ -4,7 +4,7 @@ const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../css/sidebar-navigation.css", import.meta.url), "utf8");
 const js = fs.readFileSync(new URL("../js/sidebar-navigation.js", import.meta.url), "utf8");
 
-const requiredPages = ["home", "calendar", "tasks", "repeat", "projects", "tracking", "records", "reports", "tags"];
+const requiredPages = ["home", "calendar", "tasks", "repeat", "projects", "plan", "tracking", "records", "reports", "tags"];
 const requiredProjectTabs = ["project", "goal", "identity"];
 
 for (const page of requiredPages) {
@@ -18,6 +18,9 @@ for (const page of ["records", "reports", "tags"]) {
 }
 if (!html.includes('data-sidebar-section="calendar"') || !html.includes('data-sidebar-section="projects"')) {
   throw new Error("접이식 사이드바 그룹이 없습니다.");
+}
+if (!html.match(/id="sidebarProjectItems"[\s\S]*data-page="plan"/)) {
+  throw new Error("프로젝트 그룹에 계획 세우기 메뉴가 없습니다.");
 }
 if (!js.includes("localStorage") || !js.includes('"onekan-sidebar-sections-v1"')) {
   throw new Error("사이드바 접기 상태 저장 로직이 없습니다.");
