@@ -233,7 +233,7 @@ function rowsMarkup(rows, total, limit = Infinity) {
 }
 
 function ensureHomePanel() {
-  const card = document.getElementById("homeMemoCard");
+  const card = document.getElementById("focusTaskCard");
   if (!card) return null;
   card.classList.add("uw-home-stats-ready");
   let panel = card.querySelector(".uw-home-mini-stats");
@@ -242,15 +242,6 @@ function ensureHomePanel() {
     panel.className = "uw-home-mini-stats";
     panel.setAttribute("aria-label", "오늘 시간 통계");
     card.appendChild(panel);
-  }
-
-  const editor = card.querySelector(".uw-home-memo-editor");
-  if (editor && !card.dataset.statsFocusBound) {
-    card.dataset.statsFocusBound = "1";
-    const syncFocusClass = () => card.classList.toggle("uw-memo-editor-focused", document.activeElement === editor);
-    editor.addEventListener("focus", syncFocusClass);
-    editor.addEventListener("blur", () => requestAnimationFrame(syncFocusClass));
-    syncFocusClass();
   }
   return panel;
 }

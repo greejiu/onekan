@@ -1,29 +1,22 @@
 /* Read-only time tracking statistics */
-.uw-home-memo-card.uw-home-stats-ready{
+.focus-task-card.uw-home-stats-ready{
   display:grid;
   grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);
   grid-template-rows:auto 1fr;
   min-height:190px;
   overflow:hidden;
 }
-.uw-home-memo-card.uw-home-stats-ready>.uw-home-memo-header{
+.focus-task-card.uw-home-stats-ready>.card-header{
   grid-column:1;
   grid-row:1;
   min-width:0;
-  display:none!important;
 }
-.uw-home-memo-card.uw-home-stats-ready.uw-memo-editor-focused>.uw-home-memo-header{
-  display:flex!important;
-}
-.uw-home-memo-card.uw-home-stats-ready>.uw-home-memo-body{
+.focus-task-card.uw-home-stats-ready>.focus-task-body{
   grid-column:1;
   grid-row:2;
   min-width:0;
   overflow:hidden;
   padding-top:14px!important;
-}
-.uw-home-memo-card.uw-home-stats-ready.uw-memo-editor-focused>.uw-home-memo-body{
-  padding-top:8px!important;
 }
 .uw-home-mini-stats{
   grid-column:2;
@@ -35,7 +28,7 @@
   overflow:hidden;
   padding:14px 16px;
   border-left:1px solid var(--line,#e7e5e0);
-  background:color-mix(in srgb,var(--uw-memo-card-color,#fff) 94%,var(--panel-soft,#f7f7f5));
+  background:color-mix(in srgb,var(--panel,#fff) 94%,var(--panel-soft,#f7f7f5));
 }
 .uw-home-mini-stats *,
 .uw-tracking-stats-card *{
@@ -190,16 +183,16 @@
   font-size:11px;
 }
 @media(max-width:760px){
-  .uw-home-memo-card.uw-home-stats-ready{
+  .focus-task-card.uw-home-stats-ready{
     grid-template-columns:minmax(0,1fr);
     grid-template-rows:auto auto auto;
     min-height:0;
   }
-  .uw-home-memo-card.uw-home-stats-ready>.uw-home-memo-header{
+  .focus-task-card.uw-home-stats-ready>.card-header{
     grid-column:1;
     grid-row:1;
   }
-  .uw-home-memo-card.uw-home-stats-ready>.uw-home-memo-body{
+  .focus-task-card.uw-home-stats-ready>.focus-task-body{
     grid-column:1;
     grid-row:2;
   }
@@ -212,11 +205,8 @@
   }
 }
 @media(max-width:600px){
-  .uw-home-memo-card.uw-home-stats-ready>.uw-home-memo-body{
+  .focus-task-card.uw-home-stats-ready>.focus-task-body{
     padding-top:10px!important;
-  }
-  .uw-home-memo-card.uw-home-stats-ready.uw-memo-editor-focused>.uw-home-memo-body{
-    padding-top:7px!important;
   }
   .uw-stats-seg button{
     padding:6px 7px;

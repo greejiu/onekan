@@ -96,3 +96,78 @@ export function confirmAction({ title = "삭제할까요?", message = "삭제한
     window.setTimeout(() => cancel.focus(), 0);
   });
 }
+
+const SOUND_MUTE_KEY = "onekan:sound-muted";
+let audioContext = null;
+
+export function isSoundMuted() {
+  try {
+    return localStorage.getItem(SOUND_MUTE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setSoundMuted(muted) {
+  try {
+    if (muted) localStorage.setItem(SOUND_MUTE_KEY, "1");
+    else localStorage.removeItem(SOUND_MUTE_KEY);
+  } catch {}
+}
+
+function ensureAudioContext() {
+  if (audioContext && audioContext.state !== "closed") return audioContext;
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  if (!Ctor) return null;
+  audioContext = new Ctor();
+  return audioContext;
+}
+
+// kind: "check" (하위/상위 할일·타임블록 체크) 또는 "complete"(하위 할일을 모두 체크해 상위 할일이 자동완료될 때).
+const SOUND_TONES = {
+  check: [{ freq: 880, start: 0, duration: 0.09, gain: 0.16 }],
+  complete: [
+    { freq: 660, start: 0, duration: 0.1, gain: 0.16 },
+    { freq: 990, start: 0.09, duration: 0.16, gain: 0.18 },
+  ],
+};
+
+export function playCheckSound(kind = "check") {
+  if (isSoundMuted()) return;
+  const tones = SOUND_TONES[kind] || SOUND_TONES.check;
+  try {
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    const now = ctx.currentTime;
+    for (const tone of tones) {
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(tone.freq, now + tone.start);
+      gainNode.gain.setValueAtTime(0, now + tone.start);
+      gainNode.gain.linearRampToValueAtTime(tone.gain, now + tone.start + 0.012);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + tone.start + tone.duration);
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.start(now + tone.start);
+      oscillator.stop(now + tone.start + tone.duration + 0.02);
+    }
+  } catch (error) {
+    console.warn("check sound failed", error);
+  }
+}
+
+function bindSoundToggle() {
+  const toggle = document.getElementById("soundEffectsToggle");
+  if (!toggle || toggle.dataset.onekanSoundBound) return;
+  toggle.dataset.onekanSoundBound = "1";
+  toggle.checked = !isSoundMuted();
+  toggle.addEventListener("change", () => setSoundMuted(!toggle.checked));
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bindSoundToggle, { once: true });
+} else {
+  bindSoundToggle();
+}

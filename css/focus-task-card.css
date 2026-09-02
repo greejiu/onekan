@@ -1,0 +1,40 @@
+.focus-task-card{display:flex;flex-direction:column;gap:0}
+.focus-task-body{display:flex;flex-direction:column;gap:10px;padding-top:4px}
+
+.focus-task-empty{padding:6px 2px;color:var(--muted,#787774);font-size:13px;line-height:1.5}
+
+.focus-task-picker{display:flex;flex-direction:column;gap:6px}
+.focus-task-picker-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto}
+.focus-task-pick{display:flex;align-items:center;gap:8px;width:100%;padding:9px 10px;border:1px solid var(--line,#e9e9e7);border-radius:10px;background:var(--panel,#fff);color:var(--text,#37352f);font:inherit;text-align:left;cursor:pointer}
+.focus-task-pick:hover{background:var(--hover,#f1f1ef)}
+.focus-task-pick-dot{width:8px;height:8px;min-width:8px;border-radius:50%;background:var(--accent,#5f6f65)}
+.focus-task-pick-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.focus-task-add-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:2px}
+.focus-task-add-form input{width:100%;height:38px;min-width:0;padding:0 11px;border:1px solid var(--line,#e9e9e7);border-radius:10px;background:var(--panel,#fff);font:inherit;color:inherit}
+.focus-task-add-form button{white-space:nowrap}
+
+.focus-task-active{display:flex;flex-direction:column;gap:10px}
+.focus-task-active-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.focus-task-active-title{font-size:15px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.focus-task-change-btn{flex:0 0 auto;padding:5px 9px;border:0;border-radius:8px;background:transparent;color:var(--muted,#787774);font:inherit;font-size:11px;white-space:nowrap;cursor:pointer}
+.focus-task-change-btn:hover{background:var(--hover,#f1f1ef);color:var(--text,#37352f)}
+
+.focus-subtask-list{display:flex;flex-direction:column;gap:2px}
+.focus-subtask-row{display:flex;align-items:center;gap:8px;padding:6px 2px}
+.focus-subtask-check{width:20px;height:20px;min-width:20px;border:1.5px solid var(--line-strong,#dededb);border-radius:6px;background:var(--panel,#fff);color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.focus-subtask-check.checked{background:var(--accent,#5f6f65);border-color:var(--accent,#5f6f65)}
+.focus-subtask-title{flex:1;min-width:0;overflow-wrap:anywhere;font-size:13px}
+.focus-subtask-row.checked .focus-subtask-title{color:var(--muted,#787774);text-decoration:line-through}
+.focus-subtask-remove{flex:0 0 auto;width:26px;height:26px;border:0;border-radius:8px;background:transparent;color:var(--muted,#787774);font-size:15px;cursor:pointer}
+.focus-subtask-remove:hover{background:var(--hover,#f1f1ef);color:#b64a4a}
+
+.focus-subtask-empty{padding:4px 2px;color:var(--muted,#787774);font-size:12px}
+.focus-subtask-add-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.focus-subtask-add-form input{width:100%;height:36px;min-width:0;padding:0 10px;border:1px solid var(--line,#e9e9e7);border-radius:9px;background:var(--panel,#fff);font:inherit;color:inherit}
+
+.focus-task-progress{color:var(--muted,#787774);font-size:11px}
+
+@media(max-width:560px){
+  .focus-task-picker-list{max-height:220px}
+}
