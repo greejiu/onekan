@@ -55,6 +55,8 @@ assert.match(feedback, /export function isSoundMuted/, "음소거 여부를 읽�
 assert.match(feedback, /export function setSoundMuted/, "음소거 여부를 저장하는 함수가 필요합니다.");
 assert.match(feedback, /check:\s*\[/, "체크음 톤 정의가 필요합니다.");
 assert.match(feedback, /complete:\s*\[/, "완료음 톤 정의가 필요합니다(체크음과 달라야 함).");
+assert.match(feedback, /endFreq/, "체크 손맛을 위한 짧은 상승음이 필요합니다.");
+assert.match(feedback, /type:\s*"triangle"/, "체크음에 또렷한 어택을 주는 파형이 필요합니다.");
 assert.match(feedback, /soundEffectsToggle/, "설정 페이지의 효과음 토글과 연결되어야 합니다.");
 
 assert.match(uw, /playCheckSound/, "unified-workspace.js의 할일 체크 지점(오늘 할일 목록 등)에 효과음이 연결되어야 합니다.");

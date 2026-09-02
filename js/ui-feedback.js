@@ -123,12 +123,18 @@ function ensureAudioContext() {
   return audioContext;
 }
 
+// 짧은 상승음과 잔향을 겹쳐, 볼륨을 키우지 않아도 손맛이 느껴지도록 구성한다.
 // kind: "check" (하위/상위 할일·타임블록 체크) 또는 "complete"(하위 할일을 모두 체크해 상위 할일이 자동완료될 때).
 const SOUND_TONES = {
-  check: [{ freq: 880, start: 0, duration: 0.09, gain: 0.16 }],
+  check: [
+    { type: "triangle", freq: 520, endFreq: 760, start: 0, duration: 0.055, gain: 0.11 },
+    { type: "sine", freq: 1175, start: 0.025, duration: 0.12, gain: 0.085 },
+  ],
   complete: [
-    { freq: 660, start: 0, duration: 0.1, gain: 0.16 },
-    { freq: 990, start: 0.09, duration: 0.16, gain: 0.18 },
+    { type: "triangle", freq: 523, endFreq: 587, start: 0, duration: 0.1, gain: 0.1 },
+    { type: "triangle", freq: 659, endFreq: 698, start: 0.065, duration: 0.13, gain: 0.095 },
+    { type: "sine", freq: 784, start: 0.13, duration: 0.19, gain: 0.11 },
+    { type: "sine", freq: 1047, start: 0.2, duration: 0.24, gain: 0.075 },
   ],
 };
 
@@ -143,15 +149,17 @@ export function playCheckSound(kind = "check") {
     for (const tone of tones) {
       const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(tone.freq, now + tone.start);
-      gainNode.gain.setValueAtTime(0, now + tone.start);
-      gainNode.gain.linearRampToValueAtTime(tone.gain, now + tone.start + 0.012);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, now + tone.start + tone.duration);
+      const startsAt = now + tone.start;
+      oscillator.type = tone.type || "sine";
+      oscillator.frequency.setValueAtTime(tone.freq, startsAt);
+      if (tone.endFreq) oscillator.frequency.exponentialRampToValueAtTime(tone.endFreq, startsAt + tone.duration);
+      gainNode.gain.setValueAtTime(0.0001, startsAt);
+      gainNode.gain.exponentialRampToValueAtTime(tone.gain, startsAt + 0.008);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, startsAt + tone.duration);
       oscillator.connect(gainNode);
       gainNode.connect(ctx.destination);
-      oscillator.start(now + tone.start);
-      oscillator.stop(now + tone.start + tone.duration + 0.02);
+      oscillator.start(startsAt);
+      oscillator.stop(startsAt + tone.duration + 0.02);
     }
   } catch (error) {
     console.warn("check sound failed", error);
