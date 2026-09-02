@@ -60,12 +60,12 @@ function buildSideIndex(app) {
   SIDE_ITEMS.forEach((item) => {
     const button = makeButton("journal-side-tab", "", {
       "data-journal-section": item.key,
+      "data-journal-target": item.selector,
       "aria-label": item.label,
     });
     const label = document.createElement("span");
     label.textContent = item.label;
     button.appendChild(label);
-    button.addEventListener("click", () => clickOriginal(item.selector));
     nav.appendChild(button);
   });
 
@@ -78,48 +78,36 @@ function homeTabs() {
     {
       key: "list",
       label: "목록",
-      action: () => {
-        currentHomeView = "list";
-        clickOriginal('[data-uw-home-mode="list"]');
-      },
+      attributes: { "data-uw-home-mode": "list" },
     },
     {
       key: "timeline",
       label: "타임라인",
-      action: () => {
-        currentHomeView = "timeline";
-        clickOriginal('[data-uw-home-mode="timeline"]');
-      },
+      attributes: { "data-uw-home-mode": "timeline" },
     },
     {
       key: "memo",
       label: "메모",
-      action: () => {
-        currentHomeView = "memo";
-        const editor = $("#homeMemoCard .uw-home-memo-editor");
-        editor?.scrollIntoView({ behavior: "smooth", block: "center" });
-        window.setTimeout(() => editor?.focus(), 220);
-        scheduleSync();
-      },
+      attributes: { "data-journal-action": "memo" },
     },
   ];
 }
 
 function calendarTabs(page) {
   return [
-    { key: "calendar", label: "일정", active: page === "calendar", action: () => clickOriginal('.sidebar .nav [data-page="calendar"]') },
-    { key: "tasks", label: "할일", active: page === "tasks", action: () => clickOriginal('.sidebar .nav [data-page="tasks"]') },
-    { key: "repeat", label: "습관", active: page === "repeat" || page === "habits", action: () => clickOriginal('.sidebar .nav [data-page="repeat"]') },
+    { key: "calendar", label: "일정", active: page === "calendar", attributes: { "data-journal-target": '.sidebar .nav [data-page="calendar"]' } },
+    { key: "tasks", label: "할일", active: page === "tasks", attributes: { "data-journal-target": '.sidebar .nav [data-page="tasks"]' } },
+    { key: "repeat", label: "습관", active: page === "repeat" || page === "habits", attributes: { "data-journal-target": '.sidebar .nav [data-page="repeat"]' } },
   ];
 }
 
 function projectTabs(page) {
   const stored = sessionStorage.getItem("onekan-project-direction-tab") || "project";
   return [
-    { key: "project", label: "프로젝트", active: page === "projects" && stored === "project", action: () => clickOriginal('.sidebar .nav [data-sidebar-project-tab="project"]') },
-    { key: "goal", label: "목표", active: page === "projects" && stored === "goal", action: () => clickOriginal('.sidebar .nav [data-sidebar-project-tab="goal"]') },
-    { key: "identity", label: "정체성", active: page === "projects" && stored === "identity", action: () => clickOriginal('.sidebar .nav [data-sidebar-project-tab="identity"]') },
-    { key: "plan", label: "계획 세우기", active: page === "plan", action: () => clickOriginal('.sidebar .nav [data-page="plan"]') },
+    { key: "project", label: "프로젝트", active: page === "projects" && stored === "project", attributes: { "data-journal-target": '.sidebar .nav [data-sidebar-project-tab="project"]' } },
+    { key: "goal", label: "목표", active: page === "projects" && stored === "goal", attributes: { "data-journal-target": '.sidebar .nav [data-sidebar-project-tab="goal"]' } },
+    { key: "identity", label: "정체성", active: page === "projects" && stored === "identity", attributes: { "data-journal-target": '.sidebar .nav [data-sidebar-project-tab="identity"]' } },
+    { key: "plan", label: "계획 세우기", active: page === "plan", attributes: { "data-journal-target": '.sidebar .nav [data-page="plan"]' } },
   ];
 }
 
@@ -145,8 +133,8 @@ function renderTopIndex(main, page) {
     const button = makeButton(`journal-top-tab${tab.active ? " is-active" : ""}`, tab.label, {
       "data-journal-top-tab": tab.key,
       "aria-current": tab.active ? "page" : "false",
+      ...tab.attributes,
     });
-    button.addEventListener("click", tab.action);
     nav.appendChild(button);
   });
 }
@@ -189,8 +177,21 @@ function init() {
   syncIndexes();
 
   document.addEventListener("click", (event) => {
-    const mode = event.target.closest?.("[data-uw-home-mode]")?.dataset.uwHomeMode;
+    const clicked = event.target.closest?.(".journal-side-tab, .journal-top-tab");
+    if (!clicked) return;
+
+    const mode = clicked.dataset.uwHomeMode;
     if (mode === "list" || mode === "timeline") currentHomeView = mode;
+
+    if (clicked.dataset.journalAction === "memo") {
+      currentHomeView = "memo";
+      const editor = $("#homeMemoCard .uw-home-memo-editor");
+      editor?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => editor?.focus(), 220);
+    }
+
+    const targetSelector = clicked.dataset.journalTarget;
+    if (targetSelector) clickOriginal(targetSelector);
     window.setTimeout(scheduleSync, 0);
   });
   document.addEventListener("onekan:state-changed", scheduleSync);
