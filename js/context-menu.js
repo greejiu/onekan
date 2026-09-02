@@ -177,6 +177,11 @@ function duplicable(kind) {
   return ["task", "event", "timeBlock", "habit", "project", "goal", "identity"].includes(kind);
 }
 
+function targetDdayDate(item) {
+  const value = item?.endDate || item?.deadline || "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
+
 function newId() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -248,6 +253,12 @@ function showMenu(x, y, target, state) {
   if (habitToggle && canToggleHabit) habitToggle.textContent = item?.isHabit ? "할일로 만들기" : "습관으로 만들기";
   $$('[data-context-schedule]', menu).forEach((element) => element.classList.toggle("hidden", !schedulable(target.kind)));
   menu.querySelector('[data-context-action="duplicate"]')?.classList.toggle("hidden", !duplicable(target.kind));
+  const heroDday = menu.querySelector('[data-context-action="hero-dday"]');
+  const canBeHeroDday = ["project", "goal"].includes(target.kind) && Boolean(targetDdayDate(item));
+  const selectedHero = state.ui?.homeDashboard?.heroDday;
+  const isHeroDday = canBeHeroDday && selectedHero?.kind === target.kind && selectedHero?.id === target.id;
+  heroDday?.classList.toggle("hidden", !canBeHeroDday);
+  if (heroDday) heroDday.textContent = isHeroDday ? "대표 D-day 해제" : "⭐ 대표 D-day로 설정";
   menu.querySelector('[data-context-action="session-time"]')?.classList.toggle("hidden", target.kind !== "session");
   renderGroupChoices(state, target);
   renderProjectChoices(state, target);
@@ -258,6 +269,28 @@ function showMenu(x, y, target, state) {
   const rect = menu.getBoundingClientRect();
   menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`;
   menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
+}
+
+async function toggleHeroDday() {
+  const target = currentTarget;
+  hideMenu();
+  if (!target || !["project", "goal"].includes(target.kind)) return;
+  try {
+    let selected = false;
+    await writeState((state) => {
+      const item = getItem(state, target);
+      if (!targetDdayDate(item)) return;
+      state.ui = state.ui && typeof state.ui === "object" ? state.ui : {};
+      state.ui.homeDashboard = state.ui.homeDashboard && typeof state.ui.homeDashboard === "object" ? state.ui.homeDashboard : {};
+      const current = state.ui.homeDashboard.heroDday;
+      selected = current?.kind !== target.kind || current?.id !== target.id;
+      state.ui.homeDashboard.heroDday = selected ? { kind: target.kind, id: target.id } : null;
+    });
+    showToast(selected ? "대표 D-day로 설정했어요." : "대표 D-day 설정을 해제했어요.");
+  } catch (error) {
+    console.error(error);
+    showToast("대표 D-day를 변경하지 못했어요.");
+  }
 }
 
 function moveEventToDate(item, targetDate) {
@@ -534,6 +567,7 @@ function ensureUI() {
   menu.innerHTML = `
     <button type="button" role="menuitem" class="hidden" data-context-action="toggle-habit">습관으로 만들기</button>
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
+    <button type="button" role="menuitem" class="hidden" data-context-action="hero-dday">⭐ 대표 D-day로 설정</button>
     <button type="button" role="menuitem" data-context-action="groups">영역 <span class="context-menu-arrow">›</span></button>
     <div class="context-group-list hidden" id="contextGroupList" role="group"></div>
     <button type="button" role="menuitem" class="hidden" data-context-action="projects">프로젝트 <span class="context-menu-arrow">›</span></button>
@@ -573,6 +607,7 @@ function ensureUI() {
     else if (action === "tomorrow") moveTarget(1);
     else if (action === "toggle-habit") toggleHabitTarget();
     else if (action === "duplicate") duplicateTarget();
+    else if (action === "hero-dday") toggleHeroDday();
     else if (action === "session-time") { const target = currentTarget; hideMenu(); if (target?.kind === "session") document.dispatchEvent(new CustomEvent("onekan:edit-session", { detail: { id: target.id } })); }
     else if (action === "groups") {
       $("#contextProjectList")?.classList.add("hidden");

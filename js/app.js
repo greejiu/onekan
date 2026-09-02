@@ -187,6 +187,7 @@ function defaultState() {
       themeColor: "#8fa9c4",
       timelineRange: { start: 360, end: 1320 },
       timelineColors: { task: "#d8d8d5", habit: "#b9d9c3" },
+      homeDashboard: { heroDday: null },
       showSessionsOnTimeline: true,
       calendarFilters: {
         month: { schedule: true, task: false },
@@ -228,6 +229,7 @@ function normalizeState(raw) {
       themeColor: state.ui?.themeColor || base.ui.themeColor,
       timelineRange: { ...base.ui.timelineRange, ...(state.ui?.timelineRange || {}) },
       timelineColors: { ...base.ui.timelineColors, ...(state.ui?.timelineColors || {}) },
+      homeDashboard: { ...base.ui.homeDashboard, ...(state.ui?.homeDashboard || {}) },
       showSessionsOnTimeline: state.ui?.showSessionsOnTimeline !== false,
       calendarFilters: {
         month: { ...base.ui.calendarFilters.month, ...(savedCalendarFilters.month || {}) },
@@ -789,6 +791,61 @@ function todayFocusMs() {
   return state.sessions.filter((session) => session.end && appDayKey(new Date(session.end)) === dayKey).reduce((sum, session) => sum + Number(session.durationMs || 0), 0);
 }
 
+function normalizedStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  if (["done", "complete", "completed", "achieved", "완료", "달성", "완주함"].includes(status)) return "done";
+  if (["archived", "archive", "closed", "보관", "쉬는 중", "쉬는중"].includes(status)) return "archived";
+  return status;
+}
+
+function ddayDate(item) {
+  const value = item?.endDate || item?.deadline || "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
+
+function ddayCandidates() {
+  const projects = (Array.isArray(state.projects) ? state.projects : [])
+    .filter((item) => (item?.kind === "project" || !item?.kind) && ddayDate(item) && !["done", "archived"].includes(normalizedStatus(item.status)))
+    .map((item) => ({ kind: "project", id: item.id, title: item.title || "이름 없는 프로젝트", date: ddayDate(item) }));
+  const goals = (Array.isArray(state.directionGoals) ? state.directionGoals : [])
+    .filter((item) => ddayDate(item) && !["done", "archived"].includes(normalizedStatus(item.status)))
+    .map((item) => ({ kind: "goal", id: item.id, title: item.title || "이름 없는 목표", date: ddayDate(item) }));
+  return [...projects, ...goals].sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, "ko"));
+}
+
+function ddayDistance(dateKey) {
+  const today = appDayDate();
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return Math.round((Date.UTC(year, month - 1, day) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
+}
+
+function ddayText(dateKey) {
+  const distance = ddayDistance(dateKey);
+  if (distance === 0) return "D-DAY";
+  return distance > 0 ? `D-${distance}` : `D+${Math.abs(distance)}`;
+}
+
+function renderHomeDdays() {
+  const candidates = ddayCandidates();
+  const savedHero = state.ui?.homeDashboard?.heroDday;
+  const selected = savedHero && candidates.find((item) => item.kind === savedHero.kind && item.id === savedHero.id);
+  const hero = selected || candidates.find((item) => ddayDistance(item.date) >= 0) || candidates.at(-1) || null;
+  const count = $("#homeDdayCount");
+  const title = $("#homeDdayTitle");
+  const list = $("#homeDdayList");
+  if (!count || !title || !list) return;
+  if (!hero) {
+    count.textContent = "—";
+    title.textContent = "등록된 기한이 없어요";
+    list.innerHTML = '<span class="home-dday-empty">프로젝트나 목표에 마감일을 추가해 보세요.</span>';
+    return;
+  }
+  count.textContent = ddayText(hero.date);
+  title.textContent = hero.title;
+  const others = candidates.filter((item) => item !== hero).slice(0, 3);
+  list.innerHTML = others.map((item) => `<span class="home-dday-chip" title="${esc(item.title)} · ${item.date}">${esc(item.title)} <strong>${ddayText(item.date)}</strong></span>`).join("");
+}
+
 function renderDashboard() {
   const dayKey = appDayKey();
   const tasks = state.tasks.filter((task) => recurringOnDate(task, dayKey));
@@ -801,10 +858,12 @@ function renderDashboard() {
   if ($("#dashHabits")) $("#dashHabits").textContent = `${completedHabits} / ${state.habitTemplates.length}`;
   if ($("#dashFocus")) $("#dashFocus").textContent = fmtDuration(todayFocusMs());
   if ($("#homeProgressLabel")) $("#homeProgressLabel").textContent = `${taskProgress}%`;
+  if ($("#homeCompletionLabel")) $("#homeCompletionLabel").textContent = `오늘 ${completedTasks} / ${tasks.length} 완료`;
   if ($("#homeProgress")) {
-    $("#homeProgress").style.setProperty("--progress-offset", String(131.95 * (1 - taskProgress / 100)));
+    $("#homeProgress").style.setProperty("--progress-offset", String(182.21 * (1 - taskProgress / 100)));
     $("#homeProgress").setAttribute("aria-label", `오늘 할일 ${completedTasks}/${tasks.length} 완료`);
   }
+  renderHomeDdays();
 }
 
 function renderHome() {

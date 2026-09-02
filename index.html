@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="./css/unified-workspace.css?v=64" />
   <link rel="stylesheet" href="./css/timeline-layout-restore.css?v=1" />
   <link rel="stylesheet" href="./css/home-memo.css?v=4" />
+  <link rel="stylesheet" href="./css/home-dashboard.css?v=1" />
   <link rel="stylesheet" href="./css/project-bookmark.css?v=2" />
   <link rel="stylesheet" href="./css/google-calendar.css?v=1" />
   <link rel="stylesheet" href="./css/sidebar-navigation.css?v=1" />
@@ -82,8 +83,32 @@
 
     <main class="main">
       <section class="page active" id="page-home">
-        <div class="page-head">
-          <div class="home-heading"><div class="home-progress" id="homeProgress" aria-label="오늘 할일 진행률"><svg viewBox="0 0 52 52" aria-hidden="true"><circle class="home-progress-track" cx="26" cy="26" r="21"></circle><circle class="home-progress-value" cx="26" cy="26" r="21"></circle></svg><span id="homeProgressLabel">0%</span></div><div><h1 class="page-title">집</h1><div class="page-sub" id="todayLabel"></div></div></div>
+        <div class="page-head home-dashboard" aria-label="오늘 대시보드">
+          <section class="home-dashboard-today" aria-labelledby="homeTodayLabel">
+            <div class="home-dashboard-kicker" id="homeTodayLabel">TODAY</div>
+            <div class="home-dashboard-today-main">
+              <div class="home-progress" id="homeProgress" aria-label="오늘 할일 진행률"><svg viewBox="0 0 72 72" aria-hidden="true"><circle class="home-progress-track" cx="36" cy="36" r="29"></circle><circle class="home-progress-value" cx="36" cy="36" r="29"></circle></svg><span id="homeProgressLabel">0%</span></div>
+              <div class="home-dashboard-copy">
+                <strong class="home-dashboard-completion" id="homeCompletionLabel">오늘 0 / 0 완료</strong>
+                <div class="page-sub" id="todayLabel"></div>
+                <div class="home-weather" id="homeWeather" aria-live="polite">
+                  <span class="home-weather-icon" id="homeWeatherIcon" aria-hidden="true">·</span>
+                  <strong id="homeWeatherNow">날씨 불러오는 중</strong>
+                  <span id="homeWeatherPlace">양양</span>
+                  <small id="homeWeatherRange"></small>
+                </div>
+              </div>
+            </div>
+          </section>
+          <div class="home-dashboard-divider" aria-hidden="true"></div>
+          <section class="home-dashboard-dday" aria-labelledby="homeDdayLabel">
+            <div class="home-dashboard-kicker" id="homeDdayLabel">D-DAY</div>
+            <div class="home-dday-hero" id="homeDdayHero">
+              <strong id="homeDdayCount">—</strong>
+              <span id="homeDdayTitle">등록된 기한이 없어요</span>
+            </div>
+            <div class="home-dday-list" id="homeDdayList" aria-label="다른 디데이"></div>
+          </section>
         </div>
 
         <article class="card uw-home-memo-card" id="homeMemoCard">
@@ -300,10 +325,11 @@
   </div>
 
   <script type="module" src="./js/interaction-fixes.js?v=38"></script>
-  <script type="module" src="./js/app.js?v=48"></script>
+  <script type="module" src="./js/app.js?v=49"></script>
+  <script type="module" src="./js/home-dashboard-weather.js?v=1"></script>
   <script type="module" src="./js/home-memo-slash.js?v=2"></script>
   <script type="module" src="./js/load-recovery.js?v=1"></script>
-  <script type="module" src="./js/context-menu.js?v=33"></script>
+  <script type="module" src="./js/context-menu.js?v=34"></script>
   <script type="module" src="./js/workspace-pages.js?v=12"></script>
   <script type="module" src="./js/appearance.js?v=4"></script>
   <script type="module" src="./js/time-block-v2-settings.js?v=4"></script>
