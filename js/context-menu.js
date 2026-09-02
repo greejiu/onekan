@@ -51,6 +51,9 @@ async function readState() {
   state.identities = Array.isArray(state.identities) ? state.identities : [];
   state.projectGroups = Array.isArray(state.projectGroups) ? state.projectGroups : [];
   state.sessions = Array.isArray(state.sessions) ? state.sessions : [];
+  state.ui = state.ui && typeof state.ui === "object" ? state.ui : {};
+  state.ui.homeDashboard = state.ui.homeDashboard && typeof state.ui.homeDashboard === "object" ? state.ui.homeDashboard : {};
+  state.ui.homeDashboard.secondaryDdays = Array.isArray(state.ui.homeDashboard.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays.slice(0, 3) : [];
   return { user: session.user, state };
 }
 
@@ -85,6 +88,9 @@ function elementIndex(element, selector) {
 function resolveDirect(element) {
   const explicit = element.closest("[data-context-kind][data-context-id]");
   if (explicit) return { kind: explicit.dataset.contextKind, id: explicit.dataset.contextId };
+
+  const homeDday = element.closest(".home-dashboard-dday");
+  if (homeDday) return { kind: "homeDday", id: "hero" };
 
   const feature = element.closest("[data-feature-kind][data-feature-id]");
   if (feature) return { kind: feature.dataset.featureKind === "event" ? "event" : "task", id: feature.dataset.featureId };
@@ -166,6 +172,7 @@ function isSupportedSurface(element) {
     ".project-row[data-project-id]",
     "#todaySessions .history-row",
     "#allSessions .history-row",
+    ".home-dashboard-dday",
   ].join(","));
 }
 
@@ -180,6 +187,36 @@ function duplicable(kind) {
 function targetDdayDate(item) {
   const value = item?.endDate || item?.deadline || "";
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
+
+function activeDdayItem(item) {
+  const status = String(item?.status || "").trim().toLowerCase();
+  return !["done", "complete", "completed", "achieved", "완료", "달성", "완주함", "archived", "archive", "closed", "보관", "쉬는 중", "쉬는중"].includes(status);
+}
+
+function contextDdayText(dateKey) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const today = appDayDate();
+  const distance = Math.round((Date.UTC(year, month - 1, day) - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
+  if (distance === 0) return "D-DAY";
+  return distance > 0 ? `D-${distance}` : `D+${Math.abs(distance)}`;
+}
+
+function validSecondaryDdays(state) {
+  const hero = state.ui?.homeDashboard?.heroDday;
+  const savedItems = Array.isArray(state.ui?.homeDashboard?.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays : [];
+  const seen = new Set();
+  return savedItems.filter((saved) => {
+    if (!["project", "goal"].includes(saved?.kind) || !saved.id) return false;
+    if (hero?.kind === saved.kind && hero?.id === saved.id) return false;
+    const key = `${saved.kind}:${saved.id}`;
+    if (seen.has(key)) return false;
+    const collection = saved.kind === "project" ? state.projects : state.directionGoals;
+    const item = (collection || []).find((entry) => entry.id === saved.id);
+    if (!item || !targetDdayDate(item) || !activeDdayItem(item)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 3);
 }
 
 function newId() {
@@ -243,6 +280,35 @@ function renderProjectChoices(state, target) {
   }).join("")}`;
 }
 
+function renderDdayChoices(state, target) {
+  const menu = $("#globalContextMenu");
+  const button = menu?.querySelector('[data-context-action="ddays"]');
+  const list = $("#contextDdayList");
+  const available = target.kind === "homeDday";
+  button?.classList.toggle("hidden", !available);
+  list?.classList.add("hidden");
+  if (!available || !list) {
+    if (list) list.innerHTML = "";
+    return;
+  }
+  const projects = (state.projects || [])
+    .filter((item) => (item?.kind === "project" || !item?.kind) && targetDdayDate(item) && activeDdayItem(item))
+    .map((item) => ({ kind: "project", id: item.id, title: item.title || "이름 없는 프로젝트", date: targetDdayDate(item), label: "프로젝트" }));
+  const goals = (state.directionGoals || [])
+    .filter((item) => targetDdayDate(item) && activeDdayItem(item))
+    .map((item) => ({ kind: "goal", id: item.id, title: item.title || "이름 없는 목표", date: targetDdayDate(item), label: "목표" }));
+  const choices = [...projects, ...goals].sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, "ko"));
+  const selected = state.ui?.homeDashboard?.heroDday;
+  const secondary = validSecondaryDdays(state);
+  if (button) button.innerHTML = `D-day 바꾸기 <span class="context-menu-arrow">›</span>`;
+  list.innerHTML = choices.length ? choices.map((item) => {
+    const isHero = selected?.kind === item.kind && selected?.id === item.id;
+    const isSecondary = secondary.some((saved) => saved?.kind === item.kind && saved?.id === item.id);
+    const secondaryFull = secondary.length >= 3 && !isSecondary;
+    return `<div class="context-dday-row"><span class="context-dday-copy"><strong><small class="context-dday-kind">${item.label}</small>${escapeAttr(item.title)}</strong><small>${item.date} · ${contextDdayText(item.date)}</small></span><button class="context-dday-role${isHero ? " selected" : ""}" type="button" aria-pressed="${isHero}" data-context-dday-hero-kind="${item.kind}" data-context-dday-hero-id="${escapeAttr(item.id)}">${isHero ? "★ 대표" : "☆ 대표"}</button><button class="context-dday-role${isSecondary ? " selected" : ""}" type="button" aria-pressed="${isSecondary}" data-context-dday-secondary-kind="${item.kind}" data-context-dday-secondary-id="${escapeAttr(item.id)}"${isHero || secondaryFull ? " disabled" : ""}>${isSecondary ? "✓ 보조" : "+ 보조"}</button></div>`;
+  }).join("") : '<div class="context-dday-empty">종료일이 있는 진행 중 프로젝트나 목표가 없어요.</div>';
+}
+
 function showMenu(x, y, target, state) {
   currentTarget = target;
   const menu = $("#globalContextMenu");
@@ -259,9 +325,17 @@ function showMenu(x, y, target, state) {
   const isHeroDday = canBeHeroDday && selectedHero?.kind === target.kind && selectedHero?.id === target.id;
   heroDday?.classList.toggle("hidden", !canBeHeroDday);
   if (heroDday) heroDday.textContent = isHeroDday ? "대표 D-day 해제" : "⭐ 대표 D-day로 설정";
+  const secondaryDday = menu.querySelector('[data-context-action="secondary-dday"]');
+  const selectedSecondary = Array.isArray(state.ui?.homeDashboard?.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays : [];
+  const isSecondaryDday = canBeHeroDday && selectedSecondary.some((saved) => saved?.kind === target.kind && saved?.id === target.id);
+  secondaryDday?.classList.toggle("hidden", !canBeHeroDday || isHeroDday);
+  if (secondaryDday) secondaryDday.textContent = isSecondaryDday ? "보조 D-day에서 제거" : "＋ 보조 D-day에 추가";
   menu.querySelector('[data-context-action="session-time"]')?.classList.toggle("hidden", target.kind !== "session");
+  menu.querySelector('[data-context-action="delete"]')?.classList.toggle("hidden", target.kind === "homeDday");
   renderGroupChoices(state, target);
   renderProjectChoices(state, target);
+  renderDdayChoices(state, target);
+  menu.classList.toggle("dday-context-open", target.kind === "homeDday");
   menu.classList.add("open");
   document.dispatchEvent(new CustomEvent("onekan:context-menu-opened", { detail: { target, state } }));
   menu.style.left = "0px";
@@ -285,11 +359,72 @@ async function toggleHeroDday() {
       const current = state.ui.homeDashboard.heroDday;
       selected = current?.kind !== target.kind || current?.id !== target.id;
       state.ui.homeDashboard.heroDday = selected ? { kind: target.kind, id: target.id } : null;
+      state.ui.homeDashboard.secondaryDdays = (Array.isArray(state.ui.homeDashboard.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays : [])
+        .filter((saved) => saved?.kind !== target.kind || saved?.id !== target.id).slice(0, 3);
     });
     showToast(selected ? "대표 D-day로 설정했어요." : "대표 D-day 설정을 해제했어요.");
   } catch (error) {
     console.error(error);
     showToast("대표 D-day를 변경하지 못했어요.");
+  }
+}
+
+async function changeHomeDdayHero(kind, id) {
+  hideMenu();
+  if (!["project", "goal"].includes(kind) || !id) return;
+  try {
+    await writeState((state) => {
+      const collection = kind === "project" ? state.projects : state.directionGoals;
+      const item = (collection || []).find((entry) => entry.id === id);
+      if (!item || !targetDdayDate(item) || !activeDdayItem(item)) return;
+      state.ui = state.ui && typeof state.ui === "object" ? state.ui : {};
+      state.ui.homeDashboard = state.ui.homeDashboard && typeof state.ui.homeDashboard === "object" ? state.ui.homeDashboard : {};
+      state.ui.homeDashboard.heroDday = { kind, id };
+      state.ui.homeDashboard.secondaryDdays = (Array.isArray(state.ui.homeDashboard.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays : [])
+        .filter((saved) => saved?.kind !== kind || saved?.id !== id).slice(0, 3);
+    });
+    showToast("대표 D-day를 바꿨어요.");
+  } catch (error) {
+    console.error(error);
+    showToast("D-day를 변경하지 못했어요.");
+  }
+}
+
+async function toggleHomeDdaySecondary(kind, id) {
+  hideMenu();
+  if (!["project", "goal"].includes(kind) || !id) return;
+  let outcome = "";
+  try {
+    await writeState((state) => {
+      const collection = kind === "project" ? state.projects : state.directionGoals;
+      const item = (collection || []).find((entry) => entry.id === id);
+      if (!item || !targetDdayDate(item) || !activeDdayItem(item)) return;
+      state.ui = state.ui && typeof state.ui === "object" ? state.ui : {};
+      state.ui.homeDashboard = state.ui.homeDashboard && typeof state.ui.homeDashboard === "object" ? state.ui.homeDashboard : {};
+      const hero = state.ui.homeDashboard.heroDday;
+      if (hero?.kind === kind && hero?.id === id) {
+        outcome = "hero";
+        return;
+      }
+      const secondary = validSecondaryDdays(state);
+      const index = secondary.findIndex((saved) => saved?.kind === kind && saved?.id === id);
+      if (index >= 0) {
+        secondary.splice(index, 1);
+        outcome = "removed";
+      } else if (secondary.length >= 3) {
+        outcome = "full";
+      } else {
+        secondary.push({ kind, id });
+        outcome = "added";
+      }
+      state.ui.homeDashboard.secondaryDdays = secondary.slice(0, 3);
+    });
+    if (outcome === "full") showToast("보조 D-day는 3개까지 선택할 수 있어요.");
+    else if (outcome === "hero") showToast("대표 D-day는 보조에 중복해서 넣을 수 없어요.");
+    else showToast(outcome === "removed" ? "보조 D-day에서 제거했어요." : "보조 D-day에 추가했어요.");
+  } catch (error) {
+    console.error(error);
+    showToast("보조 D-day를 변경하지 못했어요.");
   }
 }
 
@@ -568,6 +703,9 @@ function ensureUI() {
     <button type="button" role="menuitem" class="hidden" data-context-action="toggle-habit">습관으로 만들기</button>
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
     <button type="button" role="menuitem" class="hidden" data-context-action="hero-dday">⭐ 대표 D-day로 설정</button>
+    <button type="button" role="menuitem" class="hidden" data-context-action="secondary-dday">＋ 보조 D-day에 추가</button>
+    <button type="button" role="menuitem" class="hidden" data-context-action="ddays">D-day 바꾸기 <span class="context-menu-arrow">›</span></button>
+    <div class="context-dday-list context-group-list hidden" id="contextDdayList" role="group"></div>
     <button type="button" role="menuitem" data-context-action="groups">영역 <span class="context-menu-arrow">›</span></button>
     <div class="context-group-list hidden" id="contextGroupList" role="group"></div>
     <button type="button" role="menuitem" class="hidden" data-context-action="projects">프로젝트 <span class="context-menu-arrow">›</span></button>
@@ -584,12 +722,23 @@ function ensureUI() {
     .global-context-menu button{display:block;width:100%;min-height:36px;padding:7px 10px;border:0;border-radius:6px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:12px;text-align:left;cursor:pointer}
     .global-context-menu button:hover,.global-context-menu button:focus-visible{background:var(--hover,#f3f5f7);outline:none}
     .global-context-menu button.danger{color:var(--danger,#c84a4a)}
-    .global-context-menu [data-context-action="groups"],.global-context-menu [data-context-action="projects"]{display:flex;align-items:center;justify-content:space-between}
+    .global-context-menu [data-context-action="groups"],.global-context-menu [data-context-action="projects"],.global-context-menu [data-context-action="ddays"]{display:flex;align-items:center;justify-content:space-between}
+    .global-context-menu.dday-context-open{min-width:min(290px,calc(100vw - 16px))}
     .context-menu-arrow{font-size:18px;line-height:1}
     .context-group-list{margin:3px 0;padding:3px;border-top:1px solid var(--line,#d2d7df);border-bottom:1px solid var(--line,#d2d7df);max-height:min(260px,55vh);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-gutter:stable}
-    .context-group-list button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
+    #contextGroupList button,#contextProjectList button{display:grid;grid-template-columns:12px minmax(0,1fr) 16px;align-items:center;gap:7px;padding-left:7px}
     .context-group-dot{width:9px;height:9px;border-radius:3px;background:var(--group-color,#8fa9c4)}
     .context-group-check{text-align:right;color:var(--accent,#7666a8)}
+    .context-dday-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:6px;padding:5px 4px;border-radius:7px}
+    .context-dday-row:hover{background:var(--hover,#f3f5f7)}
+    .context-dday-kind{display:inline-block;margin-right:5px;padding:2px 5px;border-radius:999px;background:var(--panel-soft,#f3f5f7);color:var(--muted,#6b7280);font-size:9px;font-weight:600;vertical-align:1px}
+    .context-dday-copy{display:grid;gap:2px;min-width:0}
+    .context-dday-copy strong,.context-dday-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .context-dday-copy strong{font-size:12px}.context-dday-copy small{color:var(--muted,#6b7280);font-size:10px;font-weight:400}
+    .context-dday-row .context-dday-role{display:block;width:auto;min-height:28px;padding:4px 7px;border:1px solid var(--line,#d2d7df);border-radius:999px;background:#fff;color:var(--muted,#6b7280);font-size:10px;text-align:center;white-space:nowrap}
+    .context-dday-row .context-dday-role.selected{border-color:var(--accent,#7666a8);background:var(--accent-soft,#f0eafa);color:var(--accent-dark,#684789)}
+    .context-dday-row .context-dday-role:disabled{opacity:.38;cursor:not-allowed}
+    .context-dday-empty{padding:10px 7px;color:var(--muted,#6b7280);font-size:11px;line-height:1.5}
     [data-context-kind][data-context-id] :is(.row-title,.cal-event-title,.workspace-task-title,.habit-matrix-title,.history-name,strong){cursor:text}
     .context-inline-edit{display:block;width:100%;min-width:0;height:24px;margin:-3px 0;padding:2px 5px;border:1.5px solid var(--accent,#7666a8);border-radius:5px;background:#fff;color:var(--text,#1f2328);font:inherit;font-size:inherit;line-height:1.25;outline:none;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#7666a8) 12%,transparent)}
     .time-block .context-inline-edit,.multi-entry .context-inline-edit{height:18px;margin:0;padding:0 4px;font-size:10px}
@@ -608,6 +757,15 @@ function ensureUI() {
     else if (action === "toggle-habit") toggleHabitTarget();
     else if (action === "duplicate") duplicateTarget();
     else if (action === "hero-dday") toggleHeroDday();
+    else if (action === "secondary-dday") toggleHomeDdaySecondary(currentTarget?.kind || "", currentTarget?.id || "");
+    else if (action === "ddays") {
+      $("#contextGroupList")?.classList.add("hidden");
+      $("#contextProjectList")?.classList.add("hidden");
+      $("#contextDdayList")?.classList.toggle("hidden");
+      const rect = menu.getBoundingClientRect();
+      const currentTop = Number.parseFloat(menu.style.top) || 8;
+      menu.style.top = `${Math.max(8, Math.min(currentTop, innerHeight - rect.height - 8))}px`;
+    }
     else if (action === "session-time") { const target = currentTarget; hideMenu(); if (target?.kind === "session") document.dispatchEvent(new CustomEvent("onekan:edit-session", { detail: { id: target.id } })); }
     else if (action === "groups") {
       $("#contextProjectList")?.classList.add("hidden");
@@ -629,7 +787,11 @@ function ensureUI() {
     const groupButton = event.target.closest("[data-context-group-id]");
     if (groupButton) return changeTargetGroup(groupButton.dataset.contextGroupId);
     const projectButton = event.target.closest("[data-context-project-id]");
-    if (projectButton) changeTargetProject(projectButton.dataset.contextProjectId || "");
+    if (projectButton) return changeTargetProject(projectButton.dataset.contextProjectId || "");
+    const heroButton = event.target.closest("[data-context-dday-hero-kind][data-context-dday-hero-id]");
+    if (heroButton) return changeHomeDdayHero(heroButton.dataset.contextDdayHeroKind || "", heroButton.dataset.contextDdayHeroId || "");
+    const secondaryButton = event.target.closest("[data-context-dday-secondary-kind][data-context-dday-secondary-id]");
+    if (secondaryButton) toggleHomeDdaySecondary(secondaryButton.dataset.contextDdaySecondaryKind || "", secondaryButton.dataset.contextDdaySecondaryId || "");
   });
 
 }

@@ -187,7 +187,7 @@ function defaultState() {
       themeColor: "#8fa9c4",
       timelineRange: { start: 360, end: 1320 },
       timelineColors: { task: "#d8d8d5", habit: "#b9d9c3" },
-      homeDashboard: { heroDday: null },
+      homeDashboard: { heroDday: null, secondaryDdays: [] },
       showSessionsOnTimeline: true,
       calendarFilters: {
         month: { schedule: true, task: false },
@@ -229,7 +229,11 @@ function normalizeState(raw) {
       themeColor: state.ui?.themeColor || base.ui.themeColor,
       timelineRange: { ...base.ui.timelineRange, ...(state.ui?.timelineRange || {}) },
       timelineColors: { ...base.ui.timelineColors, ...(state.ui?.timelineColors || {}) },
-      homeDashboard: { ...base.ui.homeDashboard, ...(state.ui?.homeDashboard || {}) },
+      homeDashboard: {
+        ...base.ui.homeDashboard,
+        ...(state.ui?.homeDashboard || {}),
+        secondaryDdays: Array.isArray(state.ui?.homeDashboard?.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays.slice(0, 3) : [],
+      },
       showSessionsOnTimeline: state.ui?.showSessionsOnTimeline !== false,
       calendarFilters: {
         month: { ...base.ui.calendarFilters.month, ...(savedCalendarFilters.month || {}) },
@@ -828,22 +832,25 @@ function ddayText(dateKey) {
 function renderHomeDdays() {
   const candidates = ddayCandidates();
   const savedHero = state.ui?.homeDashboard?.heroDday;
-  const selected = savedHero && candidates.find((item) => item.kind === savedHero.kind && item.id === savedHero.id);
-  const hero = selected || candidates.find((item) => ddayDistance(item.date) >= 0) || candidates.at(-1) || null;
+  const hero = savedHero && candidates.find((item) => item.kind === savedHero.kind && item.id === savedHero.id) || null;
+  const savedSecondary = Array.isArray(state.ui?.homeDashboard?.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays : [];
+  const secondary = savedSecondary.map((saved) => candidates.find((item) => item.kind === saved?.kind && item.id === saved?.id))
+    .filter((item) => item && item !== hero).slice(0, 3);
   const count = $("#homeDdayCount");
   const title = $("#homeDdayTitle");
   const list = $("#homeDdayList");
   if (!count || !title || !list) return;
   if (!hero) {
     count.textContent = "—";
-    title.textContent = "등록된 기한이 없어요";
-    list.innerHTML = '<span class="home-dday-empty">프로젝트나 목표에 마감일을 추가해 보세요.</span>';
+    title.textContent = candidates.length ? "대표 D-day를 선택하세요" : "등록된 기한이 없어요";
+    list.innerHTML = candidates.length
+      ? '<span class="home-dday-empty">우클릭해서 대표 1개·보조 3개를 선택할 수 있어요.</span>'
+      : '<span class="home-dday-empty">프로젝트나 목표에 마감일을 추가해 보세요.</span>';
     return;
   }
   count.textContent = ddayText(hero.date);
   title.textContent = hero.title;
-  const others = candidates.filter((item) => item !== hero).slice(0, 3);
-  list.innerHTML = others.map((item) => `<span class="home-dday-chip" title="${esc(item.title)} · ${item.date}">${esc(item.title)} <strong>${ddayText(item.date)}</strong></span>`).join("");
+  list.innerHTML = secondary.map((item) => `<span class="home-dday-chip" title="${esc(item.title)} · ${item.date}">${esc(item.title)} <strong>${ddayText(item.date)}</strong></span>`).join("");
 }
 
 function renderDashboard() {

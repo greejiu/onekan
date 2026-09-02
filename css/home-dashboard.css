@@ -8,7 +8,7 @@
 }
 .home-dashboard-today,.home-dashboard-dday{position:relative;z-index:1;min-width:0}
 .home-dashboard-today{display:flex;flex-direction:column;justify-content:center}
-.home-dashboard-dday{display:flex;flex-direction:column;justify-content:center;text-align:center}
+.home-dashboard-dday{display:flex;flex-direction:column;justify-content:center;text-align:center;cursor:context-menu}
 .home-dashboard-kicker{margin-bottom:13px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.18em}
 .home-dashboard-today-main{display:flex;align-items:center;gap:19px;min-width:0}
 #page-home .home-dashboard .home-progress{width:72px;height:72px;flex-basis:72px}
