@@ -11,6 +11,7 @@ const esc = (value) => String(value ?? "").replace(/[&<>'\"]/g, (c) => ({ "&": "
 const DEFAULT_EVENT_GROUPS = [
   { id: "default", name: "기본", color: "#8fa9c4" },
 ];
+const DEFAULT_WEATHER_LOCATION = { name: "양양", latitude: 38.0754, longitude: 128.6191 };
 
 function localDateKey(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -187,7 +188,7 @@ function defaultState() {
       themeColor: "#8fa9c4",
       timelineRange: { start: 360, end: 1320 },
       timelineColors: { task: "#d8d8d5", habit: "#b9d9c3" },
-      homeDashboard: { heroDday: null, secondaryDdays: [] },
+      homeDashboard: { heroDday: null, secondaryDdays: [], weatherLocation: { ...DEFAULT_WEATHER_LOCATION } },
       showSessionsOnTimeline: true,
       calendarFilters: {
         month: { schedule: true, task: false },
@@ -233,6 +234,7 @@ function normalizeState(raw) {
         ...base.ui.homeDashboard,
         ...(state.ui?.homeDashboard || {}),
         secondaryDdays: Array.isArray(state.ui?.homeDashboard?.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays.slice(0, 3) : [],
+        weatherLocation: normalizeWeatherLocation(state.ui?.homeDashboard?.weatherLocation),
       },
       showSessionsOnTimeline: state.ui?.showSessionsOnTimeline !== false,
       calendarFilters: {
@@ -892,6 +894,15 @@ function timeText(date) {
 
 function safeColor(value) {
   return /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : "#8fa9c4";
+}
+
+function normalizeWeatherLocation(value) {
+  const latitude = Number(value?.latitude);
+  const longitude = Number(value?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    return { ...DEFAULT_WEATHER_LOCATION };
+  }
+  return { name: String(value?.name || "설정 지역").slice(0, 60), latitude, longitude };
 }
 
 function eventGroupFor(item) {
@@ -1658,6 +1669,10 @@ function renderSettings() {
   const timelineColors = state.ui?.timelineColors || defaultState().ui.timelineColors;
   if ($("#timelineTaskColor")) $("#timelineTaskColor").value = safeColor(timelineColors.task);
   if ($("#timelineHabitColor")) $("#timelineHabitColor").value = safeColor(timelineColors.habit);
+  const weatherLocation = normalizeWeatherLocation(state.ui?.homeDashboard?.weatherLocation);
+  const weatherQuery = $("#homeWeatherLocationQuery");
+  if (weatherQuery && document.activeElement !== weatherQuery) weatherQuery.value = weatherLocation.name;
+  if ($("#homeWeatherLocationStatus")) $("#homeWeatherLocationStatus").textContent = `현재 지역 · ${weatherLocation.name}`;
 
   const groupList = $("#eventGroupList");
   if (groupList) {
@@ -1697,6 +1712,36 @@ function renderSettings() {
     }));
   }
   refreshEventGroupInputs();
+}
+
+async function searchWeatherLocations() {
+  const input = $("#homeWeatherLocationQuery");
+  const button = $("#homeWeatherLocationSearch");
+  const results = $("#homeWeatherLocationResults");
+  const queryText = input?.value.trim() || "";
+  if (!input || !button || !results) return;
+  if (queryText.length < 2) return showToast("지역 이름을 두 글자 이상 입력해 주세요.");
+  button.disabled = true;
+  button.textContent = "검색 중…";
+  results.hidden = false;
+  results.innerHTML = '<div class="weather-location-empty">지역을 찾는 중이에요.</div>';
+  try {
+    const query = new URLSearchParams({ name: queryText, count: "8", language: "ko", format: "json" });
+    const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${query}`);
+    if (!response.ok) throw new Error(`geocoding ${response.status}`);
+    const data = await response.json();
+    const locations = Array.isArray(data.results) ? data.results.filter((item) => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude))) : [];
+    results.innerHTML = locations.length ? locations.map((item) => {
+      const details = [item.admin1, item.country].filter(Boolean).join(" · ");
+      return `<button type="button" data-weather-location-name="${esc(item.name)}" data-weather-location-latitude="${Number(item.latitude)}" data-weather-location-longitude="${Number(item.longitude)}"><strong>${esc(item.name)}</strong>${details ? `<small>${esc(details)}</small>` : ""}</button>`;
+    }).join("") : '<div class="weather-location-empty">검색 결과가 없어요. 시·군·구 이름으로 다시 검색해 보세요.</div>';
+  } catch (error) {
+    console.error(error);
+    results.innerHTML = '<div class="weather-location-empty">지역을 검색하지 못했어요. 잠시 후 다시 시도해 주세요.</div>';
+  } finally {
+    button.disabled = false;
+    button.textContent = "검색";
+  }
 }
 
 function addHabit() {
@@ -2099,6 +2144,25 @@ function bindUI() {
     $("#newEventGroupName").value = "";
     save();
     renderSettings();
+  });
+  $("#homeWeatherLocationSearch")?.addEventListener("click", searchWeatherLocations);
+  $("#homeWeatherLocationQuery")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchWeatherLocations();
+    }
+  });
+  $("#homeWeatherLocationResults")?.addEventListener("click", async (event) => {
+    const option = event.target.closest("[data-weather-location-name]");
+    if (!option) return;
+    const location = normalizeWeatherLocation({ name: option.dataset.weatherLocationName, latitude: option.dataset.weatherLocationLatitude, longitude: option.dataset.weatherLocationLongitude });
+    state.ui.homeDashboard ||= { heroDday: null, secondaryDdays: [] };
+    state.ui.homeDashboard.weatherLocation = location;
+    await save();
+    $("#homeWeatherLocationResults").hidden = true;
+    renderSettings();
+    document.dispatchEvent(new CustomEvent("onekan:weather-location-changed", { detail: { location } }));
+    showToast(`날씨 지역을 ${location.name}(으)로 바꿨어요.`);
   });
   $("#reloadCloudBtn").addEventListener("click", async () => {
     if (!currentUser) return;

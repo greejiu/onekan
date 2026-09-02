@@ -1,4 +1,4 @@
-const WEATHER_CACHE_KEY = "onekan-home-weather-v1";
+const WEATHER_CACHE_KEY = "onekan-home-weather-v2";
 const WEATHER_CACHE_MS = 15 * 60 * 1000;
 const YANGYANG = { latitude: 38.0754, longitude: 128.6191, name: "양양" };
 
@@ -26,25 +26,38 @@ function renderWeather(weather) {
   if (range) range.textContent = `최고 ${rounded(weather.max)} / 최저 ${rounded(weather.min)}`;
 }
 
-function cachedWeather() {
+function configuredLocation(override = null) {
+  const value = override || window.__ONEKAN_APP_STATE__?.ui?.homeDashboard?.weatherLocation || YANGYANG;
+  const latitude = Number(value?.latitude);
+  const longitude = Number(value?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return YANGYANG;
+  return { name: String(value?.name || "설정 지역"), latitude, longitude };
+}
+
+function locationKey(location) {
+  return `${location.latitude.toFixed(4)}:${location.longitude.toFixed(4)}`;
+}
+
+function cachedWeather(location) {
   try {
     const cached = JSON.parse(localStorage.getItem(WEATHER_CACHE_KEY) || "null");
-    return cached && Date.now() - Number(cached.savedAt || 0) < WEATHER_CACHE_MS ? cached : null;
+    return cached && cached.locationKey === locationKey(location) && Date.now() - Number(cached.savedAt || 0) < WEATHER_CACHE_MS ? cached : null;
   } catch {
     return null;
   }
 }
 
-async function loadWeather() {
+async function loadWeather(locationOverride = null, force = false) {
   if (!document.querySelector("#homeWeather")) return;
-  const cached = cachedWeather();
-  if (cached) {
+  const location = configuredLocation(locationOverride);
+  const cached = cachedWeather(location);
+  if (cached && !force) {
     renderWeather(cached);
     return;
   }
   try {
     const query = new URLSearchParams({
-      latitude: String(YANGYANG.latitude), longitude: String(YANGYANG.longitude),
+      latitude: String(location.latitude), longitude: String(location.longitude),
       current: "temperature_2m,weather_code", daily: "temperature_2m_max,temperature_2m_min",
       timezone: "Asia/Seoul", forecast_days: "1",
     });
@@ -52,7 +65,7 @@ async function loadWeather() {
     if (!response.ok) throw new Error(`weather ${response.status}`);
     const data = await response.json();
     const weather = {
-      savedAt: Date.now(), place: YANGYANG.name,
+      savedAt: Date.now(), locationKey: locationKey(location), place: location.name,
       temperature: data.current?.temperature_2m, code: data.current?.weather_code,
       max: data.daily?.temperature_2m_max?.[0], min: data.daily?.temperature_2m_min?.[0],
     };
@@ -68,6 +81,9 @@ async function loadWeather() {
 }
 
 loadWeather();
+document.addEventListener("onekan:state-changed", () => loadWeather());
+document.addEventListener("onekan:weather-location-changed", (event) => loadWeather(event.detail?.location, true));
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && !cachedWeather()) loadWeather();
+  const location = configuredLocation();
+  if (document.visibilityState === "visible" && !cachedWeather(location)) loadWeather(location);
 });

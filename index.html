@@ -276,6 +276,14 @@
             <div class="setting-desc" id="homeBackgroundStatus">사진을 선택하면 자동으로 저장됩니다.</div>
           </section>
           <section class="setting-section">
+            <h3>날씨 지역</h3><div class="setting-desc">집 대시보드에 표시할 지역을 계정별로 설정할 수 있어요.</div>
+            <div class="weather-location-settings">
+              <div class="weather-location-search"><input id="homeWeatherLocationQuery" type="search" maxlength="60" placeholder="예: 양양, 부천, 강릉" autocomplete="off" /><button class="soft-btn" id="homeWeatherLocationSearch" type="button">검색</button></div>
+              <div class="weather-location-results" id="homeWeatherLocationResults" hidden></div>
+              <div class="setting-desc" id="homeWeatherLocationStatus">현재 지역 · 양양</div>
+            </div>
+          </section>
+          <section class="setting-section">
             <h3>타임라인 시작 · 종료 시간</h3><div class="setting-desc">하루 타임라인에 표시할 시간 범위를 정할 수 있어요.</div>
             <div class="uw-preference-grid">
               <label><span>시작 시간</span><input id="timelineStart" type="time" step="1800" value="06:00" /></label>
@@ -325,8 +333,8 @@
   </div>
 
   <script type="module" src="./js/interaction-fixes.js?v=38"></script>
-  <script type="module" src="./js/app.js?v=50"></script>
-  <script type="module" src="./js/home-dashboard-weather.js?v=1"></script>
+  <script type="module" src="./js/app.js?v=51"></script>
+  <script type="module" src="./js/home-dashboard-weather.js?v=2"></script>
   <script type="module" src="./js/home-memo-slash.js?v=2"></script>
   <script type="module" src="./js/load-recovery.js?v=1"></script>
   <script type="module" src="./js/context-menu.js?v=36"></script>
