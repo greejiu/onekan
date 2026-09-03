@@ -99,6 +99,7 @@ const appState = {
 assert.ok(appState[STATE_STORE_META_KEY]);
 
 const external = await client.from("onekan_state").select("data").eq("user_id", "u1").maybeSingle();
+assert.equal(first.data.data[STATE_STORE_META_KEY], external.data.data[STATE_STORE_META_KEY]);
 external.data.data.tasks[0].subtaskProgress.s1 = true;
 await client.from("onekan_state").upsert(
   { user_id: "u1", data: external.data.data },
