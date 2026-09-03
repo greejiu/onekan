@@ -18,9 +18,15 @@
 
 필요하면 Git 히스토리에서 다시 확인할 수 있다. 새 기능 구현 시 이 파일들을 기존 구현으로 간주하거나 재사용하지 않는다.
 
+### 사용하지 않는 `project-planning.js` 제거
+
+`js/project-planning.js`도 현재 `index.html`에서 로드되지 않고 코드 검색에서도 직접 참조가 없어 제거했다. 이 파일은 프로젝트 다이얼로그 안에서 별도 계획 항목(`projectPlan`)을 관리하던 과거 구현이다.
+
+현재 프로젝트 계획 흐름은 프로젝트 책 팝업에서 연결된 할일·습관을 관리하는 방향으로 바뀌었으므로 새 기능에서 이 파일을 기준 구현으로 삼지 않는다.
+
 ## 아직 남겨둔 정리 후보
 
-### 계획 세우기 레거시
+### 계획 세우기 페이지 레거시
 
 사용자 결정으로 사이드바의 `계획 세우기` 진입은 폐기되었고, 프로젝트 책 팝업 안에서 할일·습관을 추가하는 방향으로 대체되었다.
 
@@ -34,4 +40,4 @@
 
 ## 회귀 기준
 
-`scripts/dead-code-cleanup-regression.mjs`는 제거된 management 파일이 다시 생기거나 `index.html`에서 다시 참조되는 경우 실패한다.
+`scripts/dead-code-cleanup-regression.mjs`는 제거된 management 파일과 `project-planning.js`가 다시 생기거나 `index.html`에서 다시 참조되는 경우 실패한다.
