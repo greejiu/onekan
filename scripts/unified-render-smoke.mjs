@@ -10,7 +10,9 @@ assert.doesNotMatch(match[0], /\blistDate\b/, 'time-block renderer must not refe
 
 const render = new Function('entry', 'date', 'assignment', `
   const SLOT = 30;
+  const TIME_BLOCK_AUTO_SLOT_MINUTES = 15;
   const TIME_BLOCK_START_ANCHOR = '__start__';
+  const plannedDuration = (value, fallback = SLOT) => Number(value) === TIME_BLOCK_AUTO_SLOT_MINUTES ? TIME_BLOCK_AUTO_SLOT_MINUTES : Math.max(SLOT, Number(value) || fallback);
   const esc = value => String(value ?? '');
   const groupStyle = () => '';
   const checkMarkup = () => '<button></button>';
@@ -34,5 +36,5 @@ for (const entry of [
   assert.match(html, /uw-move-handle/, 'time-block cards must expose the shared move handle');
 }
 
-assert.match(index, /unified-workspace\.js\?v=100/);
+assert.match(index, /unified-workspace\.js\?v=101/);
 console.log('unified render smoke: ok');

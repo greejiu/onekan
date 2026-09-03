@@ -7,8 +7,10 @@ import {
   isGoogleCalendarEvent,
 } from "./google-calendar.js?v=1";
 import {
+  TIME_BLOCK_AUTO_SLOT_MINUTES,
   TIME_BLOCK_START_ANCHOR,
   assignTimeBlockOccurrence,
+  findFirstAvailableTimeBlockSlot,
   placeTimeBlockOccurrence,
   buildTimeBlockTimelinePlanRows,
   clearTimeBlockAssignment,
@@ -24,7 +26,7 @@ import {
   timeBlockOccurrenceToken,
   timeBlockTemplatesForDate,
   validateTimeBlockTemplates,
-} from "./time-block-v2.js?v=4";
+} from "./time-block-v2.js?v=5";
 import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
 
 const $=(s,r=document)=>r.querySelector(s);const $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -87,6 +89,8 @@ function applyColors(){
   root.style.setProperty("--accent",state.ui.themeColor);
 }
 function timelineHeight(){return((END-START)/SLOT)*SLOT_H}
+function plannedDuration(value,fallback=SLOT){const duration=Number(value);return duration===TIME_BLOCK_AUTO_SLOT_MINUTES?TIME_BLOCK_AUTO_SLOT_MINUTES:Math.max(SLOT,Number.isFinite(duration)?duration:fallback)}
+function plannedDurationBetween(start,end){const minutes=Math.round((new Date(end)-new Date(start))/60000);return minutes===TIME_BLOCK_AUTO_SLOT_MINUTES?TIME_BLOCK_AUTO_SLOT_MINUTES:Math.max(SLOT,Math.round(minutes/SLOT)*SLOT)}
 function currentTimeMarkup(date){
   const now=new Date(),minute=now.getHours()*60+now.getMinutes();
   const visible=date===key(now)&&minute>=START&&minute<=END;
@@ -111,7 +115,7 @@ function layoutTimedItems(items){
       let lane=laneEnds.findIndex(end=>end<=entry.time);
       if(lane<0)lane=laneEnds.length;
       entry._lane=lane;
-      laneEnds[lane]=entry.time+Math.max(SLOT,entry.duration||SLOT);
+      laneEnds[lane]=entry.time+plannedDuration(entry.duration);
     });
     const columns=Math.max(1,laneEnds.length);
     cluster.forEach(entry=>entry._columns=columns);
@@ -121,7 +125,7 @@ function layoutTimedItems(items){
   sorted.forEach(entry=>{
     if(cluster.length&&entry.time>=clusterEnd)flush();
     cluster.push(entry);
-    clusterEnd=Math.max(clusterEnd,entry.time+Math.max(SLOT,entry.duration||SLOT));
+    clusterEnd=Math.max(clusterEnd,entry.time+plannedDuration(entry.duration));
   });
   flush();
   return sorted;
@@ -268,13 +272,13 @@ function freezeTaskOccurrence(source,task,date){
   snapshot.detached=true;snapshot.title=current.title??task.title;snapshot.date=targetDate;
   let start=null,duration=SLOT;
   if(Object.prototype.hasOwnProperty.call(current,"startMinute")){start=current.startMinute;duration=Number(current.duration)||SLOT}
-  else if(task.notionStart){const begin=new Date(task.notionStart),end=new Date(task.notionEnd||task.notionStart);start=begin.getHours()*60+begin.getMinutes();duration=Math.max(SLOT,Math.round((end-begin)/60000/SLOT)*SLOT)}
+  else if(task.notionStart){const begin=new Date(task.notionStart),end=new Date(task.notionEnd||task.notionStart);start=begin.getHours()*60+begin.getMinutes();duration=plannedDurationBetween(begin,end)}
   else{const block=source.timeBlocks.find(item=>item.taskId===task.id&&(item.date===targetDate||item.date===date));if(block){start=Number(block.startMinute);duration=Number(block.duration)||SLOT}}
   if(start!==null&&start!==undefined&&Number.isFinite(Number(start))){snapshot.startMinute=Number(start);snapshot.duration=duration}else{snapshot.startMinute=null;delete snapshot.duration}
 }
 function freezeCompletedTaskOccurrences(source,task){Object.entries(task.recurrenceDone||{}).forEach(([date,done])=>{if(done===true)freezeTaskOccurrence(source,task,date)})}
 function taskOccurrenceTime(task,override,targetDate){if(override&&Object.prototype.hasOwnProperty.call(override,"startMinute"))return override.startMinute===null?null:Number(override.startMinute);if(task.notionStart){const start=new Date(task.notionStart);return start.getHours()*60+start.getMinutes()}const block=state.timeBlocks.find(item=>item.taskId===task.id&&(item.date===targetDate||item.date===task.date));return block?Number(block.startMinute):null}
-function taskOccurrenceDuration(task,override){if(override&&Number.isFinite(Number(override.duration)))return Math.max(SLOT,Number(override.duration));if(task.notionStart&&task.notionEnd)return Math.max(SLOT,Math.round((new Date(task.notionEnd)-new Date(task.notionStart))/60000/SLOT)*SLOT);const block=state.timeBlocks.find(item=>item.taskId===task.id);return Math.max(SLOT,Number(block?.duration)||SLOT)}
+function taskOccurrenceDuration(task,override){if(override&&Number.isFinite(Number(override.duration)))return plannedDuration(override.duration);if(task.notionStart&&task.notionEnd)return plannedDurationBetween(task.notionStart,task.notionEnd);const block=state.timeBlocks.find(item=>item.taskId===task.id);return plannedDuration(block?.duration)}
 function effectiveTaskOccurrence(task,sourceDate,override=null){const targetDate=override&&Object.prototype.hasOwnProperty.call(override,"date")?override.date:sourceDate,item={...task,title:override?.title??task.title,date:targetDate,_occurrenceSource:sourceDate,_occurrenceDate:targetDate,_detachedOccurrence:!!override?.detached},startMinute=taskOccurrenceTime(task,override,targetDate),duration=taskOccurrenceDuration(task,override);delete item.notionStart;delete item.notionEnd;if(targetDate&&startMinute!==null&&Number.isFinite(startMinute)){const start=new Date(`${targetDate}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);item.notionStart=start.toISOString();item.notionEnd=new Date(start.getTime()+duration*60000).toISOString()}return item}
 function taskOccurrencesForDate(date,source=state){const rows=[];for(const task of source.tasks){if(task.recurrence?.completionBased){if(task.date===date)rows.push(task);continue}if(!task.recurrence?.frequency){if(task.date===date)rows.push(task);continue}const added=new Set();if(task.date&&recurrenceOn(task,task.date,date)){const override=taskOverride(source,date,task.id);if(!override?.hidden&&(!override||!Object.prototype.hasOwnProperty.call(override,"date")||override.date===date)){rows.push(effectiveTaskOccurrence(task,date,override));added.add(date)}}for(const [sourceDate,byTask] of Object.entries(source.taskOverrides||{})){const override=byTask?.[task.id];if(!added.has(sourceDate)&&override&&!override.hidden&&Object.prototype.hasOwnProperty.call(override,"date")&&override.date===date)rows.push(effectiveTaskOccurrence(task,sourceDate,override))}}return rows}
 function somedayTaskOccurrences(source=state){const rows=source.tasks.filter(task=>!task.done&&!task.date&&(!task.recurrence?.frequency||task.recurrence?.completionBased));for(const task of source.tasks.filter(item=>item.recurrence?.frequency&&!item.recurrence?.completionBased))for(const [sourceDate,byTask] of Object.entries(source.taskOverrides||{})){const override=byTask?.[task.id];if(override&&!override.hidden&&Object.prototype.hasOwnProperty.call(override,"date")&&override.date===null)rows.push(effectiveTaskOccurrence(task,sourceDate,override))}return rows}
@@ -289,7 +293,7 @@ function itemsForDay(k){
     }else if(task.notionStart&&task.notionEnd){
       const date=new Date(task.notionStart);
       start=date.getHours()*60+date.getMinutes();
-      duration=Math.max(SLOT,Math.round((new Date(task.notionEnd)-date)/60000/SLOT)*SLOT)
+      duration=plannedDurationBetween(date,task.notionEnd)
     }else{
       const block=state.timeBlocks.find(block=>block.taskId===task.id&&block.date===k);
       if(block){start=+block.startMinute;duration=+block.duration||SLOT}
@@ -321,9 +325,13 @@ function timeBlockV2MinuteText(minute){const value=Math.max(0,Math.min(1439,Numb
 function timeBlockV2TemplateForMinute(templates,minute){return templates.find(template=>Number(minute)>=Number(template.startMinute)&&Number(minute)<Number(template.endMinute))||null}
 function timeBlockV2Assignable(entry){return!entry.timed&&(entry.kind==="task"||entry.kind==="habit")}
 function timeBlockV2EntryToken(entry,k){return timeBlockOccurrenceToken(entry.kind,entry.item,k)}
+function automaticTimeBlockSlot(date,preferredBlockId,excludeToken=""){
+  const templates=effectiveTimeBlockTemplatesForDate(state,date),assignments=timeBlockAssignmentsForDate(state,date),occurrences=itemsForDay(date).map(entry=>({token:timeBlockV2EntryToken(entry,date),timed:entry.timed,time:entry.time,duration:entry.duration}));
+  return findFirstAvailableTimeBlockSlot(templates,assignments,occurrences,preferredBlockId,excludeToken)
+}
 function timeBlockV2ItemMarkup(entry,k,templates,assignment=null){
-  const kind=entry.kind,item=entry.item,done=itemDoneOn(kind,item,k),repeat=recurrenceLabel(item,kind),occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"",time=entry.timed?timeBlockV2MinuteText(entry.time):"",token=timeBlockV2EntryToken(entry,k),assignable=timeBlockV2Assignable(entry),planningClass=entry.timed?" fixed-anchor":assignable?" plan-draggable":"",planningAttrs=entry.timed?` data-time-block-anchor="${esc(token)}" data-time="${Number(entry.time)}" data-duration="${Math.max(SLOT,Number(entry.duration)||SLOT)}"`:assignable?` data-time-block-token="${esc(token)}"${assignment?` data-time-block-block-id="${esc(assignment.blockId)}" data-time-block-after-anchor="${esc(assignment.afterAnchor||TIME_BLOCK_START_ANCHOR)}" data-time-block-order="${Math.max(1,Number(assignment.order)||1)}"`:""}`:"";
-  return`<div class="uw-item uw-${kind} uw-time-block-v2-item${entry.timed?" timed":" untimed"}${planningClass}${done?" done":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${planningAttrs} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge" title="${esc(repeat)}" aria-label="반복 · ${esc(repeat)}">↻</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
+  const kind=entry.kind,item=entry.item,done=itemDoneOn(kind,item,k),repeat=recurrenceLabel(item,kind),occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"",time=entry.timed?timeBlockV2MinuteText(entry.time):"",token=timeBlockV2EntryToken(entry,k),assignable=timeBlockV2Assignable(entry),duration=plannedDuration(entry.duration),quarterHour=entry.timed&&duration===TIME_BLOCK_AUTO_SLOT_MINUTES,planningClass=entry.timed?" fixed-anchor":assignable?" plan-draggable":"",planningAttrs=entry.timed?` data-time-block-anchor="${esc(token)}" data-time="${Number(entry.time)}" data-duration="${duration}"`:assignable?` data-time-block-token="${esc(token)}"${assignment?` data-time-block-block-id="${esc(assignment.blockId)}" data-time-block-after-anchor="${esc(assignment.afterAnchor||TIME_BLOCK_START_ANCHOR)}" data-time-block-order="${Math.max(1,Number(assignment.order)||1)}"`:""}`:"";
+  return`<div class="uw-item uw-${kind} uw-time-block-v2-item${entry.timed?" timed":" untimed"}${quarterHour?" uw-quarter-hour":""}${planningClass}${done?" done":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${planningAttrs} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge" title="${esc(repeat)}" aria-label="반복 · ${esc(repeat)}">↻</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
 }
 function timeBlockV2ManualGroup(entries,k,templates,assignments,anchor){
   return entries.filter(entry=>{const token=timeBlockV2EntryToken(entry,k),assignment=assignments[token];return(assignment?.afterAnchor||TIME_BLOCK_START_ANCHOR)===anchor}).sort((a,b)=>{const at=timeBlockV2EntryToken(a,k),bt=timeBlockV2EntryToken(b,k),aa=assignments[at],ba=assignments[bt];return(Number(aa?.order)||1)-(Number(ba?.order)||1)||at.localeCompare(bt)}).map(entry=>timeBlockV2ItemMarkup(entry,k,templates,assignments[timeBlockV2EntryToken(entry,k)])).join("")
@@ -485,6 +493,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
     if(old&&kind==="task"&&old.recurrence?.frequency&&!old.recurrence?.completionBased&&!taskScope){saving=false;scheduleRender(0);return}
     const eventScope=old&&kind==="event"&&old.recurrence?.frequency?await askEventScope("change",old,sourceDate||key(new Date(old.start))):null;
     if(old&&kind==="event"&&old.recurrence?.frequency&&!eventScope){saving=false;scheduleRender(0);return}
+    let automaticPlacementFull=false;
     await write(current=>{
       const defaultGroup=groupId||current.eventGroups[0]?.id||"default";
       if(old){
@@ -572,16 +581,23 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
         if(selectedProjectId)task.projectId=selectedProjectId;
         const recurrence=recurrenceFromEditor(form,taskDate);
         if(recurrence){recurrence.completionBased=true;task.recurrence=recurrence}
-        if(time!==null&&taskDate){
-          const startDate=new Date(`${taskDate}T${pad(Math.floor(time/60))}:${pad(time%60)}:00`);
+        let assignedAutomatically=false,taskStart=time,taskDuration=duration;
+        if(timeBlockId&&taskDate&&time===null){
+          const slot=automaticTimeBlockSlot(taskDate,timeBlockId);
+          if(!slot){automaticPlacementFull=true;return}
+          taskStart=slot.startMinute;taskDuration=slot.duration;assignedAutomatically=true
+        }
+        if(taskStart!==null&&taskDate){
+          const startDate=new Date(`${taskDate}T${pad(Math.floor(taskStart/60))}:${pad(taskStart%60)}:00`);
           task.notionStart=startDate.toISOString();
-          task.notionEnd=new Date(startDate.getTime()+duration*60000).toISOString();
-          current.timeBlocks.push({id:uid(),taskId:task.id,sourceTitle:value,detail:value,date:taskDate,startMinute:time,duration})
+          task.notionEnd=new Date(startDate.getTime()+taskDuration*60000).toISOString();
+          current.timeBlocks.push({id:uid(),taskId:task.id,sourceTitle:value,detail:value,date:taskDate,startMinute:taskStart,duration:taskDuration})
         }
         current.tasks.push(task);
-        if(timeBlockId&&taskDate)assignTimeBlockOccurrence(current,taskDate,timeBlockOccurrenceToken("task",task,taskDate),timeBlockId)
+        if(timeBlockId&&taskDate&&!assignedAutomatically)assignTimeBlockOccurrence(current,taskDate,timeBlockOccurrenceToken("task",task,taskDate),timeBlockId)
       }
     });
+    if(automaticPlacementFull){saving=false;form.remove();showToast("이 타임블럭과 뒤의 타임블럭에 빈 15분 자리가 없어요.");return}
     clearRange();
     if(next)setTimeout(()=>{const nextHost=timeBlockId?$('[data-uw-time-block-drop-list][data-date="'+CSS.escape(selectedDate||"")+'"][data-time-block-id="'+CSS.escape(timeBlockId)+'"]'):findAddHost(kind,selectedDate,time);if(nextHost)openInline(nextHost,{kind,date:selectedDate,endDate,time,duration,withTime,groupId,timeBlockId})},220)
   };
@@ -646,8 +662,8 @@ function plannerDay(d,index=0){
   for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}
   const blocks=timed.map(x=>{
     if(x.kind==="session")return sessionBlockMarkup(x,k);
-    const google=x.kind==="event"&&isGoogleCalendarEvent(x.item),externalAttrs=google?` data-google-calendar-event data-google-calendar-url="${esc(x.item.htmlLink||"")}" title="${esc(x.item.calendarName||"Google 캘린더")}"`:"";
-    return`<div class="uw-time-entry uw-item ${itemDoneOn(x.kind,x.item,k)?"done":""}${google?" uw-google-event":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${esc(x.item.id)}" data-date="${k}" data-time-block-anchor="${esc(timeBlockV2EntryToken(x,k))}"${(x.kind==="task"||x.kind==="event")&&x.item._occurrenceSource?` data-occurrence-source="${x.item._occurrenceSource}"`:""} data-time="${x.time}" data-duration="${x.duration}"${externalAttrs}>${google?"":'<button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>'}${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span>${google?"":'<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button>'}</div>`
+    const google=x.kind==="event"&&isGoogleCalendarEvent(x.item),quarterHour=Number(x.duration)===TIME_BLOCK_AUTO_SLOT_MINUTES,resizable=!google&&!quarterHour,externalAttrs=google?` data-google-calendar-event data-google-calendar-url="${esc(x.item.htmlLink||"")}" title="${esc(x.item.calendarName||"Google 캘린더")}"`:"";
+    return`<div class="uw-time-entry uw-item ${itemDoneOn(x.kind,x.item,k)?"done":""}${google?" uw-google-event":""}${quarterHour?" uw-quarter-hour":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${esc(x.item.id)}" data-date="${k}" data-time-block-anchor="${esc(timeBlockV2EntryToken(x,k))}"${(x.kind==="task"||x.kind==="event")&&x.item._occurrenceSource?` data-occurrence-source="${x.item._occurrenceSource}"`:""} data-time="${x.time}" data-duration="${x.duration}"${externalAttrs}>${resizable?'<button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>':""}${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span>${google?"":`<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button>${resizable?'<button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button>':""}`}</div>`
   }).join("");
   const head=homeDays>1?`<div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>`:"",planClass=projection.hasRows?" uw-has-time-block-plan":"";
   return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}">${head}${allDayPanel(k,untimed)}<div class="uw-timeline${planClass}" style="height:${projection.height}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}<div class="uw-time-exact-lane">${blocks}</div>${projection.hasRows?`<div class="uw-time-block-plan-rail uw-time-block-plan-drop-surface" aria-label="타임블럭 계획">${projection.markup}</div>`:""}</div></div></section>`
@@ -1182,6 +1198,12 @@ async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSourc
   }
   await write(current=>{clearMovedPlan(current,planDate,planToken);const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);const target=current.events.find(item=>item.id===id);if(!target)return;target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false})
 }
+async function saveAutomaticTimeBlockChange(kind,id,date,blockId,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
+  const slot=automaticTimeBlockSlot(date,blockId,planToken);
+  if(!slot){showToast("이 타임블럭과 뒤의 타임블럭에 빈 15분 자리가 없어요.");return false}
+  await saveTimedChange(kind,id,date,slot.startMinute,slot.duration,occurrenceSource,planDate,planToken,forcedScope);
+  return true
+}
 async function saveDateMove(kind,id,date){await write(s=>{if(kind==="habit")return;if(kind==="task"){const t=s.tasks.find(x=>x.id===id);if(!t)return;t.date=date||null;delete t.notionStart;delete t.notionEnd;s.timeBlocks=s.timeBlocks.filter(x=>x.taskId!==id);return}const e=s.events.find(x=>x.id===id);if(!e)return;const oldStart=new Date(e.start),oldEnd=new Date(e.end||e.start),duration=Math.max(0,oldEnd-oldStart),clock=e.allDay?"12:00:00":`${pad(oldStart.getHours())}:${pad(oldStart.getMinutes())}:00`;const start=new Date(`${date}T${clock}`);e.start=start.toISOString();e.end=new Date(start.getTime()+duration).toISOString()})}
 function wireSideTabs(){document.addEventListener("click",event=>{const button=event.target.closest("[data-uw-side-tab]");if(!button)return;homeSideTab=button.dataset.uwSideTab;renderSideTab()})}
 function wireDragClickGuard(){
@@ -1697,7 +1719,7 @@ function wireControlsV2(){
     const directPlanningMove=Boolean(g.planToken&&g.start===null&&(g.kind==="task"||g.kind==="habit")&&!recurringDragItem(g.kind,g.id)&&!dateChanged&&(g.dropType==="time-block"||g.dropType==="time-block-unassigned"));
     if(directPlanningMove){
       if(g.dropType==="time-block-unassigned"){await write(next=>clearTimeBlockAssignment(next,g.date,g.planToken));return}
-      if(g.nextBlockId){await write(next=>placeTimeBlockOccurrence(next,g.date,g.planToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));return}
+      if(g.nextBlockId){await saveAutomaticTimeBlockChange(g.kind,g.id,g.date,g.nextBlockId,g.occurrenceSource,g.planDate,g.planToken,"day");return}
     }
     const scope=await dragMoveScope(g.kind,g.id,g.occurrenceSource,g.date);
     if(!scope)return;
@@ -1714,6 +1736,8 @@ function wireControlsV2(){
       if(timedPlanToBlock){
         await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
         await write(next=>placeTimeBlockOccurrence(next,g.nextDate,placementToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));
+      }else if(g.start===null&&(g.kind==="task"||g.kind==="habit")){
+        await saveAutomaticTimeBlockChange(g.kind,g.id,g.nextDate,g.nextBlockId,g.occurrenceSource,g.planDate,g.planToken,scope);
       }else if(g.start!==null||g.kind==="event"||seriesMove){
         const targetBlock=effectiveTimeBlockTemplatesForDate(state,g.nextDate).find(block=>String(block.id)===String(g.nextBlockId));
         if(targetBlock)await saveTimedChange(g.kind,g.id,g.nextDate,Number(targetBlock.startMinute),g.duration,g.occurrenceSource,g.planDate,g.planToken,scope);

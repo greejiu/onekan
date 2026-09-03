@@ -1,6 +1,7 @@
 export const TIME_BLOCK_SYSTEM_VERSION = 2;
 export const TIME_BLOCK_BASELINE_DATE = "1970-01-01";
 export const TIME_BLOCK_START_ANCHOR = "block-start";
+export const TIME_BLOCK_AUTO_SLOT_MINUTES = 15;
 
 function cleanDateKey(value, fallback = TIME_BLOCK_BASELINE_DATE) {
   const text = String(value || "");
@@ -232,6 +233,39 @@ export function assignTimeBlockOccurrence(state, dateKey, token, blockId, afterA
     afterAnchor: String(afterAnchor || TIME_BLOCK_START_ANCHOR),
     order: maxOrder + 1,
   });
+}
+
+export function findFirstAvailableTimeBlockSlot(templates, assignments, occurrences, preferredBlockId = "", excludeToken = "") {
+  const blocks = sortTemplates((Array.isArray(templates) ? templates : []).filter((item) => item?.id));
+  if (!blocks.length) return null;
+  const preferredIndex = preferredBlockId ? blocks.findIndex((block) => String(block.id) === String(preferredBlockId)) : 0;
+  if (preferredBlockId && preferredIndex < 0) return null;
+  const orderedBlocks = blocks.slice(Math.max(0, preferredIndex));
+  const rows = (Array.isArray(occurrences) ? occurrences : []).filter((row) => row?.token !== excludeToken);
+  const legacyTokens = new Set(rows.filter((row) => row?.token && !row.timed).map((row) => String(row.token)));
+  const exact = rows.filter((row) => row?.timed && Number.isFinite(Number(row.time))).map((row) => ({
+    start: Number(row.time),
+    end: Number(row.time) + Math.max(TIME_BLOCK_AUTO_SLOT_MINUTES, Number(row.duration) || TIME_BLOCK_AUTO_SLOT_MINUTES),
+  }));
+  const overlaps = (minute, occupied) => occupied.some((range) => minute < range.end && minute + TIME_BLOCK_AUTO_SLOT_MINUTES > range.start);
+
+  for (const block of orderedBlocks) {
+    const candidates = [];
+    for (let minute = Number(block.startMinute); minute + TIME_BLOCK_AUTO_SLOT_MINUTES <= Number(block.endMinute); minute += TIME_BLOCK_AUTO_SLOT_MINUTES) candidates.push(minute);
+    if (!candidates.length) continue;
+    const occupied = exact.map((range) => ({ ...range }));
+    const legacyAssignments = Object.entries(assignments || {})
+      .filter(([token, value]) => token !== excludeToken && legacyTokens.has(String(token)) && String(value?.blockId || "") === String(block.id))
+      .sort((a, b) => String(a[1]?.afterAnchor || TIME_BLOCK_START_ANCHOR).localeCompare(String(b[1]?.afterAnchor || TIME_BLOCK_START_ANCHOR)) || (Number(a[1]?.order) || 1) - (Number(b[1]?.order) || 1) || a[0].localeCompare(b[0]));
+    for (const _assignment of legacyAssignments) {
+      const reserved = candidates.find((minute) => !overlaps(minute, occupied));
+      if (!Number.isFinite(reserved)) break;
+      occupied.push({ start: reserved, end: reserved + TIME_BLOCK_AUTO_SLOT_MINUTES });
+    }
+    const minute = candidates.find((candidate) => !overlaps(candidate, occupied));
+    if (Number.isFinite(minute)) return { blockId: String(block.id), startMinute: minute, duration: TIME_BLOCK_AUTO_SLOT_MINUTES };
+  }
+  return null;
 }
 
 
