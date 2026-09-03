@@ -1,0 +1,43 @@
+name: Project popup state-store migration once
+
+on:
+  push:
+    branches:
+      - refactor/project-popup-state-store
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/project-popup-state-store
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply migration
+        run: node scripts/project-popup-state-store-migration-once.mjs
+      - name: Validate migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check js/project-popup-planning.js
+          node --check js/sidebar-navigation.js
+          for test in scripts/*-regression.mjs; do
+            echo "::group::$test"
+            node "$test"
+            echo "::endgroup::"
+          done
+          node scripts/cache-buster-regression.mjs --check-diff main
+          node scripts/unified-render-smoke.mjs
+      - name: Commit migration
+        run: |
+          git config user.name "greejiu"
+          git config user.email "monggreee@naver.com"
+          git add -A
+          git commit -m "refactor: project popup을 공용 state-store로 이전"
+          git push origin HEAD:refactor/project-popup-state-store
