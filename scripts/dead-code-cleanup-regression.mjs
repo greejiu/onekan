@@ -33,6 +33,28 @@ for (const file of removedManagementModules) {
   );
 }
 
+const removedManagementStyles = [
+  "management.css",
+  "management-checklist.css",
+  "management-history.css",
+  "management-home.css",
+  "management-item-schedule.css",
+  "management-items.css",
+];
+
+for (const file of removedManagementStyles) {
+  assert.equal(
+    fs.existsSync(path.join(root, "css", file)),
+    false,
+    `죽은 관리 스타일이 다시 생겼습니다: ${file}`,
+  );
+  assert.equal(
+    indexHtml.includes(file),
+    false,
+    `index.html이 제거된 관리 스타일을 참조합니다: ${file}`,
+  );
+}
+
 const removedProjectModules = ["project-planning.js", "project-plan.js"];
 for (const file of removedProjectModules) {
   assert.equal(
