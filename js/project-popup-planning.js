@@ -5,27 +5,21 @@ import {
   undoRepeatingTaskCompletion,
 } from "./repeat-after-completion.js?v=1";
 
-const PROJECT_BOOK_SELECTOR = ".onekan-project-book[data-project-edit][data-context-kind='project']";
-const LAYER_SELECTOR = "#onekanProjectLinkedLayer";
-const BODY_SELECTOR = "[data-project-linked-body]";
-const ROOT_MARKER = "projectPopupPlanningRoot";
-
-let user = null;
-let appState = null;
-let activeProjectId = null;
-let renderTimer = 0;
-let rendering = false;
-let mutationObserver = null;
-
+const BOOK = ".onekan-project-book[data-project-edit][data-context-kind='project']";
+const LAYER = "#onekanProjectLinkedLayer";
+const BODY = "[data-project-linked-body]";
+const WRAPPER = "[data-project-popup-planning-root]";
 const pad = (value) => String(value).padStart(2, "0");
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#039;",
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
 }[char]));
+
+let user = null;
+let state = null;
+let activeProjectId = null;
+let renderTimer = 0;
+let rendering = false;
 
 function todayKey() {
   const date = new Date();
@@ -33,59 +27,46 @@ function todayKey() {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function normalizeState(value) {
-  const state = value && typeof value === "object" ? value : {};
-  state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
-  state.habitTemplates = Array.isArray(state.habitTemplates) ? state.habitTemplates : [];
-  state.habitDays = state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {};
-  state.projects = Array.isArray(state.projects) ? state.projects : [];
-  state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length
-    ? state.eventGroups
+function normalize(value) {
+  const next = value && typeof value === "object" ? value : {};
+  next.tasks = Array.isArray(next.tasks) ? next.tasks : [];
+  next.habitTemplates = Array.isArray(next.habitTemplates) ? next.habitTemplates : [];
+  next.habitDays = next.habitDays && typeof next.habitDays === "object" ? next.habitDays : {};
+  next.projects = Array.isArray(next.projects) ? next.projects : [];
+  next.eventGroups = Array.isArray(next.eventGroups) && next.eventGroups.length
+    ? next.eventGroups
     : [{ id: "default", name: "기본", color: "#8fa9c4" }];
-  state.timeBlocks = Array.isArray(state.timeBlocks) ? state.timeBlocks : [];
-  state.taskOverrides = state.taskOverrides && typeof state.taskOverrides === "object" ? state.taskOverrides : {};
-  normalizeCompletionRepeats(state);
-  return state;
+  next.timeBlocks = Array.isArray(next.timeBlocks) ? next.timeBlocks : [];
+  next.taskOverrides = next.taskOverrides && typeof next.taskOverrides === "object" ? next.taskOverrides : {};
+  normalizeCompletionRepeats(next);
+  return next;
 }
 
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
   user = session?.user || null;
-  if (!user) {
-    appState = normalizeState({});
-    return null;
-  }
-  const { data, error } = await supabase
-    .from("onekan_state")
-    .select("data")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  if (!user) return state = normalize({});
+  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
   if (error) throw error;
-  appState = normalizeState(data?.data);
-  return appState;
+  state = normalize(data?.data);
+  return state;
 }
 
 async function writeState(mutator, source) {
   const current = await readState();
-  if (!current || !user) return false;
+  if (!user) return false;
   mutator(current);
-  const { error } = await supabase
-    .from("onekan_state")
-    .upsert({ user_id: user.id, data: current }, { onConflict: "user_id" });
+  const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: current }, { onConflict: "user_id" });
   if (error) throw error;
-  appState = current;
+  state = current;
   document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source } }));
   document.querySelector("#reloadCloudBtn")?.click();
   scheduleRender(20);
   return true;
 }
 
-function projectById(projectId) {
-  return appState?.projects?.find((project) => String(project?.id || "") === String(projectId || "")) || null;
-}
-
-function taskLabel(task, fallback = "이름 없는 할일") {
-  return String(task?.title || task?.text || task?.name || fallback);
+function label(item, fallback = "이름 없는 할일") {
+  return String(item?.title || item?.text || item?.name || fallback);
 }
 
 function completionDate(task) {
@@ -100,16 +81,6 @@ function completionDate(task) {
   return task?.done ? task?.date || "" : "";
 }
 
-function repeatLabel(item) {
-  const recurrence = item?.recurrence || item?.repeatRule || null;
-  if (!recurrence?.frequency || recurrence.frequency === "none") return "";
-  const interval = Math.max(1, Number(recurrence.interval || 1));
-  if (recurrence.frequency === "daily") return interval === 1 ? "매일" : `${interval}일마다`;
-  if (recurrence.frequency === "weekly") return interval === 1 ? "매주" : `${interval}주마다`;
-  if (recurrence.frequency === "monthly") return interval === 1 ? "매월" : `${interval}개월마다`;
-  return "반복";
-}
-
 function taskDateLabel(task) {
   const value = task?.date || task?.completedDate || "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return task?.done ? "완료" : "날짜 없음";
@@ -117,155 +88,141 @@ function taskDateLabel(task) {
   return `${Number(month)}월 ${Number(day)}일${task?.done ? " · 완료" : ""}`;
 }
 
-function habitSeriesId(item) {
+function repeatLabel(item) {
+  const rule = item?.recurrence || item?.repeatRule;
+  if (!rule?.frequency || rule.frequency === "none") return "습관";
+  const interval = Math.max(1, Number(rule.interval || 1));
+  if (rule.frequency === "daily") return interval === 1 ? "매일" : `${interval}일마다`;
+  if (rule.frequency === "weekly") return interval === 1 ? "매주" : `${interval}주마다`;
+  if (rule.frequency === "monthly") return interval === 1 ? "매월" : `${interval}개월마다`;
+  return "습관";
+}
+
+function seriesId(item) {
   return String(item?.repeatSeriesId || item?.id || "");
 }
 
-function currentHabitFromRows(rows) {
-  return [...rows].sort((a, b) => {
-    if (Boolean(a?.done) !== Boolean(b?.done)) return Number(Boolean(a?.done)) - Number(Boolean(b?.done));
-    return String(a?.date || "9999-99-99").localeCompare(String(b?.date || "9999-99-99"));
-  })[0] || null;
-}
-
-function habitTodayDone(entry) {
-  const today = todayKey();
-  if (entry.kind === "legacy") {
-    return Boolean(appState?.habitDays?.[today]?.[entry.item.id]);
-  }
-  return entry.rows.some((row) => Boolean(row?.done) && completionDate(row) === today);
-}
-
-function habitTodayText(entry) {
-  return habitTodayDone(entry) ? "오늘 완료" : "오늘 미완료";
+function currentHabit(rows) {
+  return [...rows].sort((a, b) =>
+    Number(Boolean(a?.done)) - Number(Boolean(b?.done))
+    || String(a?.date || "9999-99-99").localeCompare(String(b?.date || "9999-99-99"))
+  )[0] || null;
 }
 
 function linkedItems(projectId) {
-  const plainTasks = appState.tasks
+  const tasks = state.tasks
     .filter((item) => item?.projectId === projectId && !item?.isHabit)
     .sort((a, b) =>
       Number(Boolean(a?.done)) - Number(Boolean(b?.done))
       || String(a?.date || "9999-99-99").localeCompare(String(b?.date || "9999-99-99"))
-      || taskLabel(a, "").localeCompare(taskLabel(b, ""), "ko")
+      || label(a, "").localeCompare(label(b, ""), "ko")
     );
 
-  const habitRows = appState.tasks.filter((item) => item?.projectId === projectId && item?.isHabit);
-  const groups = new Map();
-  for (const item of habitRows) {
-    const seriesId = habitSeriesId(item);
-    if (!groups.has(seriesId)) groups.set(seriesId, []);
-    groups.get(seriesId).push(item);
-  }
+  const rows = state.tasks.filter((item) => item?.projectId === projectId && item?.isHabit);
+  const grouped = new Map();
+  rows.forEach((item) => {
+    const id = seriesId(item);
+    if (!grouped.has(id)) grouped.set(id, []);
+    grouped.get(id).push(item);
+  });
 
-  const habits = [...groups.entries()].map(([seriesId, rows]) => ({
-    kind: "task",
-    seriesId,
-    rows,
-    item: currentHabitFromRows(rows),
-  }));
-
-  const taskIds = new Set(habitRows.map((item) => String(item?.id || "")));
-  const taskSeries = new Set(habits.map((entry) => entry.seriesId));
-  for (const item of appState.habitTemplates.filter((habit) => habit?.projectId === projectId)) {
-    const id = String(item?.id || "");
-    if (taskIds.has(id) || taskSeries.has(id)) continue;
-    habits.push({ kind: "legacy", seriesId: id, rows: [], item });
-  }
-
-  habits.sort((a, b) => taskLabel(a.item, "").localeCompare(taskLabel(b.item, ""), "ko"));
-  return { tasks: plainTasks, habits };
+  const habits = [...grouped.entries()].map(([id, items]) => ({ kind: "task", id, rows: items, item: currentHabit(items) }));
+  const taskIds = new Set(rows.map((item) => String(item?.id || "")));
+  const taskSeries = new Set(habits.map((entry) => entry.id));
+  state.habitTemplates
+    .filter((item) => item?.projectId === projectId)
+    .forEach((item) => {
+      const id = String(item?.id || "");
+      if (!taskIds.has(id) && !taskSeries.has(id)) habits.push({ kind: "legacy", id, rows: [], item });
+    });
+  habits.sort((a, b) => label(a.item, "").localeCompare(label(b.item, ""), "ko"));
+  return { tasks, habits };
 }
 
-function taskCheckMarkup(task) {
-  const done = Boolean(task?.done);
-  return `<button class="project-popup-check${done ? " checked" : ""}" type="button" data-project-popup-toggle-task="${esc(task.id)}" aria-pressed="${done}" aria-label="${done ? "완료 취소" : "완료"}">${done ? "✓" : ""}</button>`;
+function habitDoneToday(entry) {
+  const today = todayKey();
+  if (entry.kind === "legacy") return Boolean(state.habitDays?.[today]?.[entry.item.id]);
+  return entry.rows.some((row) => Boolean(row?.done) && completionDate(row) === today);
 }
 
-function habitCheckMarkup(entry) {
-  const done = habitTodayDone(entry);
-  return `<button class="project-popup-check${done ? " checked" : ""}" type="button" data-project-popup-toggle-habit="${esc(entry.seriesId)}" aria-pressed="${done}" aria-label="${done ? "오늘 완료 취소" : "오늘 완료"}">${done ? "✓" : ""}</button>`;
+function checkButton(kind, id, done) {
+  const text = kind === "habit" ? (done ? "오늘 완료 취소" : "오늘 완료") : (done ? "완료 취소" : "완료");
+  return `<button class="project-popup-check${done ? " checked" : ""}" type="button" data-project-popup-toggle-${kind}="${esc(id)}" aria-pressed="${done}" aria-label="${text}">${done ? "✓" : ""}</button>`;
 }
 
 function taskMarkup(task) {
   const done = Boolean(task?.done);
-  return `<div class="onekan-project-linked-item project-popup-item${done ? " is-done" : ""}" data-project-popup-task="${esc(task.id)}">
-    ${taskCheckMarkup(task)}
-    <span class="onekan-project-linked-copy"><strong>${esc(taskLabel(task))}</strong><small>${esc(taskDateLabel(task))}</small></span>
+  return `<div class="onekan-project-linked-item project-popup-item${done ? " is-done" : ""}">
+    ${checkButton("task", task.id, done)}
+    <span class="onekan-project-linked-copy"><strong>${esc(label(task))}</strong><small>${esc(taskDateLabel(task))}</small></span>
   </div>`;
 }
 
 function habitMarkup(entry) {
-  const done = habitTodayDone(entry);
-  const repeat = repeatLabel(entry.item) || "습관";
-  return `<div class="onekan-project-linked-item project-popup-item is-habit${done ? " is-done-today" : ""}" data-project-popup-habit="${esc(entry.seriesId)}">
-    ${habitCheckMarkup(entry)}
-    <span class="onekan-project-linked-copy"><strong><span class="project-popup-repeat" aria-hidden="true">↻</span>${esc(taskLabel(entry.item, "이름 없는 습관"))}</strong><small>${esc(`${repeat} · ${habitTodayText(entry)}`)}</small></span>
+  const done = habitDoneToday(entry);
+  return `<div class="onekan-project-linked-item project-popup-item is-habit${done ? " is-done-today" : ""}">
+    ${checkButton("habit", entry.id, done)}
+    <span class="onekan-project-linked-copy"><strong><span class="project-popup-repeat" aria-hidden="true">↻</span>${esc(label(entry.item, "이름 없는 습관"))}</strong><small>${esc(`${repeatLabel(entry.item)} · ${done ? "오늘 완료" : "오늘 미완료"}`)}</small></span>
   </div>`;
 }
 
-function addFormMarkup(kind) {
-  if (kind === "task") {
-    return `<form class="project-popup-add-form" data-project-popup-add-form="task" hidden>
-      <input type="text" maxlength="120" autocomplete="off" placeholder="할일 이름" aria-label="할일 이름" required />
-      <button type="submit">추가</button>
-    </form>`;
-  }
+function addForm(kind) {
+  if (kind === "task") return `<form class="project-popup-add-form" data-project-popup-add-form="task" hidden>
+    <input type="text" maxlength="120" autocomplete="off" placeholder="할일 이름" aria-label="할일 이름" required />
+    <button type="submit">추가</button>
+  </form>`;
   return `<form class="project-popup-add-form project-popup-habit-form" data-project-popup-add-form="habit" hidden>
     <input type="text" maxlength="120" autocomplete="off" placeholder="습관 이름" aria-label="습관 이름" required />
-    <select aria-label="습관 반복 주기">
-      <option value="daily">매일</option>
-      <option value="weekly">매주</option>
-      <option value="monthly">매월</option>
-    </select>
+    <select aria-label="습관 반복 주기"><option value="daily">매일</option><option value="weekly">매주</option><option value="monthly">매월</option></select>
     <button type="submit">추가</button>
   </form>`;
 }
 
-function sectionMarkup(kind, rows) {
-  const isHabit = kind === "habit";
-  const title = isHabit ? "습관" : "할일";
+function section(kind, rows) {
+  const habit = kind === "habit";
+  const name = habit ? "습관" : "할일";
   const list = rows.length
-    ? rows.map(isHabit ? habitMarkup : taskMarkup).join("")
-    : `<div class="project-popup-section-empty">${isHabit ? "연결된 습관이 없어요." : "연결된 할일이 없어요."}</div>`;
+    ? rows.map(habit ? habitMarkup : taskMarkup).join("")
+    : `<div class="project-popup-section-empty">연결된 ${name}이 없어요.</div>`;
   return `<section class="onekan-project-linked-section project-popup-section">
     <div class="onekan-project-linked-section-head project-popup-section-head">
-      <strong>${title}</strong><span>${rows.length}</span>
-      <button class="project-popup-add-trigger" type="button" data-project-popup-add="${kind}" aria-expanded="false">＋ ${title}</button>
+      <strong>${name}</strong><span>${rows.length}</span>
+      <button class="project-popup-add-trigger" type="button" data-project-popup-add="${kind}" aria-expanded="false">＋ ${name}</button>
     </div>
-    ${addFormMarkup(kind)}
+    ${addForm(kind)}
     <div class="onekan-project-linked-list">${list}</div>
   </section>`;
 }
 
-function renderProjectPopup() {
-  const layer = document.querySelector(LAYER_SELECTOR);
-  const body = layer?.querySelector(BODY_SELECTOR);
-  if (!layer || layer.hidden || !body || !activeProjectId || !appState || rendering) return;
-
-  const project = projectById(activeProjectId);
-  if (!project) return;
+function render() {
+  const layer = document.querySelector(LAYER);
+  const body = layer?.querySelector(BODY);
+  if (!layer || layer.hidden || !body || !activeProjectId || !state || rendering) return;
+  if (!state.projects.some((project) => String(project?.id || "") === activeProjectId)) return;
   const { tasks, habits } = linkedItems(activeProjectId);
 
   rendering = true;
   try {
-    body.dataset[ROOT_MARKER] = "1";
-    body.innerHTML = `${sectionMarkup("task", tasks)}${sectionMarkup("habit", habits)}
-      <p class="project-popup-footnote">여기서 추가하면 이 프로젝트에 자동으로 연결돼요. 날짜·시간·세부 반복 설정은 기존 할일·습관 화면에서 바꿀 수 있어요.</p>`;
+    body.innerHTML = `<div class="project-popup-planning-root" data-project-popup-planning-root>
+      ${section("task", tasks)}
+      ${section("habit", habits)}
+      <p class="project-popup-footnote">여기서 추가하면 이 프로젝트에 자동으로 연결돼요. 날짜·시간·세부 반복 설정은 기존 할일·습관 화면에서 바꿀 수 있어요.</p>
+    </div>`;
   } finally {
     rendering = false;
   }
 }
 
 function scheduleRender(delay = 0) {
-  window.clearTimeout(renderTimer);
-  renderTimer = window.setTimeout(async () => {
-    const layer = document.querySelector(LAYER_SELECTOR);
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(async () => {
+    const layer = document.querySelector(LAYER);
     if (!layer || layer.hidden) return;
-    activeProjectId ||= document.querySelector(`${PROJECT_BOOK_SELECTOR}[aria-expanded="true"]`)?.dataset?.projectEdit || null;
+    activeProjectId ||= document.querySelector(`${BOOK}[aria-expanded="true"]`)?.dataset?.projectEdit || null;
     if (!activeProjectId) return;
     try {
       await readState();
-      renderProjectPopup();
+      render();
     } catch (error) {
       console.warn("프로젝트 연결 항목 관리 화면을 불러오지 못했습니다.", error);
     }
@@ -273,16 +230,12 @@ function scheduleRender(delay = 0) {
 }
 
 async function addTask(projectId, title) {
-  await writeState((state) => {
-    const project = state.projects.find((item) => item?.id === projectId);
+  await writeState((current) => {
+    const project = current.projects.find((item) => String(item?.id || "") === projectId);
     if (!project) return;
-    state.tasks.push({
-      id: uid(),
-      title,
-      date: null,
-      done: false,
-      projectId,
-      groupId: project.groupId || state.eventGroups?.[0]?.id || "default",
+    current.tasks.push({
+      id: uid(), title, date: null, done: false, projectId,
+      groupId: project.groupId || current.eventGroups[0]?.id || "default",
       createdAt: new Date().toISOString(),
     });
   }, "project-popup-add-task");
@@ -291,136 +244,114 @@ async function addTask(projectId, title) {
 async function addHabit(projectId, title, frequency) {
   const today = todayKey();
   const date = new Date(`${today}T12:00:00`);
-  await writeState((state) => {
-    const project = state.projects.find((item) => item?.id === projectId);
+  await writeState((current) => {
+    const project = current.projects.find((item) => String(item?.id || "") === projectId);
     if (!project) return;
     const recurrence = { frequency, interval: 1, completionBased: true };
     if (frequency === "weekly") recurrence.weekdays = [date.getDay()];
     if (frequency === "monthly") recurrence.dayOfMonth = date.getDate();
     const id = uid();
-    state.tasks.push({
-      id,
-      repeatSeriesId: id,
-      title,
-      date: today,
-      done: false,
-      isHabit: true,
-      projectId,
-      groupId: project.groupId || state.eventGroups?.[0]?.id || "default",
-      recurrence,
-      recurrenceDone: {},
-      createdAt: new Date().toISOString(),
+    current.tasks.push({
+      id, repeatSeriesId: id, title, date: today, done: false, isHabit: true, projectId,
+      groupId: project.groupId || current.eventGroups[0]?.id || "default",
+      recurrence, recurrenceDone: {}, createdAt: new Date().toISOString(),
     });
   }, "project-popup-add-habit");
 }
 
-function clearSimpleCompletion(task) {
+function markDone(task) {
+  task.done = true;
+  task.completedAt = new Date().toISOString();
+  task.completedDate = todayKey();
+}
+
+function clearDone(task) {
   task.done = false;
   task.completedAt = null;
   delete task.completedDate;
 }
 
-function setSimpleCompletion(task) {
-  const now = new Date();
-  task.done = true;
-  task.completedAt = now.toISOString();
-  task.completedDate = todayKey();
-}
-
 async function toggleTask(taskId) {
-  await writeState((state) => {
-    const task = state.tasks.find((item) => item?.id === taskId);
+  await writeState((current) => {
+    const task = current.tasks.find((item) => String(item?.id || "") === String(taskId || ""));
     if (!task) return;
     if (task.done) {
-      if (!undoRepeatingTaskCompletion(state, task)) clearSimpleCompletion(task);
-      return;
+      if (!undoRepeatingTaskCompletion(current, task)) clearDone(task);
+    } else if (!completeRepeatingTask(current, task, new Date())) {
+      markDone(task);
     }
-    if (!completeRepeatingTask(state, task, new Date())) setSimpleCompletion(task);
   }, "project-popup-toggle-task");
 }
 
-function completedHabitToday(rows, today) {
-  return rows.find((row) => Boolean(row?.done) && completionDate(row) === today) || null;
-}
-
-async function toggleHabit(seriesId) {
+async function toggleHabit(id) {
   const today = todayKey();
-  await writeState((state) => {
-    const taskRows = state.tasks.filter((item) => item?.isHabit && habitSeriesId(item) === seriesId);
-    if (taskRows.length) {
-      const completed = completedHabitToday(taskRows, today);
+  await writeState((current) => {
+    const rows = current.tasks.filter((item) => item?.isHabit && seriesId(item) === id);
+    if (rows.length) {
+      const completed = rows.find((row) => Boolean(row?.done) && completionDate(row) === today);
       if (completed) {
-        if (!undoRepeatingTaskCompletion(state, completed)) clearSimpleCompletion(completed);
+        if (!undoRepeatingTaskCompletion(current, completed)) clearDone(completed);
         return;
       }
-      const current = currentHabitFromRows(taskRows);
-      if (!current) return;
-      if (!completeRepeatingTask(state, current, new Date())) setSimpleCompletion(current);
+      const task = currentHabit(rows);
+      if (task && !completeRepeatingTask(current, task, new Date())) markDone(task);
       return;
     }
 
-    const legacy = state.habitTemplates.find((item) => String(item?.id || "") === seriesId);
+    const legacy = current.habitTemplates.find((item) => String(item?.id || "") === id);
     if (!legacy) return;
-    state.habitDays[today] = state.habitDays[today] && typeof state.habitDays[today] === "object" ? state.habitDays[today] : {};
-    state.habitDays[today][legacy.id] = !Boolean(state.habitDays[today][legacy.id]);
+    current.habitDays[today] = current.habitDays[today] && typeof current.habitDays[today] === "object" ? current.habitDays[today] : {};
+    current.habitDays[today][legacy.id] = !Boolean(current.habitDays[today][legacy.id]);
   }, "project-popup-toggle-habit");
 }
 
-function closeAddForms(except = null) {
-  document.querySelectorAll("[data-project-popup-add-form]").forEach((form) => {
-    if (form === except) return;
-    form.hidden = true;
-  });
-  document.querySelectorAll("[data-project-popup-add]").forEach((button) => {
-    const form = button.closest("section")?.querySelector("[data-project-popup-add-form]");
-    if (form !== except) button.setAttribute("aria-expanded", "false");
-  });
+function toggleAddForm(button) {
+  const form = button.closest("section")?.querySelector(`[data-project-popup-add-form="${button.dataset.projectPopupAdd}"]`);
+  if (!form) return;
+  const open = form.hidden;
+  document.querySelectorAll("[data-project-popup-add-form]").forEach((node) => { if (node !== form) node.hidden = true; });
+  document.querySelectorAll("[data-project-popup-add]").forEach((node) => { if (node !== button) node.setAttribute("aria-expanded", "false"); });
+  form.hidden = !open;
+  button.setAttribute("aria-expanded", String(open));
+  if (open) requestAnimationFrame(() => form.querySelector("input")?.focus());
 }
 
 function bindEvents() {
   document.addEventListener("click", (event) => {
-    const book = event.target.closest?.(PROJECT_BOOK_SELECTOR);
+    const book = event.target.closest?.(BOOK);
     if (book) {
       activeProjectId = String(book.dataset.projectEdit || "");
-      scheduleRender(80);
+      scheduleRender(70);
       return;
     }
 
-    const trigger = event.target.closest?.("[data-project-popup-add]");
-    if (trigger) {
+    const add = event.target.closest?.("[data-project-popup-add]");
+    if (add) {
       event.preventDefault();
       event.stopPropagation();
-      const section = trigger.closest("section");
-      const form = section?.querySelector(`[data-project-popup-add-form="${trigger.dataset.projectPopupAdd}"]`);
-      if (!form) return;
-      const willOpen = form.hidden;
-      closeAddForms(willOpen ? form : null);
-      form.hidden = !willOpen;
-      trigger.setAttribute("aria-expanded", String(willOpen));
-      if (willOpen) requestAnimationFrame(() => form.querySelector("input")?.focus());
+      toggleAddForm(add);
       return;
     }
 
-    const taskToggle = event.target.closest?.("[data-project-popup-toggle-task]");
-    if (taskToggle) {
+    const task = event.target.closest?.("[data-project-popup-toggle-task]");
+    if (task) {
       event.preventDefault();
       event.stopPropagation();
-      taskToggle.disabled = true;
-      toggleTask(taskToggle.dataset.projectPopupToggleTask).catch((error) => {
-        console.error("프로젝트 팝업 할일 완료 처리 실패", error);
-      }).finally(() => { taskToggle.disabled = false; });
+      task.disabled = true;
+      toggleTask(task.dataset.projectPopupToggleTask).catch(console.error).finally(() => { task.disabled = false; });
       return;
     }
 
-    const habitToggle = event.target.closest?.("[data-project-popup-toggle-habit]");
-    if (habitToggle) {
+    const habit = event.target.closest?.("[data-project-popup-toggle-habit]");
+    if (habit) {
       event.preventDefault();
       event.stopPropagation();
-      habitToggle.disabled = true;
-      toggleHabit(habitToggle.dataset.projectPopupToggleHabit).catch((error) => {
-        console.error("프로젝트 팝업 습관 완료 처리 실패", error);
-      }).finally(() => { habitToggle.disabled = false; });
+      habit.disabled = true;
+      toggleHabit(habit.dataset.projectPopupToggleHabit).catch(console.error).finally(() => { habit.disabled = false; });
+      return;
     }
+
+    if (event.target.closest?.("[data-project-linked-close]")) activeProjectId = null;
   }, true);
 
   document.addEventListener("submit", (event) => {
@@ -430,34 +361,26 @@ function bindEvents() {
     const input = form.querySelector("input");
     const title = input?.value.trim() || "";
     if (!title) return input?.focus();
-    const kind = form.dataset.projectPopupAddForm;
     const submit = form.querySelector('button[type="submit"]');
     if (submit) submit.disabled = true;
-    const action = kind === "habit"
+    const action = form.dataset.projectPopupAddForm === "habit"
       ? addHabit(activeProjectId, title, form.querySelector("select")?.value || "daily")
       : addTask(activeProjectId, title);
     action.then(() => {
       form.reset();
       form.hidden = true;
-      form.closest("section")?.querySelector("[data-project-popup-add]")?.setAttribute("aria-expanded", "false");
-    }).catch((error) => {
-      console.error("프로젝트 팝업 항목 추가 실패", error);
-    }).finally(() => {
+    }).catch(console.error).finally(() => {
       if (submit) submit.disabled = false;
     });
   }, true);
 
   document.addEventListener("onekan:state-changed", (event) => {
     if (String(event.detail?.source || "").startsWith("project-popup-")) return;
-    if (!document.querySelector(LAYER_SELECTOR)?.hidden) scheduleRender(90);
+    if (!document.querySelector(LAYER)?.hidden) scheduleRender(80);
   });
-
-  document.addEventListener("click", (event) => {
-    if (event.target.closest?.("[data-project-linked-close]")) activeProjectId = null;
-  }, true);
 }
 
-function installStylesheet() {
+function installStyle() {
   if (document.querySelector('link[data-project-popup-planning-style]')) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
@@ -467,22 +390,17 @@ function installStylesheet() {
 }
 
 function observePopup() {
-  mutationObserver?.disconnect();
-  mutationObserver = new MutationObserver((mutations) => {
+  new MutationObserver(() => {
     if (rendering) return;
-    const layer = document.querySelector(LAYER_SELECTOR);
-    if (!layer || layer.hidden) return;
-    const body = layer.querySelector(BODY_SELECTOR);
-    if (!body) return;
-    const needsEnhancement = body.dataset[ROOT_MARKER] !== "1"
-      || mutations.some((mutation) => mutation.target === body && mutation.type === "childList");
-    if (needsEnhancement) scheduleRender(20);
-  });
-  mutationObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
+    const layer = document.querySelector(LAYER);
+    const body = layer?.querySelector(BODY);
+    if (!layer || layer.hidden || !body || body.querySelector(WRAPPER)) return;
+    scheduleRender(20);
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
 }
 
 function init() {
-  installStylesheet();
+  installStyle();
   bindEvents();
   observePopup();
   supabase.auth.onAuthStateChange(() => {
