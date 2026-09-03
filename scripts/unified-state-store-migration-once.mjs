@@ -32,7 +32,7 @@ let index = fs.readFileSync(indexPath, "utf8");
 index = replaceOrFail(index, './js/unified-workspace.js?v=103', './js/unified-workspace.js?v=104', "unified cache version");
 fs.writeFileSync(indexPath, index);
 
-for (const file of fs.readdirSync("scripts").filter((name) => name.endsWith("-regression.mjs"))) {
+for (const file of fs.readdirSync("scripts").filter((name) => name.endsWith(".mjs"))) {
   const path = `scripts/${file}`;
   const before = fs.readFileSync(path, "utf8");
   const after = before
