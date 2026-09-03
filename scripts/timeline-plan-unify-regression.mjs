@@ -10,7 +10,7 @@ const r=fs.readFileSync('js/repeat-after-completion.js','utf8');
 
 assert.match(u,/uw-time-block-plan-item uw-time-block-v2-item plan-draggable/,'projected timeline items must remain planner draggable');
 assert.match(u,/data-time-block-token=.*data-time-block-block-id=.*data-time-block-after-anchor=.*data-time-block-order=/s,'projected timeline items must carry placement metadata');
-assert.match(u,/const timeline=pointed\?\.closest\("\.uw-timeline"\)/,'planner drop logic must support timeline');
+assert.match(u,/const timeline=closestAt\(pointed,"\.uw-timeline",clientX,clientY\)/,'planner drop logic must support timeline through hit-stack fallback');
 assert.match(u,/placeTimeBlockOccurrence\(next,g\.nextDate,placementToken,g\.nextBlockId,g\.nextAfterAnchor,g\.nextOrder\)/,'shared drag must save time-block anchor order when dropped back into a block');
 assert.match(u,/const movableRow=Boolean\(item\?\.matches\("\.uw-item\[data-uw-kind\]"\)/,'all task, event and habit cards must enter the shared move rule');
 assert.match(u,/else if\(sharedDragRow\)\{mode="move";source=item\}/,'list, timeline and time-block cards must use one shared move gesture');
