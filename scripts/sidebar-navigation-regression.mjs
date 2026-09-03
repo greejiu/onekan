@@ -20,8 +20,8 @@ for (const page of ["records", "reports", "tags"]) {
 if (!html.includes('data-sidebar-section="calendar"') || !html.includes('data-sidebar-section="projects"')) {
   throw new Error("사이드바 시각 그룹이 없습니다.");
 }
-if (!js.includes("removePlanNavigation") || !js.includes('.sidebar .nav-item[data-page="plan"]')) {
-  throw new Error("계획 세우기 메뉴 제거 로직이 없습니다.");
+if (html.includes('data-page="plan"') || html.includes('id="page-plan"') || js.includes("removePlanNavigation")) {
+  throw new Error("폐기한 계획 세우기 레거시가 다시 들어왔습니다.");
 }
 if (!js.includes("project-popup-planning.js?v=1")) {
   throw new Error("프로젝트 팝업 계획 모듈 로더가 없습니다.");
