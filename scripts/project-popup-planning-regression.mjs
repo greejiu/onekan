@@ -7,12 +7,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 
+const index = read("index.html");
 const sidebar = read("js/sidebar-navigation.js");
 const popup = read("js/project-popup-planning.js");
 const css = read("css/project-popup-planning.css");
 
-assert.match(sidebar, /removePlanNavigation/);
-assert.match(sidebar, /\.sidebar \.nav-item\[data-page="plan"\]/);
+assert.doesNotMatch(index, /data-page="plan"/, "legacy plan sidebar entry must stay removed");
+assert.doesNotMatch(index, /id="page-plan"/, "legacy plan page must stay removed");
+assert.doesNotMatch(sidebar, /removePlanNavigation/, "runtime plan-removal fallback is obsolete after physical cleanup");
 assert.match(sidebar, /project-popup-planning\.js\?v=1/);
 
 assert.match(popup, /section\("task"/);
