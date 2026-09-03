@@ -1,0 +1,331 @@
+.someday-quick-desktop {
+  position: absolute;
+  right: 14px;
+  bottom: 150px;
+  left: 14px;
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.someday-quick-desktop > strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.someday-quick-desktop form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 6px;
+}
+
+.someday-quick-desktop input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  outline: none;
+}
+
+.someday-quick-desktop input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.someday-quick-desktop form button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.someday-quick-desktop form button:disabled,
+.someday-quick-submit:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+
+.someday-quick-recents {
+  display: grid;
+  gap: 4px;
+  min-height: 0;
+}
+
+.someday-quick-recent {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.someday-quick-recent::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 72%, #fff);
+  content: "";
+}
+
+.someday-quick-recent span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app.sidebar-collapsed .someday-quick-desktop {
+  display: none;
+}
+
+.sidebar .nav {
+  max-height: calc(100vh - 340px);
+}
+
+.someday-quick-mobile-trigger,
+.someday-quick-mobile-layer {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .someday-quick-desktop {
+    display: none;
+  }
+
+  .sidebar .nav {
+    max-height: none;
+  }
+
+  .someday-quick-mobile-trigger {
+    position: fixed;
+    right: 18px;
+    bottom: calc(82px + env(safe-area-inset-bottom));
+    z-index: 35;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 38%, transparent);
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .someday-quick-mobile-trigger span:first-child {
+    font-size: 20px;
+    transform: translate(2px, -1px);
+  }
+
+  .someday-quick-mobile-trigger span:last-child {
+    margin: 15px 0 0 -2px;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  body.someday-quick-open .someday-quick-mobile-trigger {
+    visibility: hidden;
+  }
+
+  .someday-quick-mobile-layer:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    display: block;
+  }
+
+  .someday-quick-backdrop {
+    position: absolute;
+    inset: 0 0 calc(68px + env(safe-area-inset-bottom));
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: rgba(43, 38, 51, .23);
+    backdrop-filter: blur(1.5px);
+  }
+
+  .someday-quick-mobile-sheet {
+    position: absolute;
+    right: 0;
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    left: 0;
+    display: grid;
+    gap: 14px;
+    padding: 8px 18px 18px;
+    border-radius: 24px 24px 0 0;
+    background: #fff;
+    box-shadow: 0 -12px 34px rgba(43, 38, 51, .14);
+    animation: someday-quick-sheet-in .18s ease-out both;
+  }
+
+  .someday-quick-handle {
+    width: 42px;
+    height: 4px;
+    margin: 0 auto;
+    border-radius: 999px;
+    background: var(--line-strong);
+  }
+
+  .someday-quick-sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .someday-quick-sheet-head strong {
+    color: var(--text);
+    font-size: 16px;
+  }
+
+  .someday-quick-sheet-head button {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    font-size: 24px;
+    cursor: pointer;
+  }
+
+  #somedayQuickMobileForm {
+    display: grid;
+    gap: 10px;
+  }
+
+  #somedayQuickMobileInput,
+  #somedayQuickDate {
+    width: 100%;
+    min-width: 0;
+    height: 46px;
+    box-sizing: border-box;
+    padding: 0 13px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    outline: none;
+  }
+
+  #somedayQuickMobileInput:focus,
+  #somedayQuickDate:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+
+  .someday-quick-date-row:not([hidden]) {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 12px;
+    background: var(--panel-soft);
+  }
+
+  .someday-quick-date-row label {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .someday-quick-date-row button {
+    min-height: 34px;
+    padding: 0 8px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  .someday-quick-submit {
+    min-height: 44px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .someday-quick-date-toggle {
+    justify-self: center;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+}
+
+@media (max-width: 380px) {
+  .someday-quick-mobile-sheet {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .someday-quick-date-row:not([hidden]) {
+    grid-template-columns: 1fr auto;
+  }
+
+  .someday-quick-date-row label {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-height: 720px) and (min-width: 901px) {
+  .someday-quick-recents {
+    display: none;
+  }
+
+  .someday-quick-desktop {
+    bottom: 142px;
+  }
+
+  .sidebar .nav {
+    max-height: calc(100vh - 290px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .someday-quick-mobile-sheet {
+    animation: none;
+  }
+}
+
+@keyframes someday-quick-sheet-in {
+  from { transform: translateY(18px); opacity: .75; }
+  to { transform: translateY(0); opacity: 1; }
+}

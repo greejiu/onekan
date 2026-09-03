@@ -33,5 +33,5 @@ for (const entry of [
   assert.match(html, /uw-time-block-v2-item/);
 }
 
-assert.match(index, /unified-workspace\.js\?v=82/);
+assert.match(index, /unified-workspace\.js\?v=97/);
 console.log('unified render smoke: ok');

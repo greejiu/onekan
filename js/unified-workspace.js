@@ -686,6 +686,85 @@ function renderUpcoming(){
   root.innerHTML=groups.map(({date,rows})=>`<div class="uw-date-group" data-uw-add-kind="task" data-date="${date}"><div class="uw-date-label"><span>${dayLabel(fromKey(date),true)}</span></div><div class="uw-list" data-uw-add-kind="task" data-date="${date}">${rows.map(x=>itemMarkup(x.kind,x.item,date)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div></div>`).join("")
 }
 function renderSomeday(){const root=$("#somedayHomeSlot");if(!root)return;const tasks=somedayTaskOccurrences().filter(task=>!taskDoneOn(task,task._occurrenceSource||"")).sort((a,b)=>manualOrderValue(a)-manualOrderValue(b)||String(a.createdAt||"").localeCompare(String(b.createdAt||""))||String(a.title||"").localeCompare(String(b.title||""),"ko"));root.innerHTML=`<div class="uw-list uw-someday-list" data-uw-add-kind="task" data-date="" data-uw-someday-drop data-manual-list>${tasks.map(t=>itemMarkup("task",t,"",false,true)).join("")||'<div class="uw-empty-hit">＋ 할일</div>'}</div>`}
+function renderSomedayQuickRecents(){
+  const root=$("#somedayQuickRecents");
+  if(!root||!state)return;
+  const recent=state.tasks
+    .filter(task=>!task.done&&!task.date)
+    .sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))||manualOrderValue(b)-manualOrderValue(a))
+    .slice(0,2);
+  root.innerHTML=recent.map(task=>`<div class="someday-quick-recent" title="${esc(task.title)}"><span>${esc(task.title)}</span></div>`).join("")
+}
+async function addSomedayQuickTask(title,date=null){
+  const value=String(title||"").trim();
+  if(!value)return false;
+  const taskDate=date||null;
+  await write(current=>{
+    const siblings=current.tasks.filter(task=>(task.date||null)===taskDate);
+    siblings.forEach((task,index)=>{if(!Number.isFinite(Number(task.manualOrder)))task.manualOrder=(index+1)*1000});
+    const orders=siblings.map(task=>Number(task.manualOrder)).filter(Number.isFinite);
+    current.tasks.push({
+      id:uid(),
+      title:value,
+      date:taskDate,
+      done:false,
+      groupId:current.eventGroups[0]?.id||"default",
+      manualOrder:(orders.length?Math.max(...orders):0)+1000,
+      createdAt:new Date().toISOString()
+    })
+  });
+  return true
+}
+function wireSomedayQuickAdd(){
+  const desktopForm=$("#somedayQuickDesktopForm"),desktopInput=$("#somedayQuickDesktopInput"),mobileTrigger=$("#somedayQuickMobileTrigger"),layer=$("#somedayQuickMobileLayer"),mobileForm=$("#somedayQuickMobileForm"),mobileInput=$("#somedayQuickMobileInput"),dateRow=$("#somedayQuickDateRow"),dateInput=$("#somedayQuickDate"),dateToggle=$("#somedayQuickDateToggle");
+  if(!desktopForm||desktopForm.dataset.bound)return;
+  desktopForm.dataset.bound="1";
+  const setDateOpen=open=>{
+    if(dateRow)dateRow.hidden=!open;
+    dateToggle?.setAttribute("aria-expanded",String(open));
+    if(open&&dateInput&&!dateInput.value)dateInput.value=todayKey();
+  };
+  const closeMobile=()=>{
+    if(!layer)return;
+    layer.hidden=true;
+    document.body.classList.remove("someday-quick-open");
+    mobileTrigger?.setAttribute("aria-expanded","false");
+    if(mobileInput)mobileInput.value="";
+    if(dateInput)dateInput.value="";
+    setDateOpen(false)
+  };
+  const openMobile=()=>{
+    if(!layer)return;
+    layer.hidden=false;
+    document.body.classList.add("someday-quick-open");
+    mobileTrigger?.setAttribute("aria-expanded","true");
+    requestAnimationFrame(()=>mobileInput?.focus({preventScroll:true}))
+  };
+  const save=async({form,input,date=null,close=false})=>{
+    const title=input?.value.trim(),submit=form?.querySelector('button[type="submit"]');
+    if(!title){input?.focus();return}
+    if(submit?.disabled)return;
+    if(submit)submit.disabled=true;
+    try{
+      await addSomedayQuickTask(title,date);
+      if(input)input.value="";
+      showToast(date?"날짜 할일에 추가했어요.":"언젠가 할일에 추가했어요.");
+      if(close)closeMobile();else requestAnimationFrame(()=>input?.focus())
+    }catch(error){
+      console.error("언젠가 할일 빠른 추가 실패",error);
+      showToast("할일을 추가하지 못했어요. 다시 시도해 주세요.")
+    }finally{
+      if(submit)submit.disabled=false
+    }
+  };
+  desktopForm.addEventListener("submit",event=>{event.preventDefault();save({form:desktopForm,input:desktopInput})});
+  mobileTrigger?.addEventListener("click",openMobile);
+  layer?.addEventListener("click",event=>{if(event.target.closest("[data-someday-quick-close]"))closeMobile()});
+  dateToggle?.addEventListener("click",()=>{const open=dateRow?.hidden!==false;setDateOpen(open);if(open)requestAnimationFrame(()=>{try{dateInput?.showPicker()}catch{dateInput?.focus()}})});
+  $("#somedayQuickDateClear")?.addEventListener("click",()=>{if(dateInput)dateInput.value="";setDateOpen(false);mobileInput?.focus()});
+  mobileForm?.addEventListener("submit",event=>{event.preventDefault();save({form:mobileForm,input:mobileInput,date:dateRow?.hidden?null:dateInput?.value||null,close:true})});
+  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&layer?.hidden===false)closeMobile()})
+}
 function renderSideTab(){$$('[data-uw-side-tab]').forEach(button=>{const active=button.dataset.uwSideTab===homeSideTab;button.classList.toggle("active",active);button.setAttribute("aria-selected",String(active))});$$('[data-uw-side-panel]').forEach(panel=>{panel.hidden=panel.dataset.uwSidePanel!==homeSideTab})}
 function overdueTasks(source=state){const today=todayKey();return(source?.tasks||[]).filter(task=>!task.done&&task.date&&task.date<today).sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.title).localeCompare(String(b.title),"ko"))}
 function renderOverdue(){const root=$("#overdueTaskBanner");if(!root)return;const tasks=overdueTasks();root.hidden=!tasks.length;if(!tasks.length){root.innerHTML="";overdueExpanded=false;return}const groups=new Map();tasks.forEach(task=>{if(!groups.has(task.date))groups.set(task.date,[]);groups.get(task.date).push(task)});const details=[...groups].map(([date,items])=>`<div class="uw-overdue-date"><strong>${dayLabel(fromKey(date),true)}</strong><span>${items.length}개</span><ul>${items.map(task=>`<li>${esc(task.title)}</li>`).join("")}</ul></div>`).join("");root.innerHTML=`<div class="uw-overdue-row"><strong>지연된 일이 있습니다. 오늘로 옮길까요?</strong><div class="uw-overdue-actions"><button class="soft-btn" data-uw-overdue-view type="button" aria-expanded="${overdueExpanded}">${overdueExpanded?"닫기":"보기"}</button><button class="primary-btn" data-uw-overdue-move type="button">네</button></div></div><div class="uw-overdue-details"${overdueExpanded?"":" hidden"}>${details}</div>`}
@@ -693,7 +772,7 @@ let homeColumnResizeObserver=null,homeColumnResizeFrame=0;
 function clearHomeRightSizing(right){right.style.removeProperty("height");right.querySelectorAll(".uw-side-toggle").forEach(card=>{card.style.removeProperty("height");const body=card.querySelector(".card-body");if(body){body.style.removeProperty("height");body.style.removeProperty("max-height")}})}
 function syncHomeColumnHeight(){const left=$("#homeLeftColumn"),right=$("#homeRightColumn");if(!left||!right)return;cancelAnimationFrame(homeColumnResizeFrame);homeColumnResizeFrame=requestAnimationFrame(()=>{if(matchMedia("(max-width:1050px)").matches){clearHomeRightSizing(right);return}const height=Math.ceil(left.getBoundingClientRect().height);if(height<=0)return;right.style.height=`${height}px`;requestAnimationFrame(()=>{right.querySelectorAll(".uw-side-toggle").forEach(card=>{const body=card.querySelector(".card-body");if(!body)return;if(!card.open){body.style.removeProperty("height");body.style.removeProperty("max-height");return}const summary=card.querySelector("summary"),cardHeight=Math.floor(card.getBoundingClientRect().height),headerHeight=Math.ceil(summary?.getBoundingClientRect().height||0),bodyHeight=Math.max(1,cardHeight-headerHeight);body.style.height=`${bodyHeight}px`;body.style.maxHeight=`${bodyHeight}px`;body.style.overflowY="scroll"})})})}
 function wireHomeColumnHeightSync(){const left=$("#homeLeftColumn");if(!left||homeColumnResizeObserver)return;homeColumnResizeObserver=new ResizeObserver(syncHomeColumnHeight);homeColumnResizeObserver.observe(left);window.addEventListener("resize",syncHomeColumnHeight);$$("#homeRightColumn .uw-side-toggle").forEach(card=>card.addEventListener("toggle",syncHomeColumnHeight));syncHomeColumnHeight()}
-function renderHome(){const today=todayKey();ensureGoogleCalendarRange(today,key(addDays(fromKey(today),7)));renderPlanner();renderSomeday();renderUpcoming();renderSideTab();renderOverdue();wireHomeColumnHeightSync();syncHomeColumnHeight()}
+function renderHome(){const today=todayKey();ensureGoogleCalendarRange(today,key(addDays(fromKey(today),7)));renderPlanner();renderSomeday();renderSomedayQuickRecents();renderUpcoming();renderSideTab();renderOverdue();wireHomeColumnHeightSync();syncHomeColumnHeight()}
 
 function schedules(k){return[...eventOccurrencesForDate(k),...googleCalendarEventsForDate(k)].sort((a,b)=>Number(b.allDay)-Number(a.allDay)||new Date(a.start)-new Date(b.start))}
 function renderCalendar(){const body=$("#calendarBody");if(!body)return;$("#calendarTypeFilter")?.classList.add("uw-hidden");$("#dayModeSeg")?.classList.add("uw-hidden");const seg=$("#calendarViewSeg");if(seg)seg.innerHTML=`<button data-uw-cal-view="month" class="${calendarView==="month"?"active":""}">월</button><button data-uw-cal-view="week" class="${calendarView==="week"?"active":""}">주</button><button data-uw-cal-view="day" class="${calendarView==="day"?"active":""}">일</button>`;if(calendarView==="month"){const y=calendarCursor.getFullYear(),m=calendarCursor.getMonth(),first=new Date(y,m,1),start=addDays(first,-first.getDay());$("#calTitle").textContent=`${y}년 ${m+1}월`;body.innerHTML=`<div class="uw-calendar uw-month">${["일","월","화","수","목","금","토"].map(x=>`<div class="uw-dow">${x}</div>`).join("")}${Array.from({length:42},(_,i)=>{const d=addDays(start,i),k=key(d);return`<div class="uw-month-cell${d.getMonth()!==m?" outside":""}" data-uw-add-kind="event" data-date="${k}"><span class="uw-month-num">${d.getDate()}</span><div class="uw-month-events">${schedules(k).slice(0,5).map(e=>itemMarkup("event",e,k,true)).join("")}</div></div>`}).join("")}</div>`;return}if(calendarView==="week"){const start=addDays(calendarCursor,-calendarCursor.getDay()),end=addDays(start,6);$("#calTitle").textContent=`${dayLabel(start)} – ${dayLabel(end)}`;body.innerHTML=`<div class="uw-scroll"><div class="uw-calendar uw-week">${Array.from({length:7},(_,i)=>{const d=addDays(start,i),k=key(d);return`<section class="uw-week-day"><div class="uw-week-label">${dayLabel(d,true)}</div><div class="uw-list" data-uw-add-kind="event" data-date="${k}">${schedules(k).map(e=>itemMarkup("event",e,k)).join("")||'<div class="uw-empty-hit">일정 입력</div>'}</div></section>`}).join("")}</div></div>`;return}const k=key(calendarCursor),rows=schedules(k),all=rows.filter(e=>e.allDay),timed=rows.filter(e=>!e.allDay);$("#calTitle").textContent=dayLabel(calendarCursor,true);body.innerHTML=`<div class="uw-calendar uw-day-list"><section class="uw-day-list-section"><h3>하루 종일</h3><div class="uw-list" data-uw-add-kind="event" data-date="${k}">${all.map(e=>itemMarkup("event",e,k)).join("")||'<div class="uw-empty-hit">일정 입력</div>'}</div></section><section class="uw-day-list-section"><h3>시간 일정</h3><div class="uw-list" data-uw-add-kind="event" data-date="${k}" data-with-time="1">${timed.map(e=>itemMarkup("event",e,k)).join("")||'<div class="uw-empty-hit">시간 일정 입력</div>'}</div></section></div>`}
@@ -1717,7 +1796,7 @@ async function renderAll(){if(rendering)return;rendering=true;try{await read();i
 async function init(){
   if(document.documentElement.dataset.unifiedWorkspace)return;
   document.documentElement.dataset.unifiedWorkspace="1";
-  wireDragClickGuard();wireEnterToSave();wireHabitForm();wireOverdueActions();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();
+  wireDragClickGuard();wireEnterToSave();wireSomedayQuickAdd();wireHabitForm();wireOverdueActions();wireTaskViewControls();wireScheduleViewControls();wireClicks();wireSideTabs();wireControlsV2();
   document.addEventListener("onekan:state-changed",event=>{
     if(event.detail?.source==="unified")return;
     if(event.detail?.state&&adoptSharedState(event.detail.state)){

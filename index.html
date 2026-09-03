@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="./css/project-bookmark.css?v=2" />
   <link rel="stylesheet" href="./css/google-calendar.css?v=1" />
   <link rel="stylesheet" href="./css/sidebar-navigation.css?v=1" />
+  <link rel="stylesheet" href="./css/someday-quick-add.css?v=1" />
 </head>
 <body>
   <section id="auth-section" class="auth-shell">
@@ -67,6 +68,14 @@
         <button class="nav-item" data-page="reports" type="button"><span class="nav-icon">▥</span><span class="nav-label">리포트</span></button>
         <button class="nav-item" data-page="tags" type="button"><span class="nav-icon">#</span><span class="nav-label">태그</span></button>
       </nav>
+      <section class="someday-quick-desktop" aria-labelledby="somedayQuickDesktopTitle">
+        <strong id="somedayQuickDesktopTitle">언젠가 할일</strong>
+        <form id="somedayQuickDesktopForm">
+          <input id="somedayQuickDesktopInput" type="text" maxlength="120" autocomplete="off" placeholder="생각난 일을 바로 적기" aria-label="언젠가 할일 빠른 추가" />
+          <button type="submit" aria-label="언젠가 할일 추가">＋</button>
+        </form>
+        <div class="someday-quick-recents" id="somedayQuickRecents" aria-label="최근 추가한 언젠가 할일"></div>
+      </section>
       <div class="sidebar-bottom">
         <div class="sync-status" id="syncStatus">저장됨</div>
         <div class="account-email" id="account-email"></div>
@@ -79,6 +88,30 @@
       <button class="soft-btn" id="mobileMenuBtn" type="button">☰</button>
       <strong>오늘한칸</strong>
       <span id="mobileSyncStatus">저장됨</span>
+    </div>
+
+    <button class="someday-quick-mobile-trigger" id="somedayQuickMobileTrigger" type="button" aria-haspopup="dialog" aria-controls="somedayQuickMobileSheet" aria-expanded="false" aria-label="언젠가 할일 빠른 추가">
+      <span aria-hidden="true">✎</span><span aria-hidden="true">＋</span>
+    </button>
+    <div class="someday-quick-mobile-layer" id="somedayQuickMobileLayer" hidden>
+      <button class="someday-quick-backdrop" type="button" data-someday-quick-close aria-label="빠른 추가 닫기"></button>
+      <section class="someday-quick-mobile-sheet" id="somedayQuickMobileSheet" role="dialog" aria-modal="true" aria-labelledby="somedayQuickMobileTitle">
+        <div class="someday-quick-handle" aria-hidden="true"></div>
+        <div class="someday-quick-sheet-head">
+          <strong id="somedayQuickMobileTitle">언젠가 할일 빠른 추가</strong>
+          <button type="button" data-someday-quick-close aria-label="닫기">×</button>
+        </div>
+        <form id="somedayQuickMobileForm">
+          <input id="somedayQuickMobileInput" type="text" maxlength="120" autocomplete="off" placeholder="생각난 일을 바로 적어두세요" aria-label="할일 제목" required />
+          <div class="someday-quick-date-row" id="somedayQuickDateRow" hidden>
+            <label for="somedayQuickDate">날짜</label>
+            <input id="somedayQuickDate" type="date" />
+            <button type="button" id="somedayQuickDateClear">날짜 없이 두기</button>
+          </div>
+          <button class="someday-quick-submit" type="submit">추가</button>
+          <button class="someday-quick-date-toggle" id="somedayQuickDateToggle" type="button" aria-expanded="false">▣ 날짜 정하기</button>
+        </form>
+      </section>
     </div>
 
     <main class="main">
@@ -333,7 +366,7 @@
   <script type="module" src="./js/workspace-pages.js?v=12"></script>
   <script type="module" src="./js/appearance.js?v=4"></script>
   <script type="module" src="./js/time-block-v2-settings.js?v=4"></script>
-  <script type="module" src="./js/unified-workspace.js?v=96"></script>
+  <script type="module" src="./js/unified-workspace.js?v=97"></script>
   <script type="module" src="./js/repeat-overview.js?v=10"></script>
   <script type="module" src="./js/project-status-automation.js?v=2"></script>
   <script type="module" src="./js/project-status.js?v=13"></script>
