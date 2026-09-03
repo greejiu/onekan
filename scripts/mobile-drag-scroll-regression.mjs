@@ -12,9 +12,9 @@ assert.match(workspace,/if\(g\.coarse&&g\.dedicatedHandle&&distance>=TOUCH_HANDL
 assert.match(workspace,/document\.addEventListener\("pointercancel",\(\)=>clear\(gesture\)\)/,'cancelled browser gestures must always clear drag state');
 assert.match(css,/@media\(hover:none\),\(pointer:coarse\)\{\.uw-item\{touch-action:pan-y\}/,'mobile card bodies must retain native vertical scrolling');
 assert.match(css,/\.uw-item\.selected \.uw-move-handle[^\{]*\{[^}]*touch-action:none!important/,'the visible mobile move handle must opt out of browser scrolling before pointerdown');
-assert.match(index,/unified-workspace\.css\?v=67/,'mobile drag CSS cache must be refreshed');
+assert.match(index,/unified-workspace\.css\?v=68/,'mobile drag CSS cache must be refreshed');
 assert.match(workspace,/function timeBlockV2ItemMarkup[\s\S]*?uw-move-handle[\s\S]*?function timeBlockV2ManualGroup/,'time-block list cards must expose the mobile move handle');
 assert.doesNotMatch(workspace,/function timeBlockV2TimelinePlanItemMarkup[\s\S]*?replace\(\/<button class="uw-move-handle"[\s\S]*?function timeBlockV2TimelineProjection/,'projected time-block cards must retain the mobile move handle');
-assert.match(index,/unified-workspace\.js\?v=101/,'mobile drag JavaScript cache must be refreshed');
+assert.match(index,/unified-workspace\.js\?v=102/,'mobile drag JavaScript cache must be refreshed');
 
 console.log('mobile drag scroll regression: ok');

@@ -10,9 +10,9 @@ assert.doesNotMatch(match[0], /\blistDate\b/, 'time-block renderer must not refe
 
 const render = new Function('entry', 'date', 'assignment', `
   const SLOT = 30;
-  const TIME_BLOCK_AUTO_SLOT_MINUTES = 15;
+  const TIME_BLOCK_AUTO_SLOT_MINUTES = 10;
   const TIME_BLOCK_START_ANCHOR = '__start__';
-  const plannedDuration = (value, fallback = SLOT) => Number(value) === TIME_BLOCK_AUTO_SLOT_MINUTES ? TIME_BLOCK_AUTO_SLOT_MINUTES : Math.max(SLOT, Number(value) || fallback);
+  const plannedDuration = (value, fallback = SLOT) => Number(value) === TIME_BLOCK_AUTO_SLOT_MINUTES || Number(value) === 15 ? Number(value) : Math.max(SLOT, Number(value) || fallback);
   const esc = value => String(value ?? '');
   const groupStyle = () => '';
   const checkMarkup = () => '<button></button>';
@@ -28,6 +28,7 @@ const render = new Function('entry', 'date', 'assignment', `
 for (const entry of [
   { kind:'task', item:{ id:'task-1', title:'할일' }, timed:false },
   { kind:'habit', item:{ id:'habit-1', title:'습관' }, timed:false },
+  { kind:'task', item:{ id:'task-2', title:'10분 할일' }, timed:true, time:550, duration:10 },
   { kind:'event', item:{ id:'event-1', title:'일정' }, timed:true, time:540, duration:60 },
 ]) {
   const html = render(entry, '2026-08-29', null);
@@ -36,5 +37,5 @@ for (const entry of [
   assert.match(html, /uw-move-handle/, 'time-block cards must expose the shared move handle');
 }
 
-assert.match(index, /unified-workspace\.js\?v=101/);
+assert.match(index, /unified-workspace\.js\?v=102/);
 console.log('unified render smoke: ok');

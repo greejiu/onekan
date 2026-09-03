@@ -26,7 +26,7 @@ import {
   timeBlockOccurrenceToken,
   timeBlockTemplatesForDate,
   validateTimeBlockTemplates,
-} from "./time-block-v2.js?v=5";
+} from "./time-block-v2.js?v=6";
 import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
 
 const $=(s,r=document)=>r.querySelector(s);const $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -89,8 +89,9 @@ function applyColors(){
   root.style.setProperty("--accent",state.ui.themeColor);
 }
 function timelineHeight(){return((END-START)/SLOT)*SLOT_H}
-function plannedDuration(value,fallback=SLOT){const duration=Number(value);return duration===TIME_BLOCK_AUTO_SLOT_MINUTES?TIME_BLOCK_AUTO_SLOT_MINUTES:Math.max(SLOT,Number.isFinite(duration)?duration:fallback)}
-function plannedDurationBetween(start,end){const minutes=Math.round((new Date(end)-new Date(start))/60000);return minutes===TIME_BLOCK_AUTO_SLOT_MINUTES?TIME_BLOCK_AUTO_SLOT_MINUTES:Math.max(SLOT,Math.round(minutes/SLOT)*SLOT)}
+function plannedDuration(value,fallback=SLOT){const duration=Number(value);return duration===TIME_BLOCK_AUTO_SLOT_MINUTES||duration===15?duration:Math.max(SLOT,Number.isFinite(duration)?duration:fallback)}
+function plannedDurationBetween(start,end){const minutes=Math.round((new Date(end)-new Date(start))/60000);return minutes===TIME_BLOCK_AUTO_SLOT_MINUTES||minutes===15?minutes:Math.max(SLOT,Math.round(minutes/SLOT)*SLOT)}
+function timelineDisplayMinute(entry){return Number.isFinite(Number(entry?._displayTime))?Number(entry._displayTime):Number(entry?.time)}
 function currentTimeMarkup(date){
   const now=new Date(),minute=now.getHours()*60+now.getMinutes();
   const visible=date===key(now)&&minute>=START&&minute<=END;
@@ -128,6 +129,7 @@ function layoutTimedItems(items){
     clusterEnd=Math.max(clusterEnd,entry.time+plannedDuration(entry.duration));
   });
   flush();
+  sorted.forEach(entry=>{const offset=((Number(entry.time)%SLOT)+SLOT)%SLOT;if(plannedDuration(entry.duration)===TIME_BLOCK_AUTO_SLOT_MINUTES&&offset%TIME_BLOCK_AUTO_SLOT_MINUTES===0){entry._columns=3;entry._lane=offset/TIME_BLOCK_AUTO_SLOT_MINUTES;entry._displayTime=Number(entry.time)-offset}});
   return sorted;
 }
 function timedColumnStyle(entry){
@@ -325,13 +327,23 @@ function timeBlockV2MinuteText(minute){const value=Math.max(0,Math.min(1439,Numb
 function timeBlockV2TemplateForMinute(templates,minute){return templates.find(template=>Number(minute)>=Number(template.startMinute)&&Number(minute)<Number(template.endMinute))||null}
 function timeBlockV2Assignable(entry){return!entry.timed&&(entry.kind==="task"||entry.kind==="habit")}
 function timeBlockV2EntryToken(entry,k){return timeBlockOccurrenceToken(entry.kind,entry.item,k)}
-function automaticTimeBlockSlot(date,preferredBlockId,excludeToken=""){
+function timeBlockPlacementData(date){
   const templates=effectiveTimeBlockTemplatesForDate(state,date),assignments=timeBlockAssignmentsForDate(state,date),occurrences=itemsForDay(date).map(entry=>({token:timeBlockV2EntryToken(entry,date),timed:entry.timed,time:entry.time,duration:entry.duration}));
-  return findFirstAvailableTimeBlockSlot(templates,assignments,occurrences,preferredBlockId,excludeToken)
+  return{templates,assignments,occurrences}
+}
+function automaticTimeBlockSlot(date,preferredBlockId,excludeToken="",duration=TIME_BLOCK_AUTO_SLOT_MINUTES){
+  const{templates,assignments,occurrences}=timeBlockPlacementData(date);
+  return findFirstAvailableTimeBlockSlot(templates,assignments,occurrences,preferredBlockId,excludeToken,duration)
+}
+function automaticTimelineRowSlot(date,rowStart,excludeToken=""){
+  const{templates,assignments,occurrences}=timeBlockPlacementData(date),rows=buildTimeBlockTimelinePlanRows(templates,assignments,occurrences),rowId=`timeline-row-${rowStart}`,rowAssignments={};
+  rows.filter(row=>Number(row.anchorMinute)>=rowStart&&Number(row.anchorMinute)<rowStart+SLOT&&row.token!==excludeToken).forEach((row,index)=>{rowAssignments[row.token]={blockId:rowId,afterAnchor:TIME_BLOCK_START_ANCHOR,order:index+1}});
+  const rowOccurrences=[...occurrences,...Object.keys(rowAssignments).filter(token=>!occurrences.some(row=>row.token===token)).map(token=>({token,timed:false}))];
+  return findFirstAvailableTimeBlockSlot([{id:rowId,startMinute:rowStart,endMinute:rowStart+SLOT}],rowAssignments,rowOccurrences,rowId,excludeToken)
 }
 function timeBlockV2ItemMarkup(entry,k,templates,assignment=null){
-  const kind=entry.kind,item=entry.item,done=itemDoneOn(kind,item,k),repeat=recurrenceLabel(item,kind),occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"",time=entry.timed?timeBlockV2MinuteText(entry.time):"",token=timeBlockV2EntryToken(entry,k),assignable=timeBlockV2Assignable(entry),duration=plannedDuration(entry.duration),quarterHour=entry.timed&&duration===TIME_BLOCK_AUTO_SLOT_MINUTES,planningClass=entry.timed?" fixed-anchor":assignable?" plan-draggable":"",planningAttrs=entry.timed?` data-time-block-anchor="${esc(token)}" data-time="${Number(entry.time)}" data-duration="${duration}"`:assignable?` data-time-block-token="${esc(token)}"${assignment?` data-time-block-block-id="${esc(assignment.blockId)}" data-time-block-after-anchor="${esc(assignment.afterAnchor||TIME_BLOCK_START_ANCHOR)}" data-time-block-order="${Math.max(1,Number(assignment.order)||1)}"`:""}`:"";
-  return`<div class="uw-item uw-${kind} uw-time-block-v2-item${entry.timed?" timed":" untimed"}${quarterHour?" uw-quarter-hour":""}${planningClass}${done?" done":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${planningAttrs} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge" title="${esc(repeat)}" aria-label="반복 · ${esc(repeat)}">↻</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
+  const kind=entry.kind,item=entry.item,done=itemDoneOn(kind,item,k),repeat=recurrenceLabel(item,kind),occurrence=(kind==="task"||kind==="event")&&item._occurrenceSource?` data-occurrence-source="${item._occurrenceSource}"`:"",time=entry.timed?timeBlockV2MinuteText(entry.time):"",token=timeBlockV2EntryToken(entry,k),assignable=timeBlockV2Assignable(entry),duration=plannedDuration(entry.duration),autoSlot=entry.timed&&duration===TIME_BLOCK_AUTO_SLOT_MINUTES,planningClass=entry.timed?" fixed-anchor":assignable?" plan-draggable":"",planningAttrs=entry.timed?` data-time-block-anchor="${esc(token)}" data-time="${Number(entry.time)}" data-duration="${duration}"`:assignable?` data-time-block-token="${esc(token)}"${assignment?` data-time-block-block-id="${esc(assignment.blockId)}" data-time-block-after-anchor="${esc(assignment.afterAnchor||TIME_BLOCK_START_ANCHOR)}" data-time-block-order="${Math.max(1,Number(assignment.order)||1)}"`:""}`:"";
+  return`<div class="uw-item uw-${kind} uw-time-block-v2-item${entry.timed?" timed":" untimed"}${autoSlot?" uw-auto-slot":""}${planningClass}${done?" done":""}" style="${groupStyle(item)}" data-uw-kind="${kind}" data-id="${item.id}" data-date="${k}"${occurrence}${planningAttrs} draggable="false">${checkMarkup(kind,item,k)}<span class="uw-item-title">${esc(item.title)}</span>${repeat?`<span class="uw-repeat-badge" title="${esc(repeat)}" aria-label="반복 · ${esc(repeat)}">↻</span>`:""}${time?`<span class="uw-item-time">${time}</span>`:""}<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button" aria-label="선택"></button></div>`
 }
 function timeBlockV2ManualGroup(entries,k,templates,assignments,anchor){
   return entries.filter(entry=>{const token=timeBlockV2EntryToken(entry,k),assignment=assignments[token];return(assignment?.afterAnchor||TIME_BLOCK_START_ANCHOR)===anchor}).sort((a,b)=>{const at=timeBlockV2EntryToken(a,k),bt=timeBlockV2EntryToken(b,k),aa=assignments[at],ba=assignments[bt];return(Number(aa?.order)||1)-(Number(ba?.order)||1)||at.localeCompare(bt)}).map(entry=>timeBlockV2ItemMarkup(entry,k,templates,assignments[timeBlockV2EntryToken(entry,k)])).join("")
@@ -597,7 +609,7 @@ function openInline(host,{kind,date=null,endDate=null,time=null,duration=SLOT,ed
         if(timeBlockId&&taskDate&&!assignedAutomatically)assignTimeBlockOccurrence(current,taskDate,timeBlockOccurrenceToken("task",task,taskDate),timeBlockId)
       }
     });
-    if(automaticPlacementFull){saving=false;form.remove();showToast("이 타임블럭과 뒤의 타임블럭에 빈 15분 자리가 없어요.");return}
+    if(automaticPlacementFull){saving=false;form.remove();showToast("이 타임블럭과 뒤의 타임블럭에 빈 10분 자리가 없어요.");return}
     clearRange();
     if(next)setTimeout(()=>{const nextHost=timeBlockId?$('[data-uw-time-block-drop-list][data-date="'+CSS.escape(selectedDate||"")+'"][data-time-block-id="'+CSS.escape(timeBlockId)+'"]'):findAddHost(kind,selectedDate,time);if(nextHost)openInline(nextHost,{kind,date:selectedDate,endDate,time,duration,withTime,groupId,timeBlockId})},220)
   };
@@ -662,8 +674,8 @@ function plannerDay(d,index=0){
   for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}
   const blocks=timed.map(x=>{
     if(x.kind==="session")return sessionBlockMarkup(x,k);
-    const google=x.kind==="event"&&isGoogleCalendarEvent(x.item),quarterHour=Number(x.duration)===TIME_BLOCK_AUTO_SLOT_MINUTES,resizable=!google&&!quarterHour,externalAttrs=google?` data-google-calendar-event data-google-calendar-url="${esc(x.item.htmlLink||"")}" title="${esc(x.item.calendarName||"Google 캘린더")}"`:"";
-    return`<div class="uw-time-entry uw-item ${itemDoneOn(x.kind,x.item,k)?"done":""}${google?" uw-google-event":""}${quarterHour?" uw-quarter-hour":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${esc(x.item.id)}" data-date="${k}" data-time-block-anchor="${esc(timeBlockV2EntryToken(x,k))}"${(x.kind==="task"||x.kind==="event")&&x.item._occurrenceSource?` data-occurrence-source="${x.item._occurrenceSource}"`:""} data-time="${x.time}" data-duration="${x.duration}"${externalAttrs}>${resizable?'<button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>':""}${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span>${google?"":`<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button>${resizable?'<button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button>':""}`}</div>`
+    const google=x.kind==="event"&&isGoogleCalendarEvent(x.item),autoSlot=Number(x.duration)===TIME_BLOCK_AUTO_SLOT_MINUTES,resizable=!google&&!autoSlot,externalAttrs=google?` data-google-calendar-event data-google-calendar-url="${esc(x.item.htmlLink||"")}" title="${esc(x.item.calendarName||"Google 캘린더")}"`:"";
+    return`<div class="uw-time-entry uw-item ${itemDoneOn(x.kind,x.item,k)?"done":""}${google?" uw-google-event":""}${autoSlot?" uw-auto-slot":""}" style="top:${((timelineDisplayMinute(x)-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="${x.kind}" data-id="${esc(x.item.id)}" data-date="${k}" data-time-block-anchor="${esc(timeBlockV2EntryToken(x,k))}"${(x.kind==="task"||x.kind==="event")&&x.item._occurrenceSource?` data-occurrence-source="${x.item._occurrenceSource}"`:""} data-time="${x.time}" data-duration="${x.duration}"${externalAttrs}>${resizable?'<button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>':""}${checkMarkup(x.kind,x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span>${google?"":`<button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button>${resizable?'<button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button>':""}`}</div>`
   }).join("");
   const head=homeDays>1?`<div class="uw-day-head"><strong>${dayLabel(d)}</strong></div>`:"",planClass=projection.hasRows?" uw-has-time-block-plan":"";
   return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}">${head}${allDayPanel(k,untimed)}<div class="uw-timeline${planClass}" style="height:${projection.height}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}<div class="uw-time-exact-lane">${blocks}</div>${projection.hasRows?`<div class="uw-time-block-plan-rail uw-time-block-plan-drop-surface" aria-label="타임블럭 계획">${projection.markup}</div>`:""}</div></div></section>`
@@ -928,7 +940,7 @@ function taskCalendarNav(){return`<div class="uw-task-calendar-nav"><button clas
 function taskMonthBoard(){const y=taskCalendarCursor.getFullYear(),m=taskCalendarCursor.getMonth(),first=new Date(y,m,1),start=addDays(first,-first.getDay());return`<div class="uw-task-month-grid">${["일","월","화","수","목","금","토"].map(x=>`<div class="uw-task-dow">${x}</div>`).join("")}${Array.from({length:42},(_,i)=>{const d=addDays(start,i),k=key(d),tasks=taskRowsForDate(k);return`<section class="uw-task-month-cell${d.getMonth()!==m?" outside":""}${k===todayKey()?" today":""}"><span class="uw-task-day-number">${d.getDate()}</span><div class="uw-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${taskListMarkup(tasks,k,true)}${taskListInput(k,true)}</div></section>`}).join("")}</div>`}
 function taskBoardDay(d,showDate=true){const k=key(d),tasks=taskRowsForDate(k),head=showDate?`<div class="uw-day-head"><strong>${dayLabel(d,true)}</strong></div>`:"";return`<section class="uw-task-board-day${k===todayKey()?" today":""}">${head}<div class="uw-list" data-uw-add-kind="task" data-date="${k}" data-task-drop-date="${k}">${taskListMarkup(tasks,k)}${taskListInput(k)}</div></section>`}
 function taskBoard(){const count=taskCalendarView==="week"?7:1,start=taskCalendarView==="week"?addDays(taskCalendarCursor,-taskCalendarCursor.getDay()):taskCalendarCursor;return`<div class="uw-task-board-grid" style="--uw-task-days:${count}">${Array.from({length:count},(_,i)=>taskBoardDay(addDays(start,i),count>1)).join("")}</div>`}
-function taskTimelineDay(d,index=0,showDate=true){const k=key(d),items=timelineItemsForDay(k,["task"]),untimed=items.filter(x=>!x.timed),timed=layoutTimedItems(items.filter(x=>x.timed&&x.time>=START&&x.time<END));let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>x.kind==="session"?sessionBlockMarkup(x,k):`<div class="uw-time-entry uw-item ${taskDoneOn(x.item,k)?"done":""}" style="top:${((x.time-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="task" data-id="${x.item.id}" data-date="${k}"${x.item._occurrenceSource?` data-occurrence-source="${x.item._occurrenceSource}"`:""} data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup("task",x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");const head=showDate?`<div class="uw-day-head uw-day-head-with-action"><strong>${dayLabel(d,true)}</strong>${index===0?sessionToggleMarkup():""}</div>`:"";return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}">${head}${allDayPanel(k,untimed)}<div class="uw-timeline" style="height:${timelineHeight()}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}${blocks}</div></div></section>`}
+function taskTimelineDay(d,index=0,showDate=true){const k=key(d),items=timelineItemsForDay(k,["task"]),untimed=items.filter(x=>!x.timed),timed=layoutTimedItems(items.filter(x=>x.timed&&x.time>=START&&x.time<END));let labels="",hits="";for(let m=START;m<END;m+=SLOT){if(m%60===0)labels+=`<span class="uw-time-label" style="top:${((m-START)/SLOT)*SLOT_H}px">${pad(m/60)}:00</span>`;hits+=`<div class="uw-time-hit" style="top:${((m-START)/SLOT)*SLOT_H}px" data-uw-add-kind="task" data-date="${k}" data-time="${m}"></div>`}const blocks=timed.map(x=>x.kind==="session"?sessionBlockMarkup(x,k):`<div class="uw-time-entry uw-item ${taskDoneOn(x.item,k)?"done":""}" style="top:${((timelineDisplayMinute(x)-START)/SLOT)*SLOT_H+1}px;height:${Math.max(18,(x.duration/SLOT)*SLOT_H-2)}px;${timedColumnStyle(x)}${groupStyle(x.item)}" data-uw-kind="task" data-id="${x.item.id}" data-date="${k}"${x.item._occurrenceSource?` data-occurrence-source="${x.item._occurrenceSource}"`:""} data-time="${x.time}" data-duration="${x.duration}"><button class="uw-resize-handle top" data-uw-resize="top" type="button"></button>${checkMarkup("task",x.item,k)}<span class="uw-item-title">${esc(x.item.title)}</span><button class="uw-move-handle" type="button" aria-label="길게 눌러 이동">↕</button><button class="uw-select-circle" type="button"></button><button class="uw-resize-handle bottom" data-uw-resize="bottom" type="button"></button></div>`).join("");const head=showDate?`<div class="uw-day-head uw-day-head-with-action"><strong>${dayLabel(d,true)}</strong>${index===0?sessionToggleMarkup():""}</div>`:"";return`<section class="uw-day${k===todayKey()?" uw-today":""}" data-date="${k}">${head}${allDayPanel(k,untimed)}<div class="uw-timeline" style="height:${timelineHeight()}px"><div class="uw-time-labels">${labels}</div><div class="uw-time-lane">${hits}${currentTimeMarkup(k)}${blocks}</div></div></section>`}
 function taskTimeline(){const count=taskCalendarView==="week"?7:1,start=taskCalendarView==="week"?addDays(taskCalendarCursor,-taskCalendarCursor.getDay()):taskCalendarCursor;return`<div class="uw-task-timeline-scroll"><div class="uw-planner-days" style="--uw-days:${count}">${Array.from({length:count},(_,i)=>taskTimelineDay(addDays(start,i),i,count>1)).join("")}</div></div>`}
 function renderTaskSubnav(){
   const nav=$("#taskPageTabs");
@@ -1198,9 +1210,15 @@ async function saveTimedChange(kind,id,date,startMinute,duration,occurrenceSourc
   }
   await write(current=>{clearMovedPlan(current,planDate,planToken);const start=new Date(`${date}T${pad(Math.floor(startMinute/60))}:${pad(startMinute%60)}:00`);const target=current.events.find(item=>item.id===id);if(!target)return;target.start=start.toISOString();target.end=new Date(start.getTime()+duration*60000).toISOString();target.allDay=false})
 }
-async function saveAutomaticTimeBlockChange(kind,id,date,blockId,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
-  const slot=automaticTimeBlockSlot(date,blockId,planToken);
-  if(!slot){showToast("이 타임블럭과 뒤의 타임블럭에 빈 15분 자리가 없어요.");return false}
+async function saveAutomaticTimeBlockChange(kind,id,date,blockId,occurrenceSource=date,planDate="",planToken="",forcedScope=null,duration=TIME_BLOCK_AUTO_SLOT_MINUTES){
+  const slot=automaticTimeBlockSlot(date,blockId,planToken,duration);
+  if(!slot){showToast("이 타임블럭과 뒤의 타임블럭에 필요한 빈자리가 없어요.");return false}
+  await saveTimedChange(kind,id,date,slot.startMinute,slot.duration,occurrenceSource,planDate,planToken,forcedScope);
+  return true
+}
+async function saveAutomaticTimelineRowChange(kind,id,date,rowStart,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
+  const slot=automaticTimelineRowSlot(date,rowStart,planToken);
+  if(!slot){showToast("이 30분 줄은 이미 할 일 3개로 꽉 찼어요.");return false}
   await saveTimedChange(kind,id,date,slot.startMinute,slot.duration,occurrenceSource,planDate,planToken,forcedScope);
   return true
 }
@@ -1427,6 +1445,10 @@ function wireControlsV2(){
       if(!lane||!rect)return null;
       const minute=START+((clientY-rect.top)/SLOT_H)*SLOT,snappedMinute=minuteAt(lane,clientY),templates=effectiveTimeBlockTemplatesForDate(state,date),block=templates.find(candidate=>minute>=Number(candidate.startMinute)&&minute<Number(candidate.endMinute));
       const planItem=closestAt(pointed,".uw-time-block-plan-item[data-time-block-token]",clientX,clientY),planRail=timeline.querySelector(".uw-time-block-plan-rail"),planRect=planRail?.getBoundingClientRect(),insidePlanRail=Boolean(planItem||(planRect&&clientX>=planRect.left&&clientX<=planRect.right));
+      if(g.start===null&&(g.kind==="task"||g.kind==="habit")){
+        timeline.querySelector(`.uw-time-hit[data-time="${snappedMinute}"]`)?.classList.add("uw-drop-target");
+        return{dropType:"time-row",date,startMinute:snappedMinute}
+      }
       if(!block||!insidePlanRail){
         timeline.querySelector(`.uw-time-hit[data-time="${snappedMinute}"]`)?.classList.add("uw-drop-target");
         return{dropType:"time",date,startMinute:snappedMinute}
@@ -1645,7 +1667,7 @@ function wireControlsV2(){
       g.validTarget=Boolean(target);
       g.dropType=target?.dropType||null;
       g.nextDate=target?.date||g.date;
-      if(target?.dropType==="time"&&Number.isFinite(Number(target.startMinute)))g.nextStart=Number(target.startMinute);
+      if((target?.dropType==="time"||target?.dropType==="time-row")&&Number.isFinite(Number(target.startMinute)))g.nextStart=Number(target.startMinute);
       g.nextBlockId=target?.blockId||null;
       g.nextAfterAnchor=target?.afterAnchor||TIME_BLOCK_START_ANCHOR;
       g.nextOrder=target?.order||1;
@@ -1666,7 +1688,7 @@ function wireControlsV2(){
     if(lane&&(g.kind!=="habit"||lane.closest(".uw-day")?.dataset.date===g.date)){
       g.nextDate=lane.closest(".uw-day")?.dataset.date||g.date;
       g.nextStart=minuteAt(lane,e.clientY);
-      g.dropType="time";
+      g.dropType=g.start===null&&(g.kind==="task"||g.kind==="habit")?"time-row":"time";
       drop=lane.querySelector(`.uw-time-hit[data-time="${g.nextStart}"]`);
     }else if(someday&&g.kind==="task"){
       g.nextDate="";
@@ -1716,9 +1738,10 @@ function wireControlsV2(){
       return
     }
     const dateChanged=(g.nextDate||"")!==(g.date||"");
-    const directPlanningMove=Boolean(g.planToken&&g.start===null&&(g.kind==="task"||g.kind==="habit")&&!recurringDragItem(g.kind,g.id)&&!dateChanged&&(g.dropType==="time-block"||g.dropType==="time-block-unassigned"));
+    const directPlanningMove=Boolean(g.planToken&&g.start===null&&(g.kind==="task"||g.kind==="habit")&&!recurringDragItem(g.kind,g.id)&&!dateChanged&&(g.dropType==="time-block"||g.dropType==="time-block-unassigned"||g.dropType==="time-row"));
     if(directPlanningMove){
       if(g.dropType==="time-block-unassigned"){await write(next=>clearTimeBlockAssignment(next,g.date,g.planToken));return}
+      if(g.dropType==="time-row"){await saveAutomaticTimelineRowChange(g.kind,g.id,g.date,g.nextStart,g.occurrenceSource,g.planDate,g.planToken,"day");return}
       if(g.nextBlockId){await saveAutomaticTimeBlockChange(g.kind,g.id,g.date,g.nextBlockId,g.occurrenceSource,g.planDate,g.planToken,"day");return}
     }
     const scope=await dragMoveScope(g.kind,g.id,g.occurrenceSource,g.date);
@@ -1734,8 +1757,7 @@ function wireControlsV2(){
       const placementToken=dateChanged&&!recurring?timeBlockOccurrenceToken(g.kind,{id:g.id},g.nextDate):g.planToken;
       const timedPlanToBlock=g.start!==null&&(g.kind==="task"||g.kind==="habit")&&!seriesMove;
       if(timedPlanToBlock){
-        await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
-        await write(next=>placeTimeBlockOccurrence(next,g.nextDate,placementToken,g.nextBlockId,g.nextAfterAnchor,g.nextOrder));
+        await saveAutomaticTimeBlockChange(g.kind,g.id,g.nextDate,g.nextBlockId,g.occurrenceSource,g.planDate,g.planToken,scope,g.duration);
       }else if(g.start===null&&(g.kind==="task"||g.kind==="habit")){
         await saveAutomaticTimeBlockChange(g.kind,g.id,g.nextDate,g.nextBlockId,g.occurrenceSource,g.planDate,g.planToken,scope);
       }else if(g.start!==null||g.kind==="event"||seriesMove){
@@ -1748,7 +1770,8 @@ function wireControlsV2(){
       return
     }
     if(g.dropType==="all-day"&&g.planToken&&g.nextDate===g.planDate&&!seriesMove){await write(next=>clearTimeBlockAssignment(next,g.planDate,g.planToken));return}
-    if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration,g.occurrenceSource,g.planDate,g.planToken,scope);
+    if(g.dropType==="time-row")await saveAutomaticTimelineRowChange(g.kind,g.id,g.nextDate,g.nextStart,g.occurrenceSource,g.planDate,g.planToken,scope);
+    else if(g.dropType==="time")await saveTimedChange(g.kind,g.id,g.nextDate,g.nextStart,g.duration,g.occurrenceSource,g.planDate,g.planToken,scope);
     else if(g.dropType==="all-day"||g.dropType==="someday")await saveUntimedChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
     else await saveDateOnlyChange(g.kind,g.id,g.nextDate,g.occurrenceSource,g.planDate,g.planToken,scope);
   },{capture:true});
