@@ -1444,8 +1444,12 @@ function wireControlsV2(){
       const lane=timeline.querySelector(".uw-time-lane"),rect=lane?.getBoundingClientRect();
       if(!lane||!rect)return null;
       const minute=START+((clientY-rect.top)/SLOT_H)*SLOT,snappedMinute=minuteAt(lane,clientY),templates=effectiveTimeBlockTemplatesForDate(state,date),block=templates.find(candidate=>minute>=Number(candidate.startMinute)&&minute<Number(candidate.endMinute));
-      const planItem=closestAt(pointed,".uw-time-block-plan-item[data-time-block-token]",clientX,clientY),planRail=timeline.querySelector(".uw-time-block-plan-rail"),planRect=planRail?.getBoundingClientRect(),insidePlanRail=Boolean(planItem||(planRect&&clientX>=planRect.left&&clientX<=planRect.right));
-      if(g.start===null&&(g.kind==="task"||g.kind==="habit")){
+      const planItem=closestAt(pointed,".uw-time-block-plan-item[data-time-block-token]",clientX,clientY),exactTimeItem=closestAt(pointed,".uw-time-entry[data-time]",clientX,clientY),planRail=timeline.querySelector(".uw-time-block-plan-rail"),planRect=planRail?.getBoundingClientRect(),insidePlanRail=Boolean(planItem||(planRect&&clientX>=planRect.left&&clientX<=planRect.right)),usesRowSlots=(g.kind==="task"||g.kind==="habit")&&(g.start===null||g.duration===TIME_BLOCK_AUTO_SLOT_MINUTES);
+      if(exactTimeItem&&exactTimeItem.closest(".uw-timeline")===timeline){
+        timeline.querySelector(`.uw-time-hit[data-time="${snappedMinute}"]`)?.classList.add("uw-drop-target");
+        return{dropType:usesRowSlots?"time-row":"time",date,startMinute:snappedMinute}
+      }
+      if(usesRowSlots){
         timeline.querySelector(`.uw-time-hit[data-time="${snappedMinute}"]`)?.classList.add("uw-drop-target");
         return{dropType:"time-row",date,startMinute:snappedMinute}
       }
@@ -1460,17 +1464,6 @@ function wireControlsV2(){
         const peerIndex=peers.indexOf(planItem),order=(peerIndex<0?peers.length:peerIndex)+(before?1:2);
         planItem.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
         return{dropType:"time-block",date,blockId:targetBlockId,afterAnchor,order}
-      }
-      const exact=pointed?.closest('.uw-time-entry[data-time-block-anchor]');
-      if(exact&&exact.closest('.uw-timeline')===timeline){
-        const exactMinute=+exact.dataset.time,exactBlock=templates.find(candidate=>exactMinute>=Number(candidate.startMinute)&&exactMinute<Number(candidate.endMinute));
-        if(exactBlock){
-          const exactRows=[...timeline.querySelectorAll('.uw-time-entry[data-time-block-anchor]')].filter(row=>{const m=+row.dataset.time;return m>=Number(exactBlock.startMinute)&&m<Number(exactBlock.endMinute)}).sort((a,b)=>(+a.dataset.time||0)-(+b.dataset.time||0)||String(a.dataset.timeBlockAnchor).localeCompare(String(b.dataset.timeBlockAnchor)));
-          const bounds=exact.getBoundingClientRect(),before=clientY<bounds.top+bounds.height/2,index=exactRows.indexOf(exact),afterAnchor=before?(index>0?exactRows[index-1].dataset.timeBlockAnchor:TIME_BLOCK_START_ANCHOR):exact.dataset.timeBlockAnchor;
-          const peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.planToken&&row.dataset.timeBlockBlockId===String(exactBlock.id)&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor);
-          exact.classList.add(before?"uw-time-block-drop-before":"uw-time-block-drop-after");
-          return{dropType:"time-block",date,blockId:String(exactBlock.id),afterAnchor,order:peers.length+1}
-        }
       }
       const exactBefore=[...timeline.querySelectorAll('.uw-time-entry[data-time-block-anchor]')].filter(row=>{const m=+row.dataset.time;return m>=Number(block.startMinute)&&m<Number(block.endMinute)&&m<=minute}).sort((a,b)=>(+a.dataset.time||0)-(+b.dataset.time||0)||String(a.dataset.timeBlockAnchor).localeCompare(String(b.dataset.timeBlockAnchor)));
       const afterAnchor=exactBefore.length?exactBefore.at(-1).dataset.timeBlockAnchor:TIME_BLOCK_START_ANCHOR,peers=[...timeline.querySelectorAll('.uw-time-block-plan-item[data-time-block-token]')].filter(row=>row.dataset.timeBlockToken!==g.planToken&&row.dataset.timeBlockBlockId===blockId&&(row.dataset.timeBlockAfterAnchor||TIME_BLOCK_START_ANCHOR)===afterAnchor);
@@ -1688,7 +1681,7 @@ function wireControlsV2(){
     if(lane&&(g.kind!=="habit"||lane.closest(".uw-day")?.dataset.date===g.date)){
       g.nextDate=lane.closest(".uw-day")?.dataset.date||g.date;
       g.nextStart=minuteAt(lane,e.clientY);
-      g.dropType=g.start===null&&(g.kind==="task"||g.kind==="habit")?"time-row":"time";
+      g.dropType=(g.kind==="task"||g.kind==="habit")&&(g.start===null||g.duration===TIME_BLOCK_AUTO_SLOT_MINUTES)?"time-row":"time";
       drop=lane.querySelector(`.uw-time-hit[data-time="${g.nextStart}"]`);
     }else if(someday&&g.kind==="task"){
       g.nextDate="";

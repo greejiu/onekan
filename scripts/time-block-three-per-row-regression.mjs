@@ -37,6 +37,8 @@ const index = fs.readFileSync("index.html", "utf8");
 assert.match(workspace, /taskDuration=slot\.duration;assignedAutomatically=true/, "new tasks without a time must persist the automatic 10-minute slot");
 assert.match(workspace, /function automaticTimelineRowSlot\(/, "manual timeline drops must use a row-limited placement helper");
 assert.match(workspace, /saveAutomaticTimelineRowChange\(g\.kind,g\.id/, "untimed manual timeline drops must stay in the selected row");
+assert.match(workspace, /exactTimeItem&&exactTimeItem\.closest\("\.uw-timeline"\)===timeline[\s\S]*?dropType:usesRowSlots\?"time-row":"time"/, "dropping over an existing card must target its timeline row before time-block reordering");
+assert.match(workspace, /g\.start===null\|\|g\.duration===TIME_BLOCK_AUTO_SLOT_MINUTES/, "existing 10-minute cards must keep using row capacity rules when dragged");
 assert.match(workspace, /이 30분 줄은 이미 할 일 3개로 꽉 찼어요/, "a full selected row must reject another manual drop");
 assert.match(workspace, /saveAutomaticTimeBlockChange\(g\.kind,g\.id[^\n]*g\.duration\)/, "moving an existing timed entry to a block must preserve its duration");
 assert.match(workspace, /function plannedDuration\([^)]*\).*duration===TIME_BLOCK_AUTO_SLOT_MINUTES\|\|duration===15/s, "10- and legacy 15-minute durations must survive rendering");
@@ -45,7 +47,7 @@ assert.match(workspace, /entry\._columns=3/, "a 30-minute timeline row must rend
 assert.match(css, /\.uw-time-block-v2-list\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/, "desktop block lists must have three columns");
 assert.match(css, /@media\(max-width:700px\)\{\.uw-time-block-v2-list\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/, "mobile block lists must preserve the three positions");
 assert.match(css, /\.uw-time-entry\[data-duration="10"\] \.uw-resize-handle/, "10-minute entries must not expose resize handles");
-assert.match(index, /unified-workspace\.js\?v=102/);
+assert.match(index, /unified-workspace\.js\?v=103/);
 assert.match(index, /unified-workspace\.css\?v=68/);
 assert.match(workspace, /time-block-v2\.js\?v=6/);
 
