@@ -47,7 +47,7 @@ assert.match(workspace, /entry\._columns=3/, "a 30-minute timeline row must rend
 assert.match(css, /\.uw-time-block-v2-list\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/, "desktop block lists must have three columns");
 assert.match(css, /@media\(max-width:700px\)\{\.uw-time-block-v2-list\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/, "mobile block lists must preserve the three positions");
 assert.match(css, /\.uw-time-entry\[data-duration="10"\] \.uw-resize-handle/, "10-minute entries must not expose resize handles");
-assert.match(index, /unified-workspace\.js\?v=103/);
+assert.match(index, /unified-workspace\.js\?v=104/);
 assert.match(index, /unified-workspace\.css\?v=69/);
 assert.match(workspace, /time-block-v2\.js\?v=6/);
 

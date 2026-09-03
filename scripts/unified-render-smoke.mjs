@@ -37,5 +37,5 @@ for (const entry of [
   assert.match(html, /uw-move-handle/, 'time-block cards must expose the shared move handle');
 }
 
-assert.match(index, /unified-workspace\.js\?v=103/);
+assert.match(index, /unified-workspace\.js\?v=104/);
 console.log('unified render smoke: ok');

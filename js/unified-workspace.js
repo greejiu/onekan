@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { confirmAction, showToast, playCheckSound } from "./ui-feedback.js";
 import {
   ensureGoogleCalendarRange,
@@ -68,8 +68,8 @@ function normalize(s){
   normalizeCompletionRepeats(s);
   return s
 }
-async function read(){if(!user){const {data:{session}}=await supabase.auth.getSession();user=session?.user||null}if(!user)return null;const {data,error}=await supabase.from("onekan_state").select("data").eq("user_id",user.id).maybeSingle();if(error)throw error;const remote=data?.data;if(remote&&typeof remote==="object")state=normalize(remote);else if(!state)state=normalize({});return state}
-async function write(mutator){await read();if(!state||!user)return;mutator(state);const {error}=await supabase.from("onekan_state").upsert({user_id:user.id,data:state},{onConflict:"user_id"});if(error)throw error;document.dispatchEvent(new CustomEvent("onekan:state-changed",{detail:{source:"unified"}}));$("#reloadCloudBtn")?.click();scheduleRender(130)}
+async function read(){if(!user){const {data:{session}}=await supabase.auth.getSession();user=session?.user||null}if(!user)return null;const remote=await onekanStateStore.read({userId:user.id});if(remote&&typeof remote==="object")state=normalize(remote);else if(!state)state=normalize({});return state}
+async function write(mutator){if(!user){const {data:{session}}=await supabase.auth.getSession();user=session?.user||null}if(!user)return;const committed=await onekanStateStore.mutate(current=>{const next=normalize(current);const previous=state;state=next;try{mutator(next);return next}finally{state=previous}},{userId:user.id,source:"unified"});if(!committed)return;state=normalize(committed);$("#reloadCloudBtn")?.click();scheduleRender(130)}
 function scheduleRender(ms=60){clearTimeout(renderTimer);renderTimer=setTimeout(renderAll,ms)}
 function adoptSharedState(payload){
   if(!payload||typeof payload!=="object")return false;

@@ -15,6 +15,6 @@ assert.match(css,/\.uw-item\.selected \.uw-move-handle[^\{]*\{[^}]*touch-action:
 assert.match(index,/unified-workspace\.css\?v=69/,'mobile drag CSS cache must be refreshed');
 assert.match(workspace,/function timeBlockV2ItemMarkup[\s\S]*?uw-move-handle[\s\S]*?function timeBlockV2ManualGroup/,'time-block list cards must expose the mobile move handle');
 assert.doesNotMatch(workspace,/function timeBlockV2TimelinePlanItemMarkup[\s\S]*?replace\(\/<button class="uw-move-handle"[\s\S]*?function timeBlockV2TimelineProjection/,'projected time-block cards must retain the mobile move handle');
-assert.match(index,/unified-workspace\.js\?v=103/,'mobile drag JavaScript cache must be refreshed');
+assert.match(index,/unified-workspace\.js\?v=104/,'mobile drag JavaScript cache must be refreshed');
 
 console.log('mobile drag scroll regression: ok');
