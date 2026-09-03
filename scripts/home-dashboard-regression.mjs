@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [html, app, menu, css, weather] = await Promise.all([
+const [html, app, menu, css, weather, carousel] = await Promise.all([
   readFile(new URL("../index.html", import.meta.url), "utf8"),
   readFile(new URL("../js/app.js", import.meta.url), "utf8"),
   readFile(new URL("../js/context-menu.js", import.meta.url), "utf8"),
   readFile(new URL("../css/home-dashboard.css", import.meta.url), "utf8"),
   readFile(new URL("../js/home-dashboard-weather.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/home-dashboard-carousel.js", import.meta.url), "utf8"),
 ]);
 
 for (const id of ["homeProgress", "homeCompletionLabel", "todayLabel", "homeWeather", "homeDdayCount", "homeDdayTitle", "homeDdayList"]) {
@@ -26,6 +27,12 @@ assert.match(menu, /secondary\.length >= 3/, "보조 D-day는 최대 3개여야 
 assert.match(app, /savedSecondary\.map/, "보조 D-day는 자동이 아니라 저장된 선택을 표시해야 합니다.");
 assert.match(css, /grid-template-columns:minmax\(0,3fr\) 1px minmax\(260px,2fr\)/, "대시보드는 60:40 구조여야 합니다.");
 assert.match(css, /@media\(max-width:760px\)/, "모바일 대시보드 대응이 필요합니다.");
+assert.match(html, /id="homeDashboardTrack"/, "모바일 스냅을 위한 대시보드 트랙이 필요합니다.");
+assert.match(html, /data-home-dashboard-page="0"[\s\S]*data-home-dashboard-page="1"/, "TODAY와 D-DAY 페이지 표시가 필요합니다.");
+assert.match(css, /\.home-dashboard-track\{[^}]*display:flex[^}]*gap:0[^}]*scroll-snap-type:x mandatory/, "모바일에서는 옆 카드가 보이지 않는 가로 스냅이어야 합니다.");
+assert.match(css, /\.home-dashboard-today,\.home-dashboard-dday\{[^}]*min-width:100%[^}]*flex:0 0 100%/, "모바일 슬라이드는 각각 화면 너비를 정확히 채워야 합니다.");
+assert.match(carousel, /Math\.round\(track\.scrollLeft \/ width\)/, "스크롤 위치에 따라 활성 페이지를 계산해야 합니다.");
+assert.match(carousel, /dot\.setAttribute\("aria-current", "page"\)/, "활성 페이지를 접근성 상태로 표시해야 합니다.");
 assert.match(weather, /api\.open-meteo\.com/, "날씨 데이터 연결이 필요합니다.");
 assert.match(html, /id="homeWeatherLocationQuery"/, "사용자별 날씨 지역 검색 입력이 필요합니다.");
 assert.match(app, /weatherLocation:\s*\{ \.\.\.DEFAULT_WEATHER_LOCATION \}/, "양양 기본 날씨 지역이 필요합니다.");
