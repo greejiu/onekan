@@ -18,6 +18,18 @@ function listFiles(dir, ext) {
   return out.sort();
 }
 
+function walkTextFiles(dir = "") {
+  const out = [];
+  const abs = path.join(root, dir);
+  for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
+    if ([".git", "node_modules"].includes(entry.name)) continue;
+    const rel = normalize(path.join(dir, entry.name));
+    if (entry.isDirectory()) out.push(...walkTextFiles(rel));
+    else if (entry.isFile() && /\.(?:html|js|mjs|css|md|ya?ml|json)$/.test(entry.name)) out.push(rel);
+  }
+  return out;
+}
+
 function resolveLocal(fromFile, raw) {
   const clean = raw.split("?")[0].split("#")[0];
   if (!clean || /^(?:https?:|data:|blob:|\/\/)/.test(clean)) return null;
@@ -68,6 +80,8 @@ while (queue.length) {
 
 const unreachableJs = allJs.filter((f) => !reachable.has(f));
 const unreachableCss = allCss.filter((f) => !reachable.has(f));
+const unreachable = [...unreachableJs, ...unreachableCss];
+const textFiles = walkTextFiles();
 
 console.log(`reachable assets: ${reachable.size}`);
 console.log("\nUNREACHABLE JS");
@@ -75,3 +89,15 @@ for (const f of unreachableJs) console.log(f);
 console.log("\nUNREACHABLE CSS");
 for (const f of unreachableCss) console.log(f);
 console.log(`\ncounts: js=${unreachableJs.length}, css=${unreachableCss.length}`);
+
+console.log("\nREFERENCE SITES");
+for (const asset of unreachable) {
+  const base = path.posix.basename(asset);
+  const refs = [];
+  for (const file of textFiles) {
+    if (file === asset) continue;
+    const text = fs.readFileSync(path.join(root, file), "utf8");
+    if (text.includes(base) || text.includes(asset)) refs.push(file);
+  }
+  console.log(`${asset}: ${refs.length ? refs.join(", ") : "(none)"}`);
+}
