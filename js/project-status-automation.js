@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 
 const VALID_STATUSES = new Set(["before", "doing", "done", "archived"]);
 
@@ -114,15 +114,17 @@ async function reconcile() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return;
-    const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
-    if (error) throw error;
-    const current = data?.data && typeof data.data === "object" ? data.data : {};
-    const promotedProjects = promoteProjectsWithTasks(current);
-    const changedGoals = reconcileGoalStatuses(current);
+    const userId = session.user.id;
+    const snapshot = await onekanStateStore.read({ userId });
+    const probe = snapshot && typeof snapshot === "object" ? JSON.parse(JSON.stringify(snapshot)) : {};
+    const promotedProjects = promoteProjectsWithTasks(probe);
+    const changedGoals = reconcileGoalStatuses(probe);
     if (!promotedProjects.length && !changedGoals.length) return;
-    const { error: saveError } = await supabase.from("onekan_state").upsert({ user_id: session.user.id, data: current }, { onConflict: "user_id" });
-    if (saveError) throw saveError;
-    document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "project-status-automation" } }));
+    await onekanStateStore.mutate((current) => {
+      promoteProjectsWithTasks(current);
+      reconcileGoalStatuses(current);
+      return current;
+    }, { userId, source: "project-status-automation" });
     document.querySelector("#reloadCloudBtn")?.click();
   } catch (error) {
     console.error("프로젝트 상태 자동 변경 실패", error);
