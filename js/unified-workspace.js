@@ -766,8 +766,16 @@ function wireSomedayQuickAdd(){
   document.addEventListener("keydown",event=>{if(event.key==="Escape"&&layer?.hidden===false)closeMobile()})
 }
 function renderSideTab(){$$('[data-uw-side-tab]').forEach(button=>{const active=button.dataset.uwSideTab===homeSideTab;button.classList.toggle("active",active);button.setAttribute("aria-selected",String(active))});$$('[data-uw-side-panel]').forEach(panel=>{panel.hidden=panel.dataset.uwSidePanel!==homeSideTab})}
-function overdueTasks(source=state){const today=todayKey();return(source?.tasks||[]).filter(task=>!task.done&&task.date&&task.date<today).sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.title).localeCompare(String(b.title),"ko"))}
-function renderOverdue(){const root=$("#overdueTaskBanner");if(!root)return;const tasks=overdueTasks();root.hidden=!tasks.length;if(!tasks.length){root.innerHTML="";overdueExpanded=false;return}const groups=new Map();tasks.forEach(task=>{if(!groups.has(task.date))groups.set(task.date,[]);groups.get(task.date).push(task)});const details=[...groups].map(([date,items])=>`<div class="uw-overdue-date"><strong>${dayLabel(fromKey(date),true)}</strong><span>${items.length}개</span><ul>${items.map(task=>`<li>${esc(task.title)}</li>`).join("")}</ul></div>`).join("");root.innerHTML=`<div class="uw-overdue-row"><strong>지연된 일이 있습니다. 오늘로 옮길까요?</strong><div class="uw-overdue-actions"><button class="soft-btn" data-uw-overdue-view type="button" aria-expanded="${overdueExpanded}">${overdueExpanded?"닫기":"보기"}</button><button class="primary-btn" data-uw-overdue-move type="button">네</button></div></div><div class="uw-overdue-details"${overdueExpanded?"":" hidden"}>${details}</div>`}
+function overdueTasks(source=state){const today=todayKey();return(source?.tasks||[]).filter(task=>!task.done&&task.date&&task.date<today&&!task.recurrence?.frequency).sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.title).localeCompare(String(b.title),"ko"))}
+function renderOverdue(){
+  const root=$("#overdueTaskBanner");
+  if(!root)return;
+  const tasks=overdueTasks();
+  root.hidden=!tasks.length;
+  if(!tasks.length){root.innerHTML="";overdueExpanded=false;return}
+  const rows=tasks.map(task=>`<div class="uw-overdue-task"><span class="uw-overdue-task-box" aria-hidden="true"></span><span class="uw-overdue-task-title">${esc(task.title||"이름 없는 할일")}</span><small>${dayLabel(fromKey(task.date),true)}</small></div>`).join("");
+  root.innerHTML=`<button class="uw-overdue-summary" data-uw-overdue-view type="button" aria-expanded="${overdueExpanded}"><span class="uw-overdue-icon" aria-hidden="true">⌛</span><strong>아직 끝나지 않았어요 · ${tasks.length}개</strong><span class="uw-overdue-chevron" aria-hidden="true">⌄</span></button><div class="uw-overdue-details"${overdueExpanded?"":" hidden"}><div class="uw-overdue-list">${rows}</div><div class="uw-overdue-actions"><button class="soft-btn" data-uw-overdue-move type="button">오늘로 옮기기</button><button class="soft-btn uw-overdue-keep" data-uw-overdue-keep type="button">그대로 두기</button></div></div>`
+}
 let homeColumnResizeObserver=null,homeColumnResizeFrame=0;
 function clearHomeRightSizing(right){right.style.removeProperty("height");right.querySelectorAll(".uw-side-toggle").forEach(card=>{card.style.removeProperty("height");const body=card.querySelector(".card-body");if(body){body.style.removeProperty("height");body.style.removeProperty("max-height")}})}
 function syncHomeColumnHeight(){const left=$("#homeLeftColumn"),right=$("#homeRightColumn");if(!left||!right)return;cancelAnimationFrame(homeColumnResizeFrame);homeColumnResizeFrame=requestAnimationFrame(()=>{if(matchMedia("(max-width:1050px)").matches){clearHomeRightSizing(right);return}const height=Math.ceil(left.getBoundingClientRect().height);if(height<=0)return;right.style.height=`${height}px`;requestAnimationFrame(()=>{right.querySelectorAll(".uw-side-toggle").forEach(card=>{const body=card.querySelector(".card-body");if(!body)return;if(!card.open){body.style.removeProperty("height");body.style.removeProperty("max-height");return}const summary=card.querySelector("summary"),cardHeight=Math.floor(card.getBoundingClientRect().height),headerHeight=Math.ceil(summary?.getBoundingClientRect().height||0),bodyHeight=Math.max(1,cardHeight-headerHeight);body.style.height=`${bodyHeight}px`;body.style.maxHeight=`${bodyHeight}px`;body.style.overflowY="scroll"})})})}
@@ -1779,7 +1787,29 @@ function wireEnterToSave(){
     if(target.matches("[data-event-group-name],[data-project-plan-title]")){event.preventDefault();target.blur()}
   })
 }
-function wireOverdueActions(){document.addEventListener("click",async event=>{const view=event.target.closest("[data-uw-overdue-view]"),move=event.target.closest("[data-uw-overdue-move]");if(!view&&!move)return;event.preventDefault();event.stopImmediatePropagation();if(view){overdueExpanded=!overdueExpanded;renderOverdue();return}move.disabled=true;move.textContent="이동 중…";await write(current=>{const today=todayKey(),ids=new Set();current.tasks.forEach(task=>{if(!task.done&&task.date&&task.date<today&&!task.recurrence?.frequency){ids.add(task.id);task.date=today}});(current.timeBlocks||[]).forEach(block=>{if(ids.has(block.taskId)&&block.date<today)block.date=today})});overdueExpanded=false},true)}
+function wireOverdueActions(){
+  document.addEventListener("click",async event=>{
+    const view=event.target.closest("[data-uw-overdue-view]"),move=event.target.closest("[data-uw-overdue-move]"),keep=event.target.closest("[data-uw-overdue-keep]");
+    if(!view&&!move&&!keep)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if(view){overdueExpanded=!overdueExpanded;renderOverdue();return}
+    if(keep){overdueExpanded=false;renderOverdue();return}
+    const count=overdueTasks().length;
+    move.disabled=true;
+    move.textContent="옮기는 중…";
+    try{
+      await write(current=>{const today=todayKey(),ids=new Set();current.tasks.forEach(task=>{if(!task.done&&task.date&&task.date<today&&!task.recurrence?.frequency){ids.add(task.id);task.date=today}});(current.timeBlocks||[]).forEach(block=>{if(ids.has(block.taskId)&&block.date<today)block.date=today})});
+      overdueExpanded=false;
+      showToast(`${count}개 할일을 오늘로 옮겼어요.`)
+    }catch(error){
+      console.error("지연 할일 이동 실패",error);
+      move.disabled=false;
+      move.textContent="오늘로 옮기기";
+      showToast("지연된 할일을 옮기지 못했어요.")
+    }
+  },true)
+}
 function renderInitialCalendarShells(){
   if(state)return;
   const previousState=state;

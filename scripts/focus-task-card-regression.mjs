@@ -31,6 +31,7 @@ assert.ok(await fileMissing("../js/home-memo-persistence.js"), "js/home-memo-per
 
 // 지금 집중 카드가 그 자리를 대신해야 한다.
 assert.match(html, /id="focusTaskCard"/, "지금 집중 카드 컨테이너가 필요합니다.");
+assert.match(html, /id="focusTaskCardTitle">지금 할 일</, "카드 제목은 시간 상태에 따라 바뀔 수 있어야 합니다.");
 assert.match(html, /id="focusTaskBody"/, "지금 집중 카드 본문 컨테이너가 필요합니다.");
 assert.match(html, /class="card-body focus-task-body" id="focusTaskBody"/, "지금 집중 카드가 공통 본문 여백을 유지해야 합니다.");
 assert.match(html, /focus-task-card\.css/, "focus-task-card.css 링크가 필요합니다.");
@@ -46,6 +47,14 @@ assert.match(focus, /data-focus-subtask-add-form/, "하위 할일 추가 폼이 
 assert.match(focus, /allDone\s*=\s*steps\.length\s*>\s*0\s*&&\s*steps\.every/, "하위 할일을 모두 체크했는지 판단하는 로직이 필요합니다.");
 assert.match(focus, /task\.done\s*=\s*true/, "하위 할일을 모두 체크하면 상위 할일이 완료 처리되어야 합니다.");
 assert.match(focus, /current\.focusTaskId\s*=\s*null/, "완료 후에는 다음 할일을 다시 고르도록 focusTaskId를 비워야 합니다.");
+assert.match(focus, /function automaticTaskSelection/, "현재 시각에 맞는 할일을 자동 선택해야 합니다.");
+assert.match(focus, /function taskTimeWindows/, "할일과 타임블럭의 시간 범위를 계산해야 합니다.");
+assert.match(focus, /selection\?\.mode === "next" \? "다음 할 일" : "지금 할 일"/, "현재와 다음 상태에 맞춰 제목이 바뀌어야 합니다.");
+assert.match(focus, /focusTaskDate = appDateKey\(\)/, "직접 선택은 오늘 하루 동안만 자동 선택을 덮어써야 합니다.");
+assert.match(focus, /placeholder="작은 행동 추가"/, "하위 할일은 작은 행동으로 안내해야 합니다.");
+assert.match(focus, /setInterval\(\(\) => scheduleRender\(0, false\), 60000\)/, "남은 시간과 다음 할일은 매분 갱신되어야 합니다.");
+assert.match(uw, /아직 끝나지 않았어요 · \$\{tasks\.length\}개/, "지연된 할일은 부담이 적은 문구로 표시해야 합니다.");
+assert.match(uw, /data-uw-overdue-keep/, "지연된 할일을 그대로 두는 선택이 필요합니다.");
 assert.match(focus, /import\s*\{\s*supabase\s*\}\s*from\s*"\.\/supabase\.js"/, "focus-task-card.js는 다른 기능 모듈과 같은 방식으로 Supabase 상태를 읽고 써야 합니다.");
 assert.match(focus, /tracking-stats-loader\.js/, "옛 메모 카드가 불러오던 시간 통계·백업 모듈 로딩을 이어받아야 합니다.");
 

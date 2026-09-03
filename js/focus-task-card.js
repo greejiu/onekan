@@ -24,6 +24,7 @@ let state = null;
 let user = null;
 let rendering = false;
 let renderTimer = null;
+let pickerOpen = false;
 
 function normalizeSubtasks(list) {
   if (!Array.isArray(list)) return [];
@@ -44,6 +45,7 @@ function normalizeState(raw) {
     ? next.eventGroups
     : [{ id: "default", name: "기본", color: "#8fa9c4" }];
   next.focusTaskId = typeof next.focusTaskId === "string" ? next.focusTaskId : null;
+  next.focusTaskDate = typeof next.focusTaskDate === "string" ? next.focusTaskDate : null;
   return next;
 }
 
@@ -81,14 +83,98 @@ function todayTasks() {
   const key = appDateKey();
   return state.tasks
     .filter((task) => task.date === key && !task.done)
-    .sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "ko"));
+    .sort((a, b) => Number(a.manualOrder || Number.MAX_SAFE_INTEGER) - Number(b.manualOrder || Number.MAX_SAFE_INTEGER) || String(a.title || "").localeCompare(String(b.title || ""), "ko"));
 }
 
-function currentFocusTask() {
-  if (!state?.focusTaskId) return null;
+function minuteOfDay(date = new Date()) {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function minuteLabel(minute) {
+  const value = Math.max(0, Math.min(1439, Number(minute) || 0));
+  return `${pad(Math.floor(value / 60))}:${pad(value % 60)}`;
+}
+
+function relativeMinutes(minutes) {
+  const value = Math.max(0, Math.round(minutes));
+  if (value < 60) return `${value}분 후`;
+  const hours = Math.floor(value / 60);
+  const rest = value % 60;
+  return rest ? `${hours}시간 ${rest}분 후` : `${hours}시간 후`;
+}
+
+function taskTimeWindows(task, dateKey = appDateKey()) {
+  const windows = [];
+  if (task?.notionStart && task.date === dateKey) {
+    const startDate = new Date(task.notionStart);
+    const endDate = new Date(task.notionEnd || task.notionStart);
+    if (!Number.isNaN(startDate.getTime())) {
+      const start = minuteOfDay(startDate);
+      const end = Number.isNaN(endDate.getTime()) ? start + 30 : Math.max(start + 1, minuteOfDay(endDate));
+      windows.push({ start, end });
+    }
+  }
+  for (const block of Array.isArray(state?.timeBlocks) ? state.timeBlocks : []) {
+    if (block.taskId !== task?.id || block.date !== dateKey || !Number.isFinite(Number(block.startMinute))) continue;
+    const start = Number(block.startMinute);
+    windows.push({ start, end: start + Math.max(1, Number(block.duration) || 30) });
+  }
+  const unique = new Map(windows.map((window) => [`${window.start}:${window.end}`, window]));
+  return [...unique.values()].sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+function selectionForTask(task, nowMinute, manual = false) {
+  const windows = taskTimeWindows(task);
+  const current = windows.find((window) => window.start <= nowMinute && nowMinute < window.end);
+  if (current) return { task, mode: "current", timing: current, manual };
+  const next = windows.find((window) => window.start > nowMinute);
+  if (next) return { task, mode: "next", timing: next, manual };
+  const previous = [...windows].reverse().find((window) => window.end <= nowMinute);
+  if (previous) return { task, mode: "past", timing: previous, manual };
+  return { task, mode: "today", timing: null, manual };
+}
+
+function manualFocusTask() {
+  if (!state?.focusTaskId || state.focusTaskDate !== appDateKey()) return null;
   const task = state.tasks.find((item) => item.id === state.focusTaskId);
-  if (!task || task.done) return null;
+  if (!task || task.done || task.date !== appDateKey()) return null;
   return task;
+}
+
+function automaticTaskSelection(now = new Date()) {
+  const tasks = todayTasks();
+  if (!tasks.length) return null;
+  const nowMinute = minuteOfDay(now);
+  const manual = manualFocusTask();
+  if (manual) return selectionForTask(manual, nowMinute, true);
+  const timed = tasks.flatMap((task) => taskTimeWindows(task).map((timing) => ({ task, timing })));
+  const current = timed
+    .filter(({ timing }) => timing.start <= nowMinute && nowMinute < timing.end)
+    .sort((a, b) => b.timing.start - a.timing.start)[0];
+  if (current) return { ...current, mode: "current", manual: false };
+  const next = timed
+    .filter(({ timing }) => timing.start > nowMinute)
+    .sort((a, b) => a.timing.start - b.timing.start)[0];
+  if (next) return { ...next, mode: "next", manual: false };
+  const previous = timed
+    .filter(({ timing }) => timing.end <= nowMinute)
+    .sort((a, b) => b.timing.end - a.timing.end)[0];
+  if (previous) return { ...previous, mode: "past", manual: false };
+  return { task: tasks[0], mode: "today", timing: null, manual: false };
+}
+
+function selectionHeading(selection) {
+  return selection?.mode === "next" ? "다음 할 일" : "지금 할 일";
+}
+
+function selectionMetaMarkup(selection, now = new Date()) {
+  const timing = selection?.timing;
+  if (!timing) return `<span class="focus-task-time-badge">시간 없음</span><span class="focus-task-state">오늘</span>`;
+  if (selection.mode === "next") {
+    return `<span class="focus-task-time-badge">${minuteLabel(timing.start)} 시작 · ${relativeMinutes(timing.start - minuteOfDay(now))}</span><span class="focus-task-state">예정</span>`;
+  }
+  const stateLabel = selection.mode === "current" ? "진행 중" : "예정 시간 지남";
+  return `<span class="focus-task-time-badge">${minuteLabel(timing.start)}–${minuteLabel(timing.end)}</span><span class="focus-task-state${selection.mode === "past" ? " late" : ""}">${stateLabel}</span>`;
 }
 
 function pickRowMarkup(task) {
@@ -99,10 +185,10 @@ function pickerMarkup() {
   const tasks = todayTasks();
   const body = tasks.length
     ? `<div class="focus-task-picker-list">${tasks.map(pickRowMarkup).join("")}</div>`
-    : `<div class="focus-task-empty">오늘 할일이 아직 없어요. 하나 추가해서 쪼개볼까요?</div>`;
+    : `<div class="focus-task-empty">오늘 할일이 아직 없어요. 하나 추가해서 작게 나눠볼까요?</div>`;
   return `
     <div class="focus-task-picker">
-      <div class="focus-task-empty">오늘 뭐부터 쪼개볼까요? 지금 집중할 할일 1개만 골라보세요.</div>
+      ${tasks.length ? `<div class="focus-task-picker-head"><span>지금 할 일을 직접 선택할 수 있어요.</span><button type="button" data-focus-task-auto>자동 선택</button></div>` : ""}
       ${body}
       <form class="focus-task-add-form" data-focus-task-add-form autocomplete="off">
         <input type="text" maxlength="120" placeholder="새 할일 추가" aria-label="새 할일 추가">
@@ -120,22 +206,25 @@ function subtaskRowMarkup(task, step, checked) {
     </div>`;
 }
 
-function activeMarkup(task) {
+function activeMarkup(selection) {
+  const task = selection.task;
   const steps = normalizeSubtasks(task.subtasks);
   const progress = task.subtaskProgress && typeof task.subtaskProgress === "object" ? task.subtaskProgress : {};
   const doneCount = steps.filter((step) => Boolean(progress[step.id])).length;
   const rows = steps.length
     ? steps.map((step) => subtaskRowMarkup(task, step, Boolean(progress[step.id]))).join("")
-    : `<div class="focus-subtask-empty">아직 하위 할일이 없어요. 작게 쪼개서 추가해보세요.</div>`;
+    : `<div class="focus-subtask-empty">아직 작은 행동이 없어요. 바로 시작할 수 있을 만큼 작게 나눠보세요.</div>`;
   return `
     <div class="focus-task-active">
+      <div class="focus-task-meta">${selectionMetaMarkup(selection)}</div>
       <div class="focus-task-active-head">
         <div class="focus-task-active-title">${esc(task.title || "이름 없는 할일")}</div>
         <button class="focus-task-change-btn" type="button" data-focus-task-clear>다른 할일로 바꾸기</button>
       </div>
+      <div class="focus-subtask-label">작은 행동</div>
       <div class="focus-subtask-list">${rows}</div>
       <form class="focus-subtask-add-form" data-focus-subtask-add-form data-task-id="${esc(task.id)}" autocomplete="off">
-        <input type="text" maxlength="120" placeholder="하위 할일 추가" aria-label="새 하위 할일">
+        <input type="text" maxlength="120" placeholder="작은 행동 추가" aria-label="새 작은 행동">
         <button class="soft-btn" type="submit">추가</button>
       </form>
       ${steps.length ? `<div class="focus-task-progress">${doneCount}/${steps.length} 완료</div>` : ""}
@@ -153,8 +242,10 @@ async function render({ refresh = false } = {}) {
       body.innerHTML = `<div class="focus-task-empty">로그인하면 오늘 할일을 쪼갤 수 있어요.</div>`;
       return;
     }
-    const task = currentFocusTask();
-    body.innerHTML = task ? activeMarkup(task) : pickerMarkup();
+    const selection = automaticTaskSelection();
+    const title = $("#focusTaskCardTitle");
+    if (title) title.textContent = pickerOpen ? "할 일 선택" : selectionHeading(selection);
+    body.innerHTML = selection && !pickerOpen ? activeMarkup(selection) : pickerMarkup();
   } catch (error) {
     console.error("focus task card render failed", error);
   } finally {
@@ -186,6 +277,7 @@ async function toggleSubtask(taskId, stepId) {
       task.done = true;
       task.completedAt = new Date().toISOString();
       current.focusTaskId = null;
+      current.focusTaskDate = null;
     }
   });
   if (completedAll) {
@@ -202,7 +294,8 @@ function wireEvents() {
     if (pick) {
       const id = pick.dataset.focusTaskPick || "";
       try {
-        await writeState((current) => { current.focusTaskId = id; });
+        await writeState((current) => { current.focusTaskId = id; current.focusTaskDate = appDateKey(); });
+        pickerOpen = false;
       } catch (error) {
         console.error("focus task pick failed", error);
         showToast("할일을 선택하지 못했어요.");
@@ -212,11 +305,19 @@ function wireEvents() {
 
     const clear = event.target.closest?.("[data-focus-task-clear]");
     if (clear) {
+      pickerOpen = true;
+      scheduleRender(0, false);
+      return;
+    }
+
+    const automatic = event.target.closest?.("[data-focus-task-auto]");
+    if (automatic) {
       try {
-        await writeState((current) => { current.focusTaskId = null; });
+        await writeState((current) => { current.focusTaskId = null; current.focusTaskDate = null; });
+        pickerOpen = false;
       } catch (error) {
-        console.error("focus task clear failed", error);
-        showToast("변경하지 못했어요.");
+        console.error("focus task automatic selection failed", error);
+        showToast("자동 선택으로 바꾸지 못했어요.");
       }
       return;
     }
@@ -228,7 +329,7 @@ function wireEvents() {
         await toggleSubtask(toggle.dataset.taskId || "", toggle.dataset.focusSubtaskToggle || "");
       } catch (error) {
         console.error("focus subtask toggle failed", error);
-        showToast("하위 할일 저장 중 오류가 났어요.");
+        showToast("작은 행동 저장 중 오류가 났어요.");
       }
       return;
     }
@@ -248,7 +349,7 @@ function wireEvents() {
         });
       } catch (error) {
         console.error("focus subtask remove failed", error);
-        showToast("하위 할일 삭제 중 오류가 났어요.");
+        showToast("작은 행동 삭제 중 오류가 났어요.");
       }
     }
   }, true);
@@ -266,7 +367,9 @@ function wireEvents() {
           const groupId = current.eventGroups[0]?.id || "default";
           current.tasks.push({ id: newId, title, date: appDateKey(), done: false, groupId, subtasks: [], subtaskProgress: {} });
           current.focusTaskId = newId;
+          current.focusTaskDate = appDateKey();
         });
+        pickerOpen = false;
         if (input) input.value = "";
       } catch (error) {
         console.error("focus task add failed", error);
@@ -291,7 +394,7 @@ function wireEvents() {
         if (input) input.value = "";
       } catch (error) {
         console.error("focus subtask add failed", error);
-        showToast("하위 할일 추가 중 오류가 났어요.");
+        showToast("작은 행동 추가 중 오류가 났어요.");
       }
     }
   });
@@ -311,3 +414,4 @@ supabase.auth.onAuthStateChange((_event, session) => {
 });
 
 scheduleRender(120, true);
+setInterval(() => scheduleRender(0, false), 60000);
