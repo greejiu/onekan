@@ -1,0 +1,45 @@
+name: Unified state-store migration once
+
+on:
+  push:
+    paths:
+      - ".github/workflows/unified-state-store-migration-once.yml"
+      - "scripts/unified-state-store-migration-once.mjs"
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/unified-state-store
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply migration
+        run: node scripts/unified-state-store-migration-once.mjs
+      - name: Validate migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check js/unified-workspace.js
+          for test in scripts/*-regression.mjs; do
+            echo "::group::$test"
+            node "$test"
+            echo "::endgroup::"
+          done
+          node scripts/cache-buster-regression.mjs --check-diff origin/main
+          node scripts/unified-render-smoke.mjs
+      - name: Commit migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "greejiu"
+          git config user.email "monggreee@naver.com"
+          git add -A
+          git commit -m "refactor: unified workspace를 공용 state-store로 이전"
+          git push origin HEAD:refactor/unified-state-store
