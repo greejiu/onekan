@@ -11,7 +11,6 @@ const ICONS = {
   project: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7.5h6l2 2h10v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M3 7.5V6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v1.5"></path></svg>',
   goal: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"></circle><circle cx="12" cy="12" r="4.2"></circle><circle cx="12" cy="12" r="1"></circle></svg>',
   identity: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="7.5" r="3.5"></circle><path d="M5 21c.5-4.2 3-6.5 7-6.5s6.5 2.3 7 6.5"></path></svg>',
-  plan: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="4" width="14" height="17" rx="2"></rect><path d="M9 4.5V3h6v1.5M8.5 9h7M8.5 13h7M8.5 17h4.5"></path></svg>',
   tracking: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7v5l3.5 2"></path></svg>',
   records: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 3.5h11a2 2 0 0 1 2 2V21H7a2 2 0 0 1-2-2z"></path><path d="M18 18H8a3 3 0 0 0-3 3M9 8h5M9 12h5"></path></svg>',
   reports: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20v-6M10 20V9M15 20V5M20 20V2"></path></svg>',
@@ -50,7 +49,6 @@ function iconKeyForButton(button) {
     calendar: "calendar",
     tasks: "task",
     repeat: "repeat",
-    plan: "plan",
     tracking: "tracking",
     records: "records",
     reports: "reports",
@@ -105,12 +103,7 @@ function keepHabitLabel() {
   if (label && label.textContent !== "습관") label.textContent = "습관";
 }
 
-function removePlanNavigation() {
-  $('.sidebar .nav-item[data-page="plan"]')?.remove();
-}
-
 function decorateSidebar() {
-  removePlanNavigation();
   makeStaticSectionHeadings();
   ensureUtilityDivider();
   keepHabitLabel();
