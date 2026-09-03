@@ -15,8 +15,8 @@ assert.match(sidebar, /removePlanNavigation/);
 assert.match(sidebar, /\.sidebar \.nav-item\[data-page="plan"\]/);
 assert.match(sidebar, /project-popup-planning\.js\?v=1/);
 
-assert.match(popup, /sectionMarkup\("task"/);
-assert.match(popup, /sectionMarkup\("habit"/);
+assert.match(popup, /section\("task"/);
+assert.match(popup, /section\("habit"/);
 assert.match(popup, /data-project-popup-add=/);
 assert.match(popup, /data-project-popup-add-form/);
 assert.match(popup, /projectId,/);
@@ -28,6 +28,7 @@ assert.match(popup, /undoRepeatingTaskCompletion/);
 assert.match(popup, /habitDays\[today\]/);
 assert.match(popup, /↻/);
 assert.match(popup, /data-project-linked-body/);
+assert.match(popup, /data-project-popup-planning-root/);
 assert.doesNotMatch(popup, /#page-home/);
 
 assert.match(css, /\.project-popup-check/);
