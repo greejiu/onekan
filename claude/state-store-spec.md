@@ -33,10 +33,13 @@
 3. `project-popup-planning.js`
    - 프로젝트 팝업의 할일·습관 추가/완료 저장을 `mutate()`로 이전
    - 팝업 갱신은 store 커밋 상태를 사용하고, 기존 앱 상태 동기화를 위한 서버 새로고침 트리거는 유지
+4. `unified-workspace.js`
+   - 일정·할일·습관·타임라인의 고빈도 저장을 `mutate()`로 이전
+   - mutator 실행 중에는 최신 store 상태를 임시 전역 state로 연결해 기존 helper의 동작을 유지
+   - store가 상태변경 이벤트를 발행하므로 수동 `onekan:state-changed` dispatch는 제거
 
 다음 후보:
-1. `unified-workspace.js`
-2. habit/project 계열 writer
+1. habit/project 계열 writer
 
 ## 왜 기존 모듈을 한꺼번에 안 바꾸는가
 
@@ -68,4 +71,4 @@
 - 삭제와 원격 신규 추가 병합
 - 같은 탭 동시 write 직렬화
 - base token DB 미저장
-- `app.js`, `focus-task-card.js`, `project-popup-planning.js`가 `onekan_state`를 직접 `select / upsert`하지 않음
+- `app.js`, `focus-task-card.js`, `project-popup-planning.js`, `unified-workspace.js`가 `onekan_state`를 직접 `select / upsert`하지 않음
