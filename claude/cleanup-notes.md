@@ -88,3 +88,9 @@
 `scripts/dead-code-cleanup-regression.mjs`는 제거된 management 파일, `project-planning.js`, 계획 세우기 페이지/모듈/사이드바 훅이 다시 생기거나 `index.html`에서 다시 참조되는 경우 실패한다.
 
 `scripts/app-legacy-timeline-audit-regression.mjs`는 현재 시간계획 UI의 소유권이 다시 섞이거나, 다른 모듈이 `app.js`의 레거시 타임라인 함수에 새로 의존하기 시작하면 실패한다.
+
+### app.js 레거시 타임라인 물리 제거
+
+2026-09-04에 현재 홈 시간계획 UI의 소유권이 `unified-workspace.js`에 있음을 회귀 검사로 확인한 뒤, `app.js`에 남아 있던 옛 홈 타임그리드 렌더러·드롭·리사이즈·블럭 편집기 서브시스템을 제거했다. `index.html`의 `#blockEditor` 마크업도 함께 제거했다.
+
+앞으로 홈 시간계획 기능은 `unified-workspace.js` / `time-block-v2.js` 흐름을 기준으로 수정한다. `renderTimeGrid()`, `openBlockEditor()`, `hasBlockConflict()` 같은 app.js 레거시 API를 다시 만들거나 호출하지 않는다.
