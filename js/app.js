@@ -1,4 +1,5 @@
 import { onekanStateStore } from "./supabase.js";
+import { threeWayMerge } from "./state-store.js?v=1";
 import { setupAuth } from "./auth.js";
 import { confirmAction, showToast, playCheckSound } from "./ui-feedback.js";
 import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
@@ -255,7 +256,7 @@ function save() {
   setSyncStatus("저장 중...");
   saveChain = saveChain.then(async () => {
     const baseState = JSON.parse(JSON.stringify(lastSavedState));
-    await onekanStateStore.commit(snapshot, { userId, source: "app", baseState });
+    await onekanStateStore.mutate((remote) => threeWayMerge(baseState, snapshot, remote), { userId, source: "app" });
     lastSavedState = snapshot;
     setSyncStatus("저장됨");
   }).catch((error) => {

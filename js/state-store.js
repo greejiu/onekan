@@ -292,25 +292,6 @@ export function createOnekanStateStore(rawClient) {
     return rememberBase(current);
   }
 
-  async function commit(localState, { userId = null, source = "state-store-commit", baseState = null } = {}) {
-    const resolved = await resolveUserId(userId);
-    if (!resolved || !isPlainObject(localState)) return null;
-    return enqueue(async () => {
-      const remote = await fetchRemote(resolved);
-      const local = stripStateStoreMeta(localState);
-      const explicitBase = isPlainObject(baseState) ? stripStateStoreMeta(baseState) : null;
-      const base = explicitBase || baseFor(localState) || remote;
-      const merged = threeWayMerge(base, local, remote);
-      const { error } = await rawClient.from("onekan_state").upsert({ user_id: resolved, data: merged }, { onConflict: "user_id" });
-      if (error) throw error;
-      const tagged = rememberBase(cloneValue(merged));
-      const detail = { source, userId: resolved, state: cloneValue(merged) };
-      notify(detail);
-      browserDispatch("onekan:state-changed", { source, state: cloneValue(merged) });
-      return tagged;
-    });
-  }
-
   async function mutate(mutator, { userId = null, source = "state-store" } = {}) {
     const resolved = await resolveUserId(userId);
     if (!resolved) return null;
@@ -337,7 +318,6 @@ export function createOnekanStateStore(rawClient) {
 
   return {
     read,
-    commit,
     mutate,
     subscribe,
     tagReadResult,
