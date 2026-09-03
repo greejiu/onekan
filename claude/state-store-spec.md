@@ -37,9 +37,13 @@
    - 일정·할일·습관·타임라인의 고빈도 저장을 `mutate()`로 이전
    - mutator 실행 중에는 최신 store 상태를 임시 전역 state로 연결해 기존 helper의 동작을 유지
    - store가 상태변경 이벤트를 발행하므로 수동 `onekan:state-changed` dispatch는 제거
+5. `project-status-automation.js`
+   - 프로젝트·목표 상태 자동 승격/재계산을 `read() / mutate()`로 이전
+   - 변경 필요 여부는 읽은 snapshot으로 먼저 확인해 불필요한 자동 저장을 줄임
+   - 실제 커밋 시 최신 remote 상태에서 다시 상태를 계산하고 store 이벤트를 사용
 
 다음 후보:
-1. habit/project 계열 writer
+1. 나머지 project/habit 계열 writer
 
 ## 왜 기존 모듈을 한꺼번에 안 바꾸는가
 
@@ -71,4 +75,4 @@
 - 삭제와 원격 신규 추가 병합
 - 같은 탭 동시 write 직렬화
 - base token DB 미저장
-- `app.js`, `focus-task-card.js`, `project-popup-planning.js`, `unified-workspace.js`가 `onekan_state`를 직접 `select / upsert`하지 않음
+- `app.js`, `focus-task-card.js`, `project-popup-planning.js`, `unified-workspace.js`, `project-status-automation.js`가 `onekan_state`를 직접 `select / upsert`하지 않음
