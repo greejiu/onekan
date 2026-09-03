@@ -531,6 +531,7 @@
 
 /* Time block V2 timeline projection: same cards, different placement source */
 .uw-time-exact-lane{position:absolute;inset:0;min-width:0;pointer-events:none}.uw-time-exact-lane .uw-time-entry{pointer-events:auto}
+.uw-time-exact-lane .uw-inline-form,.uw-time-block-plan-rail .uw-inline-form{pointer-events:auto}
 .uw-time-block-plan-rail{position:absolute;top:0;right:52%;bottom:0;left:1px;z-index:4;pointer-events:none}
 .uw-has-time-block-plan .uw-time-exact-lane{right:0;left:50%}
 .uw-time-block-plan-group{position:absolute;right:0;left:0;z-index:4;pointer-events:none}
