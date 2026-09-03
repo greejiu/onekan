@@ -31,7 +31,8 @@ for (const entry of [
   const html = render(entry, '2026-08-29', null);
   assert.match(html, new RegExp(entry.item.title));
   assert.match(html, /uw-time-block-v2-item/);
+  assert.match(html, /uw-move-handle/, 'time-block cards must expose the shared move handle');
 }
 
-assert.match(index, /unified-workspace\.js\?v=99/);
+assert.match(index, /unified-workspace\.js\?v=100/);
 console.log('unified render smoke: ok');
