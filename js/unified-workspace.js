@@ -1341,7 +1341,7 @@ async function saveManualListOrder(kind,id,list,targetId,before,targetGroupId=""
   })
 }
 function wireControlsV2(){
-  const DRAG_MOUSE_DISTANCE=6,TOUCH_SCROLL_DISTANCE=10,TOUCH_HOLD_MS=450;
+  const DRAG_MOUSE_DISTANCE=6,TOUCH_HANDLE_DISTANCE=4,TOUCH_SCROLL_DISTANCE=10,TOUCH_HOLD_MS=450,TOUCH_HANDLE_HOLD_MS=180;
   let gesture=null;
   const clearDropIndicators=()=>{$$(".uw-range-selected,.uw-drop-target,.uw-time-block-drop-before,.uw-time-block-drop-after,.uw-time-block-drop-bottom,.uw-manual-drop-before,.uw-manual-drop-after,.uw-manual-drop-bottom").forEach(x=>x.classList.remove("uw-range-selected","uw-drop-target","uw-time-block-drop-before","uw-time-block-drop-after","uw-time-block-drop-bottom","uw-manual-drop-before","uw-manual-drop-after","uw-manual-drop-bottom"))};
   const clear=(g,restore=true)=>{
@@ -1483,7 +1483,9 @@ function wireControlsV2(){
     const item=(resizeHandle||moveHandle)?.closest(".uw-item")||e.target.closest(".uw-item");
     const interactive=Boolean(e.target.closest("button,input,select,textarea,a,[contenteditable=true]"));
     const movableRow=Boolean(item?.matches(".uw-item[data-uw-kind]")&&!item.classList.contains("uw-session-entry")&&!item.hasAttribute("data-google-calendar-event")&&!item.closest(".uw-drag-ghost"));
-    const sharedDragRow=!interactive&&movableRow;
+    const coarsePointer=e.pointerType!=="mouse"||coarse();
+    const dedicatedHandle=Boolean(resizeHandle||moveHandle);
+    const sharedDragRow=!coarsePointer&&!interactive&&movableRow;
     let mode=null,source=null;
     if(resizeHandle){mode="resize";source=resizeHandle}
     else if(sharedDragRow){mode="move";source=item}
@@ -1495,7 +1497,7 @@ function wireControlsV2(){
       else if(cell){mode="date-create";source=cell}
     }
     if(!mode||!source)return;
-    const g=gesture={mode,source,item,pointerId:e.pointerId,x:e.clientX,y:e.clientY,active:false,cancelled:false,coarse:e.pointerType!=="mouse"||coarse()};
+    const g=gesture={mode,source,item,pointerId:e.pointerId,x:e.clientX,y:e.clientY,active:false,cancelled:false,coarse:coarsePointer,dedicatedHandle};
     if(mode==="resize"){
       g.edge=resizeHandle.dataset.uwResize;
       g.start=+item.dataset.time;
@@ -1538,7 +1540,10 @@ function wireControlsV2(){
       g.nextManualBefore=null;
       g.nextGroupId="";
     }
-    if(g.coarse)g.timer=setTimeout(()=>activate(g),TOUCH_HOLD_MS);
+    if(g.coarse&&g.dedicatedHandle){
+      e.preventDefault();
+      g.timer=setTimeout(()=>activate(g),TOUCH_HANDLE_HOLD_MS);
+    }else if(g.coarse)g.timer=setTimeout(()=>activate(g),TOUCH_HOLD_MS);
   },true);
 
   document.addEventListener("pointermove",e=>{
@@ -1546,7 +1551,8 @@ function wireControlsV2(){
     if(!g||e.pointerId!==g.pointerId)return;
     const distance=Math.hypot(e.clientX-g.x,e.clientY-g.y);
     if(!g.active){
-      if(g.coarse&&distance>TOUCH_SCROLL_DISTANCE){g.cancelled=true;clear(g);return}
+      if(g.coarse&&g.dedicatedHandle&&distance>=TOUCH_HANDLE_DISTANCE)activate(g);
+      else if(g.coarse&&distance>TOUCH_SCROLL_DISTANCE){g.cancelled=true;clear(g);return}
       if(!g.coarse&&distance>=DRAG_MOUSE_DISTANCE)activate(g);
       if(!g.active)return
     }
