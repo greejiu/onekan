@@ -4,9 +4,9 @@ const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../css/sidebar-navigation.css", import.meta.url), "utf8");
 const js = fs.readFileSync(new URL("../js/sidebar-navigation.js", import.meta.url), "utf8");
 
-const requiredPages = ["home", "calendar", "tasks", "repeat", "projects", "plan", "tracking", "records", "reports", "tags"];
+const requiredPages = ["home", "calendar", "tasks", "repeat", "projects", "tracking", "records", "reports", "tags"];
 const requiredProjectTabs = ["project", "goal", "identity"];
-const requiredIcons = ["home", "calendar", "task", "repeat", "project", "goal", "identity", "plan", "tracking", "records", "reports", "tags", "settings", "logout"];
+const requiredIcons = ["home", "calendar", "task", "repeat", "project", "goal", "identity", "tracking", "records", "reports", "tags", "settings", "logout"];
 
 for (const page of requiredPages) {
   if (!html.includes(`data-page="${page}"`)) throw new Error(`사이드바 메뉴 누락: ${page}`);
@@ -20,8 +20,11 @@ for (const page of ["records", "reports", "tags"]) {
 if (!html.includes('data-sidebar-section="calendar"') || !html.includes('data-sidebar-section="projects"')) {
   throw new Error("사이드바 시각 그룹이 없습니다.");
 }
-if (!html.match(/id="sidebarProjectItems"[\s\S]*data-page="plan"/)) {
-  throw new Error("프로젝트 그룹에 계획 세우기 메뉴가 없습니다.");
+if (!js.includes("removePlanNavigation") || !js.includes('.sidebar .nav-item[data-page="plan"]')) {
+  throw new Error("계획 세우기 메뉴 제거 로직이 없습니다.");
+}
+if (!js.includes("project-popup-planning.js?v=1")) {
+  throw new Error("프로젝트 팝업 계획 모듈 로더가 없습니다.");
 }
 if (!js.includes("makeStaticSectionHeadings") || !js.includes("nav-section-heading")) {
   throw new Error("정적 그룹 제목 변환 로직이 없습니다.");

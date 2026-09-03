@@ -105,7 +105,12 @@ function keepHabitLabel() {
   if (label && label.textContent !== "습관") label.textContent = "습관";
 }
 
+function removePlanNavigation() {
+  $('.sidebar .nav-item[data-page="plan"]')?.remove();
+}
+
 function decorateSidebar() {
+  removePlanNavigation();
   makeStaticSectionHeadings();
   ensureUtilityDivider();
   keepHabitLabel();
@@ -148,6 +153,10 @@ function init() {
       if ($("#page-projects.active")) syncProjectNavigation();
     }).observe(nav, { childList: true, subtree: true });
   }
+
+  import("./project-popup-planning.js?v=1").catch((error) => {
+    console.error("프로젝트 연결 항목 관리 화면을 불러오지 못했어요.", error);
+  });
 }
 
 init();
