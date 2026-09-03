@@ -32,4 +32,16 @@ for (const file of removedManagementModules) {
   );
 }
 
+const removedProjectPlanningModule = "project-planning.js";
+assert.equal(
+  fs.existsSync(path.join(root, "js", removedProjectPlanningModule)),
+  false,
+  `사용하지 않는 프로젝트 계획 모듈이 다시 생겼습니다: ${removedProjectPlanningModule}`,
+);
+assert.equal(
+  indexHtml.includes(removedProjectPlanningModule),
+  false,
+  `index.html이 제거된 프로젝트 계획 모듈을 참조합니다: ${removedProjectPlanningModule}`,
+);
+
 console.log("dead code cleanup regression: ok");
