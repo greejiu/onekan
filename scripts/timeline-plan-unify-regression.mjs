@@ -14,7 +14,9 @@ assert.match(u,/const timeline=closestAt\(pointed,"\.uw-timeline",clientX,client
 assert.match(u,/placeTimeBlockOccurrence\(next,g\.nextDate,placementToken,g\.nextBlockId,g\.nextAfterAnchor,g\.nextOrder\)/,'shared drag must save time-block anchor order when dropped back into a block');
 assert.match(u,/const movableRow=Boolean\(item\?\.matches\("\.uw-item\[data-uw-kind\]"\)/,'all task, event and habit cards must enter the shared move rule');
 assert.match(u,/else if\(sharedDragRow\)\{mode="move";source=item\}/,'list, timeline and time-block cards must use one shared move gesture');
-assert.match(u,/const DRAG_MOUSE_DISTANCE=6,TOUCH_SCROLL_DISTANCE=10,TOUCH_HOLD_MS=450/,'shared drag must preserve mouse threshold and mobile long-press rules');
+assert.match(u,/DRAG_MOUSE_DISTANCE=6/,'shared drag must preserve the desktop movement threshold');
+assert.match(u,/TOUCH_SCROLL_DISTANCE=10/,'shared drag must preserve the touch-scroll cancellation threshold');
+assert.match(u,/TOUCH_HOLD_MS=450/,'shared drag must preserve the mobile long-press delay');
 assert.match(u,/const sharedDragRow=!interactive&&movableRow/,'buttons and form controls must stay clickable instead of starting a drag');
 assert.doesNotMatch(u,/mode="time-block-plan"/,'time-block cards must not enter a separate drag mode');
 assert.doesNotMatch(u,/function wireControls\(\)/,'obsolete drag controller must be removed');
