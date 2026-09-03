@@ -114,8 +114,305 @@
   line-height: 1.4;
 }
 
-@media (max-width: 640px) {
+.onekan-project-linked-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10065;
+}
+
+.onekan-project-linked-layer[hidden] {
+  display: none !important;
+}
+
+.onekan-project-linked-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.onekan-project-linked-panel {
+  position: fixed;
+  z-index: 1;
+  width: min(410px, calc(100vw - 24px));
+  max-height: 65vh;
+  overflow: hidden;
+  border: 1px solid var(--line, #dfe3e1);
+  border-radius: 16px;
+  background: var(--card, #fff);
+  color: var(--text, #303633);
+  box-shadow: 0 18px 48px rgba(43, 48, 46, .18), 0 3px 10px rgba(43, 48, 46, .08);
+}
+
+.onekan-project-linked-drag-zone {
+  display: none;
+}
+
+.onekan-project-linked-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 16px 13px;
+  border-bottom: 1px solid var(--line, #e5e8e6);
+  background: color-mix(in srgb, var(--accent-soft, #f0eafa) 48%, #fff);
+}
+
+.onekan-project-linked-heading {
+  min-width: 0;
+}
+
+.onekan-project-linked-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent-dark, #684789);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.onekan-project-linked-heading h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text, #303633);
+  font-size: 17px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onekan-project-linked-heading p {
+  margin: 5px 0 0;
+  color: var(--muted, #7b827e);
+  font-size: 10px;
+}
+
+.onekan-project-linked-close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--panel-soft, #f3f4f3) 86%, #fff);
+  color: var(--muted, #737b76);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.onekan-project-linked-close:hover,
+.onekan-project-linked-close:focus-visible {
+  background: var(--panel-soft, #f0f2f1);
+  color: var(--text, #303633);
+  outline: none;
+}
+
+.onekan-project-linked-scroll {
+  display: grid;
+  gap: 18px;
+  max-height: calc(65vh - 88px);
+  padding: 14px 16px 17px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.onekan-project-linked-section {
+  display: grid;
+  gap: 8px;
+}
+
+.onekan-project-linked-section-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+}
+
+.onekan-project-linked-section-head strong {
+  font-size: 12px;
+}
+
+.onekan-project-linked-section-head span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--panel-soft, #f2f4f3);
+  color: var(--muted, #7b827e);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.onekan-project-linked-list {
+  display: grid;
+  gap: 4px;
+}
+
+.onekan-project-linked-item {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-height: 42px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--panel-soft, #f4f5f4) 58%, #fff);
+}
+
+.onekan-project-linked-item.is-done {
+  opacity: .56;
+}
+
+.onekan-project-linked-check {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid color-mix(in srgb, var(--accent, #8fa9c4) 34%, var(--line-strong, #b8c0cb));
+  border-radius: 5px;
+  color: var(--accent-dark, #684789);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.onekan-project-linked-item.is-done .onekan-project-linked-check {
+  border-color: color-mix(in srgb, var(--accent, #8fa9c4) 56%, var(--line-strong, #b8c0cb));
+  background: var(--accent-soft, #f0eafa);
+}
+
+.onekan-project-linked-repeat {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--accent-dark, #684789);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.onekan-project-linked-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.onekan-project-linked-copy strong {
+  overflow: hidden;
+  color: var(--text, #303633);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onekan-project-linked-item.is-done .onekan-project-linked-copy strong {
+  text-decoration: line-through;
+}
+
+.onekan-project-linked-copy small {
+  overflow: hidden;
+  color: var(--muted, #7b827e);
+  font-size: 9px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onekan-project-linked-empty,
+.onekan-project-linked-loading {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  min-height: 180px;
+  padding: 24px 12px;
+  color: var(--muted, #7b827e);
+  text-align: center;
+}
+
+.onekan-project-linked-empty strong {
+  color: var(--text, #303633);
+  font-size: 12px;
+}
+
+.onekan-project-linked-empty span,
+.onekan-project-linked-loading {
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+@media (max-width: 700px) {
   .onekan-project-popover {
     width: min(300px, calc(100vw - 20px));
+  }
+
+  .onekan-project-linked-backdrop {
+    background: rgba(35, 30, 42, .28);
+    backdrop-filter: blur(1.5px);
+  }
+
+  .onekan-project-linked-panel {
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    top: auto !important;
+    width: 100%;
+    max-height: min(82dvh, 720px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 20px 20px 0 0;
+    transform: translateY(var(--onekan-sheet-drag, 0px));
+    box-shadow: 0 -16px 42px rgba(35, 30, 42, .18);
+    visibility: visible !important;
+  }
+
+  .onekan-project-linked-drag-zone {
+    display: grid;
+    place-items: center;
+    height: 28px;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .onekan-project-linked-drag-zone span {
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--line-strong, #b8c0cb) 84%, #fff);
+  }
+
+  .onekan-project-linked-head {
+    padding: 6px 16px 13px;
+  }
+
+  .onekan-project-linked-heading h2 {
+    font-size: 16px;
+  }
+
+  .onekan-project-linked-scroll {
+    max-height: calc(min(82dvh, 720px) - 96px);
+    padding: 13px 14px calc(22px + env(safe-area-inset-bottom));
+  }
+
+  .onekan-project-linked-item {
+    min-height: 46px;
+    padding: 8px 9px;
+  }
+
+  .onekan-project-linked-copy strong {
+    font-size: 13px;
   }
 }
