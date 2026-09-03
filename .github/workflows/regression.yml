@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -33,5 +35,9 @@ jobs:
             node "$test"
             echo "::endgroup::"
           done
+      - name: Check changed asset cache versions
+        env:
+          CACHE_BUSTER_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/cache-buster-regression.mjs --check-diff "$CACHE_BUSTER_BASE"
       - name: Run unified render smoke test
         run: node scripts/unified-render-smoke.mjs
