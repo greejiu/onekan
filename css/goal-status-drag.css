@@ -1,6 +1,0 @@
-#page-goals .ok-goal-card{cursor:grab;user-select:none}
-#page-goals .ok-goal-card:active{cursor:grabbing}
-#page-goals .ok-goal-card.ok-goal-dragging{opacity:.32}
-#page-goals .ok-goal-column.ok-goal-drag-over{outline:2px solid var(--ok-status-color,#9aa9b7);outline-offset:-2px;background:color-mix(in srgb,var(--ok-status-color,#9aa9b7) 9%,#fff)}
-.ok-goal-drag-ghost{position:fixed;z-index:9999;pointer-events:none;margin:0;opacity:.94;transform:rotate(1deg);box-shadow:0 12px 28px #0002}
-@media(max-width:700px){#page-goals .ok-goal-card{touch-action:pan-y}}

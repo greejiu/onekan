@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -18,18 +19,6 @@ function listFiles(dir, ext) {
   return out.sort();
 }
 
-function walkTextFiles(dir = "") {
-  const out = [];
-  const abs = path.join(root, dir);
-  for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
-    if ([".git", "node_modules"].includes(entry.name)) continue;
-    const rel = normalize(path.join(dir, entry.name));
-    if (entry.isDirectory()) out.push(...walkTextFiles(rel));
-    else if (entry.isFile() && /\.(?:html|js|mjs|css|md|ya?ml|json)$/.test(entry.name)) out.push(rel);
-  }
-  return out;
-}
-
 function resolveLocal(fromFile, raw) {
   const clean = raw.split("?")[0].split("#")[0];
   if (!clean || /^(?:https?:|data:|blob:|\/\/)/.test(clean)) return null;
@@ -42,16 +31,23 @@ function resolveLocal(fromFile, raw) {
 
 function extractRefs(file, text) {
   const refs = new Set();
-  const patterns = [
-    /(?:src|href)\s*=\s*["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g,
-    /(?:import\s*(?:\([^)]*?\)|[^;]*?from\s*)|export\s+[^;]*?from\s*)["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g,
-    /["'`]((?:\.\.?\/|\/)[^"'`\s]+\.(?:js|css)(?:\?[^"'`\s]*)?)["'`]/g,
-  ];
-  for (const re of patterns) {
-    for (const match of text.matchAll(re)) {
-      const ref = resolveLocal(file, match[1]);
-      if (ref && exists(ref)) refs.add(ref);
-    }
+  const add = (fromFile, raw) => {
+    const ref = resolveLocal(fromFile, raw);
+    if (ref && exists(ref)) refs.add(ref);
+  };
+
+  for (const match of text.matchAll(/(?:src|href)\s*=\s*["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g)) {
+    add(file, match[1]);
+  }
+  for (const match of text.matchAll(/(?:import\s*(?:\([^)]*?\)|[^;]*?from\s*)|export\s+[^;]*?from\s*)["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g)) {
+    add(file, match[1]);
+  }
+  for (const match of text.matchAll(/["'`]((?:\.\.?\/|\/)[^"'`\s]+\.(?:js|css)(?:\?[^"'`\s]*)?)["'`]/g)) {
+    add(file, match[1]);
+  }
+  // link.href/script.src 같은 런타임 DOM 삽입 경로는 모듈 파일이 아니라 문서 URL 기준으로 해석된다.
+  for (const match of text.matchAll(/(?:href|src)\s*=\s*["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g)) {
+    add("index.html", match[1]);
   }
   return refs;
 }
@@ -73,31 +69,17 @@ for (const ref of extractRefs("index.html", index)) add(ref);
 
 while (queue.length) {
   const file = queue.shift();
-  if (!/\.(?:js|css)$/.test(file)) continue;
   const text = fs.readFileSync(path.join(root, file), "utf8");
   for (const ref of extractRefs(file, text)) add(ref);
 }
 
-const unreachableJs = allJs.filter((f) => !reachable.has(f));
-const unreachableCss = allCss.filter((f) => !reachable.has(f));
-const unreachable = [...unreachableJs, ...unreachableCss];
-const textFiles = walkTextFiles();
+const unreachableJs = allJs.filter((file) => !reachable.has(file));
+const unreachableCss = allCss.filter((file) => !reachable.has(file));
 
-console.log(`reachable assets: ${reachable.size}`);
-console.log("\nUNREACHABLE JS");
-for (const f of unreachableJs) console.log(f);
-console.log("\nUNREACHABLE CSS");
-for (const f of unreachableCss) console.log(f);
-console.log(`\ncounts: js=${unreachableJs.length}, css=${unreachableCss.length}`);
+console.log(`runtime assets reachable: ${reachable.size}`);
+if (unreachableJs.length) console.log("unreachable js:\n" + unreachableJs.join("\n"));
+if (unreachableCss.length) console.log("unreachable css:\n" + unreachableCss.join("\n"));
 
-console.log("\nREFERENCE SITES");
-for (const asset of unreachable) {
-  const base = path.posix.basename(asset);
-  const refs = [];
-  for (const file of textFiles) {
-    if (file === asset) continue;
-    const text = fs.readFileSync(path.join(root, file), "utf8");
-    if (text.includes(base) || text.includes(asset)) refs.push(file);
-  }
-  console.log(`${asset}: ${refs.length ? refs.join(", ") : "(none)"}`);
-}
+assert.deepEqual(unreachableJs, [], "index.html에서 시작한 런타임 그래프에 도달하지 않는 JS가 있습니다.");
+assert.deepEqual(unreachableCss, [], "index.html에서 시작한 런타임 그래프에 도달하지 않는 CSS가 있습니다.");
+console.log("runtime asset reachability: ok");
