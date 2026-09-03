@@ -32,7 +32,7 @@ assert.match(
   /function renderPlanner\(\)\{const card=\$\("\.home-timeline-card"\);[\s\S]*?card\.innerHTML=`<div class="uw-home-planner">/,
   "unified workspace must own and replace the home planner card contents",
 );
-assert.match(unified, /function plannerDropAt\(/, "unified workspace must own planner drop behavior");
+assert.match(unified, /const plannerDropAt=\(/, "unified workspace must own planner drop behavior");
 assert.match(unified, /data-uw-resize=/, "unified workspace must own timeline resize controls");
 assert.doesNotMatch(unified, /#blockEditor|openBlockEditor\(/, "unified workspace must not depend on the legacy block editor");
 assert.doesNotMatch(unified, /#timeGrid/, "unified workspace must not depend on the legacy #timeGrid node");
