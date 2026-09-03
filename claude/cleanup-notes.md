@@ -52,6 +52,21 @@
 
 즉 이 영역은 "죽은 함수 몇 개"가 아니라 "부분적으로 남은 레거시 타임라인 서브시스템"으로 취급한다.
 
+### app.js 레거시 타임라인 2차 소유권 감사
+
+2026-09-04 기준으로 `scripts/app-legacy-timeline-audit-regression.mjs`를 추가해 현재 배포의 실제 소유권을 회귀 검사로 고정했다.
+
+확인된 현재 구조는 다음과 같다.
+
+- `index.html`에는 `app.js`와 `unified-workspace.js`가 함께 로드된다.
+- `app.js`의 `renderHome()`은 unified workspace 스크립트가 존재하면 `renderDashboard()`만 처리하고 옛 `renderTimeGrid()` 경로를 타지 않는다.
+- 홈의 실제 계획 화면은 `unified-workspace.js`의 `renderPlanner()`가 `.home-timeline-card` 전체 내용을 새 마크업으로 교체해 그린다.
+- 드롭·이동·리사이즈도 `unified-workspace.js`의 공용 제스처/플래너 로직이 소유한다.
+- `unified-workspace.js`는 `#timeGrid`, `#blockEditor`, `openBlockEditor()`에 의존하지 않는다.
+- `app.js` 이외의 현재 JS 파일에서도 `renderTimeGrid()` / `openBlockEditor()` / `hasBlockConflict()`를 호출하지 않는다.
+
+따라서 현재 사용자 화면의 시간계획 기준 구현은 `unified-workspace.js`로 확정한다. 다만 `app.js` 내부에는 아직 `#blockEditor` 이벤트와 레거시 함수들이 서로 참조된 채 남아 있으므로, 다음 물리 삭제는 **이벤트 핸들러 → `#blockEditor` 마크업 → 타임그리드 헬퍼 묶음** 순서로 진행한다. 함수만 단독 삭제하지 않는다.
+
 ### 회귀 테스트 CI
 
 회귀 스크립트가 수동 실행에만 머물지 않도록 `.github/workflows/regression.yml`을 추가한다. PR과 `main` push에서 JS 문법 검사, 모든 `*-regression.mjs`, `unified-render-smoke.mjs`를 실행한다.
@@ -62,7 +77,7 @@
 
 ### app.js 레거시 타임라인 서브시스템
 
-위 감사 결과에 따라 단독 함수 삭제는 보류한다. `unified-workspace.js`로 완전히 이관됐는지 이벤트 흐름까지 확인한 뒤 한 묶음으로 제거한다.
+2차 소유권 감사로 현재 사용자 화면은 `unified-workspace.js`가 전부 소유한다는 점을 확인했다. 다음 정리에서는 `app.js`의 옛 `#blockEditor` 이벤트와 마크업을 먼저 제거하고, 그 뒤 `renderTimeGrid()` / `hasBlockConflict()` / 레거시 드롭·리사이즈 헬퍼를 한 묶음으로 삭제한다.
 
 ### 수동 캐시버스팅
 
@@ -71,3 +86,5 @@
 ## 회귀 기준
 
 `scripts/dead-code-cleanup-regression.mjs`는 제거된 management 파일, `project-planning.js`, 계획 세우기 페이지/모듈/사이드바 훅이 다시 생기거나 `index.html`에서 다시 참조되는 경우 실패한다.
+
+`scripts/app-legacy-timeline-audit-regression.mjs`는 현재 시간계획 UI의 소유권이 다시 섞이거나, 다른 모듈이 `app.js`의 레거시 타임라인 함수에 새로 의존하기 시작하면 실패한다.
