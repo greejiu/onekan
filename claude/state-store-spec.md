@@ -9,8 +9,10 @@
 ## 현재 구조
 
 - `js/state-store.js`
-  - 같은 탭 안의 `onekan_state` 쓰기를 하나의 Promise queue로 직렬화한다.
+  - `onekan_state` 쓰기를 하나의 Promise queue로 직렬화한다.
+  - Chromium 계열 등 Web Locks API가 있는 브라우저에서는 같은 origin의 여러 탭도 `onekan-state-write` lock으로 직렬화한다.
   - 읽은 상태에 임시 base token을 붙이고, 저장 직전에 DB 최신 상태를 다시 읽는다.
+  - 동일한 상태를 여러 모듈이 반복해서 읽어도 같은 fingerprint token을 재사용해 base cache가 불필요하게 늘어나지 않게 한다.
   - `base / local / remote` 3-way merge를 수행한다.
   - `tasks`, `projects`, `sessions`, `timeBlocks`처럼 `id`가 있는 배열은 항목 단위로 병합한다.
   - 임시 base token은 DB에 저장하기 전에 제거한다.
@@ -40,8 +42,8 @@
 
 ## 제한
 
-- 현재 queue는 **한 브라우저 탭 안에서만** 직렬화된다.
-- 다른 탭/기기에서 정확히 동시에 쓰는 경우 `최신 읽기 → upsert` 사이에 DB 레벨 원자성은 없다. 완전한 해결에는 revision/version 기반 optimistic locking 또는 RPC가 필요하다.
+- Web Locks API가 없는 브라우저에서는 queue가 **현재 탭 안에서만** 직렬화된다.
+- Web Locks를 써도 다른 기기까지 원자적으로 잠글 수는 없다. 다른 기기에서 정확히 동시에 쓰는 경우 `최신 읽기 → upsert` 사이에 DB 레벨 race가 남는다. 완전한 해결에는 revision/version 기반 optimistic locking 또는 RPC가 필요하다.
 - `onekan_state.update()` / `delete()`를 통한 전체 상태 변경은 아직 3-way merge 대상이 아니다. 현재 주된 전체 상태 writer는 `upsert` 패턴이다.
 - base token은 내부 병합용 임시 값이며 DB 저장 시 제거한다.
 
@@ -49,6 +51,7 @@
 
 `scripts/state-store-regression.mjs`에서 다음을 확인한다.
 - 외부 모듈의 하위할일 변경 뒤 stale app snapshot 저장 시 변경 보존
+- 동일 상태 반복 read 시 base token 재사용
 - 동시에 추가된 서로 다른 `id` 항목 보존
 - 같은 항목의 서로 다른 필드 병합
 - 삭제와 원격 신규 추가 병합
