@@ -36,7 +36,7 @@ for (const file of fs.readdirSync("scripts").filter((name) => name.endsWith("-re
   const path = `scripts/${file}`;
   const before = fs.readFileSync(path, "utf8");
   const after = before
-    .replaceAll("unified-workspace\\\\.js\\\\?v=103", "unified-workspace\\\\.js\\\\?v=104")
+    .replaceAll("unified-workspace\\.js\\?v=103", "unified-workspace\\.js\\?v=104")
     .replaceAll("unified-workspace.js?v=103", "unified-workspace.js?v=104");
   if (after !== before) fs.writeFileSync(path, after);
 }
