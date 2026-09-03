@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { showToast, playCheckSound } from "./ui-feedback.js";
 // 시간 통계·백업 관리 모듈은 원래 홈 메모 카드를 통해 불러와졌다.
 // 메모 카드를 없애면서 이 카드가 대신 그 역할을 이어받는다.
@@ -61,19 +61,24 @@ async function readState() {
     state = null;
     return null;
   }
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
-  if (error) throw error;
-  state = normalizeState(data?.data);
+  const stored = await onekanStateStore.read({ userId: user.id });
+  state = normalizeState(stored);
   return state;
 }
 
 async function writeState(mutator) {
-  await readState();
-  if (!state || !user) return false;
-  mutator(state);
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: state }, { onConflict: "user_id" });
-  if (error) throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "focus-task-card" } }));
+  await resolveUser();
+  if (!user) return false;
+  const committed = await onekanStateStore.mutate((current) => {
+    const next = normalizeState(current);
+    mutator(next);
+    return next;
+  }, { userId: user.id, source: "focus-task-card" });
+  if (!committed) {
+    state = null;
+    return false;
+  }
+  state = normalizeState(committed);
   scheduleRender(60, false);
   return true;
 }

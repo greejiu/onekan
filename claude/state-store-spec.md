@@ -1,6 +1,6 @@
 # 공용 state-store — 설계 메모
 
-**상태: 1단계 구현 완료 (2026-09-03).**
+**상태: 1단계 구현 완료 + 고빈도 writer 직접 이전 진행 중 (2026-09-04).**
 
 ## 목적
 
@@ -21,15 +21,24 @@
   - 다른 Supabase 테이블은 기존과 동일하게 동작한다.
 - 새 코드에서는 가능하면 `onekanStateStore.read()` / `onekanStateStore.mutate()` / `onekanStateStore.subscribe()`를 직접 사용한다.
 
+## 직접 이전 현황
+
+완료:
+1. `app.js`
+   - `read()` / `mutate()` 직접 사용
+   - 마지막 app 저장본을 base로 두고 최신 remote와 3-way merge
+2. `focus-task-card.js`
+   - `onekan_state` 직접 `select / upsert` 제거
+   - 하위할일 추가·삭제·체크, 집중 할일 선택을 `mutate()` 한 트랜잭션 흐름에서 처리
+
+다음 후보:
+1. `project-popup-planning.js`
+2. `unified-workspace.js`
+3. habit/project 계열 writer
+
 ## 왜 기존 모듈을 한꺼번에 안 바꾸는가
 
-현재 `onekan_state`를 다루는 모듈이 많아서 한 번에 전환하면 회귀 범위가 너무 커진다. 1단계에서는 공용 transport를 먼저 깔아 데이터 유실 위험을 줄이고, 이후 쓰기 빈도가 높은 모듈부터 직접 store API로 옮긴다.
-
-우선 이전 후보:
-1. `app.js`
-2. `focus-task-card.js`
-3. `project-popup-planning.js`
-4. `unified-workspace.js` 및 habit/project 계열 writer
+현재 `onekan_state`를 다루는 모듈이 많아서 한 번에 전환하면 회귀 범위가 너무 커진다. 공용 transport로 먼저 데이터 유실 위험을 줄인 뒤, 쓰기 빈도가 높은 모듈부터 직접 store API로 옮긴다.
 
 ## merge 규칙
 
@@ -49,7 +58,7 @@
 
 ## 검증
 
-`scripts/state-store-regression.mjs`에서 다음을 확인한다.
+`scripts/state-store-regression.mjs`와 모듈별 회귀검사에서 다음을 확인한다.
 - 외부 모듈의 하위할일 변경 뒤 stale app snapshot 저장 시 변경 보존
 - 동일 상태 반복 read 시 base token 재사용
 - 동시에 추가된 서로 다른 `id` 항목 보존
@@ -57,3 +66,4 @@
 - 삭제와 원격 신규 추가 병합
 - 같은 탭 동시 write 직렬화
 - base token DB 미저장
+- `app.js`와 `focus-task-card.js`가 `onekan_state`를 직접 `select / upsert`하지 않음
