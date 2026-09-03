@@ -136,4 +136,20 @@ untagged.ui.sidebarCollapsed = true;
 await legacyClient.from("onekan_state").upsert({ user_id: "u1", data: untagged }, { onConflict: "user_id" });
 assert.equal(legacyRaw.db.data.ui.sidebarCollapsed, true);
 
+const directRaw = new FakeClient(base);
+const { store: directStore } = createStateStoreClient(directRaw);
+const appBase = stripStateStoreMeta(await directStore.read({ userId: "u1" }));
+const appFirst = structuredClone(appBase);
+appFirst.habitDays["2026-09-03"].h1 = true;
+directRaw.db.data.tasks[0].subtaskProgress.external = true;
+await directStore.commit(appFirst, { userId: "u1", source: "app-test", baseState: appBase });
+assert.equal(directRaw.db.data.habitDays["2026-09-03"].h1, true);
+assert.equal(directRaw.db.data.tasks[0].subtaskProgress.external, true);
+
+const appSecond = structuredClone(appFirst);
+appSecond.habitDays["2026-09-03"].h1 = false;
+await directStore.commit(appSecond, { userId: "u1", source: "app-test", baseState: appFirst });
+assert.equal(directRaw.db.data.habitDays["2026-09-03"].h1, false);
+assert.equal(directRaw.db.data.tasks[0].subtaskProgress.external, true);
+
 console.log("state store regression: ok");

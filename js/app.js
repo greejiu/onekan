@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js";
 import { setupAuth } from "./auth.js";
 import { confirmAction, showToast, playCheckSound } from "./ui-feedback.js";
 import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
@@ -207,6 +207,7 @@ function normalizeState(raw) {
 let currentUser = null;
 let loadedUserId = null;
 let state = defaultState();
+let lastSavedState = defaultState();
 let saveChain = Promise.resolve();
 let tickHandle = null;
 let timerFinishing = false;
@@ -232,19 +233,14 @@ function setSyncStatus(text, isError = false) {
 
 async function loadStateFromCloud(user) {
   setSyncStatus("불러오는 중...");
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
-  if (error) {
+  try {
+    const stored = await onekanStateStore.read({ userId: user.id });
+    state = normalizeState(stored);
+    lastSavedState = JSON.parse(JSON.stringify(state));
+  } catch (error) {
     console.error(error);
     setSyncStatus("불러오기 실패", true);
     throw error;
-  }
-
-  if (!data) {
-    state = defaultState();
-    const { error: insertError } = await supabase.from("onekan_state").insert({ user_id: user.id, data: state });
-    if (insertError) throw insertError;
-  } else {
-    state = normalizeState(data.data);
   }
 
   ensureHabitDay();
@@ -258,10 +254,10 @@ function save() {
   const snapshot = JSON.parse(JSON.stringify(state));
   setSyncStatus("저장 중...");
   saveChain = saveChain.then(async () => {
-    const { error } = await supabase.from("onekan_state").upsert({ user_id: userId, data: snapshot }, { onConflict: "user_id" });
-    if (error) throw error;
+    const baseState = JSON.parse(JSON.stringify(lastSavedState));
+    await onekanStateStore.commit(snapshot, { userId, source: "app", baseState });
+    lastSavedState = snapshot;
     setSyncStatus("저장됨");
-    document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "app" } }));
   }).catch((error) => {
     console.error(error);
     setSyncStatus("저장 실패", true);
@@ -1434,6 +1430,7 @@ async function resetForLogout() {
   currentUser = null;
   loadedUserId = null;
   state = defaultState();
+  lastSavedState = defaultState();
   clearInterval(tickHandle);
 }
 
