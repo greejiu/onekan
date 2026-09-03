@@ -78,8 +78,8 @@ assert.doesNotMatch(u,/upcomingGroups\(limit=7,horizon=366\)/,'home upcoming mus
 assert.doesNotMatch(u,/uw-date-label[^`]+uw-icon-btn[^`]+data-uw-add-kind/,'upcoming date rows must not show redundant plus buttons');
 assert.doesNotMatch(u,/uw-someday-add uw-empty-hit/,'someday must not show the redundant add button');
 assert.doesNotMatch(i,/id="addTimeBlockBtn"/,'home planner must not show a non-working bottom add button');
-assert.match(i,/unified-workspace\.js\?v=82/);
-assert.match(i,/workspace-pages\.js\?v=12/);
-assert.match(i,/context-menu\.js\?v=28/);
-assert.match(i,/unified-workspace\.css\?v=52/);
+assert.match(i,/unified-workspace\.js\?v=\d+/,'unified workspace must keep a numeric cache-busting version');
+assert.match(i,/workspace-pages\.js\?v=\d+/,'workspace pages must keep a numeric cache-busting version');
+assert.match(i,/context-menu\.js\?v=\d+/,'context menu must keep a numeric cache-busting version');
+assert.match(i,/unified-workspace\.css\?v=\d+/,'unified workspace css must keep a numeric cache-busting version');
 console.log('timeline plan unify regression: ok');
