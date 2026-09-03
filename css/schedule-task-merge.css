@@ -1,0 +1,48 @@
+/* 일정 + 할일 통합 화면 */
+.merged-schedule-page .page-head{align-items:center;flex-wrap:wrap}
+.merged-schedule-head-controls{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-left:auto;flex-wrap:wrap}
+.merged-schedule-mode{flex:0 0 auto}
+.merged-schedule-kind-controls{display:flex;align-items:center;gap:6px;padding-left:4px}
+.merged-kind-toggle{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:6px 11px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .15s ease}
+.merged-kind-toggle:hover{background:var(--panel-soft);color:var(--text)}
+.merged-kind-toggle.active{border-color:color-mix(in srgb,var(--accent) 28%,var(--line));background:var(--accent-soft);color:var(--accent-dark)}
+.merged-kind-toggle svg{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.merged-schedule-page #calendarViewSeg{display:block;margin:0 0 12px}
+.merged-schedule-page #scheduleCalendarNav{display:none!important}
+.merged-schedule-content{min-width:0}
+.merged-schedule-calendar-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.merged-schedule-calendar-nav>strong{min-width:0;text-align:center;font-size:14px}
+.merged-schedule-nav-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.merged-schedule-add-row{display:flex;align-items:center;gap:4px;min-width:0;flex-wrap:wrap}
+.merged-schedule-add-row .merged-schedule-add{width:auto;min-width:0;min-height:27px;padding:3px 7px;border-radius:7px;color:var(--muted);font-size:11px;line-height:1.2}
+.merged-schedule-add-row .merged-schedule-add.compact{min-height:22px;padding:1px 5px;font-size:11px}
+.merged-schedule-list-add{margin-bottom:8px}
+.merged-schedule-list-date{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}
+.merged-schedule-more{display:block;padding:2px 6px;color:var(--muted);font-size:10px}
+.merged-schedule-empty{display:grid;place-items:center;align-content:center;gap:7px;min-height:330px;padding:34px;border:1px dashed var(--line-strong);border-radius:20px;background:var(--panel);color:var(--muted);text-align:center}
+.merged-schedule-empty small{font-size:11px;color:var(--muted)}
+.merged-schedule-empty.compact{min-height:130px;margin-top:8px;border:0;background:transparent}
+.merged-schedule-list{padding:2px 0 12px}
+.merged-schedule-list .uw-task-grouped-list{display:grid;gap:10px}
+.merged-schedule-month .uw-task-month-cell .merged-schedule-add-row{opacity:.48;transition:opacity .15s ease}
+.merged-schedule-month .uw-task-month-cell:hover .merged-schedule-add-row,.merged-schedule-month .uw-task-month-cell:focus-within .merged-schedule-add-row{opacity:1}
+.merged-schedule-month .uw-task-month-cell .merged-schedule-add-row .merged-schedule-add{padding:0 4px;background:transparent}
+.merged-schedule-month .uw-task-month-cell .uw-item.compact{min-height:24px}
+.merged-schedule-page .uw-task-calendar-tabs,.merged-schedule-page .uw-task-list-tabs{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.merged-schedule-page .uw-all-day-list .merged-schedule-add-row{margin-top:3px}
+.merged-schedule-page .uw-date-group .merged-schedule-add-row{margin-top:4px}
+
+@media(max-width:700px){
+  .merged-schedule-page .page-head{align-items:flex-start;gap:12px}
+  .merged-schedule-head-controls{width:100%;margin-left:0;justify-content:space-between;gap:8px}
+  .merged-schedule-kind-controls{padding-left:0}
+  .merged-kind-toggle{min-height:32px;padding:5px 9px}
+  .merged-schedule-calendar-nav{position:sticky;top:0;z-index:8;padding:10px 8px}
+  .merged-schedule-calendar-nav>strong{font-size:12px}
+  .merged-schedule-nav-actions .uw-session-toggle{font-size:10px;padding:5px 7px}
+  .merged-schedule-page .uw-task-calendar-tabs,.merged-schedule-page .uw-task-list-tabs{overflow-x:auto;scrollbar-width:none}
+  .merged-schedule-page .uw-task-calendar-tabs::-webkit-scrollbar,.merged-schedule-page .uw-task-list-tabs::-webkit-scrollbar{display:none}
+  .merged-schedule-month .uw-task-month-cell .merged-schedule-add-row{opacity:1}
+  .merged-schedule-month .uw-task-month-cell .merged-schedule-add-row .merged-schedule-add{padding:0 2px}
+  .merged-schedule-list-date{display:none}
+}
