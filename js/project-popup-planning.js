@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import {
   completeRepeatingTask,
   normalizeCompletionRepeats,
@@ -46,20 +46,22 @@ async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
   user = session?.user || null;
   if (!user) return state = normalize({});
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
-  if (error) throw error;
-  state = normalize(data?.data);
+  const stored = await onekanStateStore.read({ userId: user.id });
+  state = normalize(stored);
   return state;
 }
 
 async function writeState(mutator, source) {
-  const current = await readState();
+  const { data: { session } } = await supabase.auth.getSession();
+  user = session?.user || null;
   if (!user) return false;
-  mutator(current);
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: current }, { onConflict: "user_id" });
-  if (error) throw error;
-  state = current;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source } }));
+  const committed = await onekanStateStore.mutate((current) => {
+    const next = normalize(current);
+    mutator(next);
+    return next;
+  }, { userId: user.id, source });
+  if (!committed) return false;
+  state = normalize(committed);
   document.querySelector("#reloadCloudBtn")?.click();
   scheduleRender(20);
   return true;

@@ -23,7 +23,7 @@ if (!html.includes('data-sidebar-section="calendar"') || !html.includes('data-si
 if (html.includes('data-page="plan"') || html.includes('id="page-plan"') || js.includes("removePlanNavigation")) {
   throw new Error("폐기한 계획 세우기 레거시가 다시 들어왔습니다.");
 }
-if (!js.includes("project-popup-planning.js?v=1")) {
+if (!js.includes("project-popup-planning.js?v=2")) {
   throw new Error("프로젝트 팝업 계획 모듈 로더가 없습니다.");
 }
 if (!js.includes("makeStaticSectionHeadings") || !js.includes("nav-section-heading")) {
