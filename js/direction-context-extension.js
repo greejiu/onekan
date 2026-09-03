@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
-import { applyGoalStatus, normalizeGoalStatus, restartStatusForGoal } from "./project-status-automation.js?v=2";
+import { applyGoalStatus, normalizeGoalStatus, restartStatusForGoal } from "./project-status-automation.js?v=3";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
