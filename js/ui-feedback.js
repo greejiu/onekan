@@ -99,6 +99,8 @@ export function confirmAction({ title = "삭제할까요?", message = "삭제한
 
 const SOUND_MUTE_KEY = "onekan:sound-muted";
 let audioContext = null;
+let suppressNextLegacyTaskCheckSound = false;
+let suppressLegacyTaskCheckTimer = null;
 
 export function isSoundMuted() {
   try {
@@ -124,7 +126,7 @@ function ensureAudioContext() {
 }
 
 // 짧은 상승음과 잔향을 겹쳐, 볼륨을 키우지 않아도 손맛이 느껴지도록 구성한다.
-// kind: "check" (하위/상위 할일·타임블록 체크) 또는 "complete"(하위 할일을 모두 체크해 상위 할일이 자동완료될 때).
+// kind: "check" (하위 할일 체크) 또는 "complete"(일반 할일 완료 / 하위 할일을 모두 체크해 상위 할일이 자동완료될 때).
 const SOUND_TONES = {
   check: [
     { type: "triangle", freq: 520, endFreq: 760, start: 0, duration: 0.055, gain: 0.11 },
@@ -140,6 +142,12 @@ const SOUND_TONES = {
 
 export function playCheckSound(kind = "check") {
   if (isSoundMuted()) return;
+  if (kind === "check" && suppressNextLegacyTaskCheckSound) {
+    suppressNextLegacyTaskCheckSound = false;
+    if (suppressLegacyTaskCheckTimer) window.clearTimeout(suppressLegacyTaskCheckTimer);
+    suppressLegacyTaskCheckTimer = null;
+    return;
+  }
   const tones = SOUND_TONES[kind] || SOUND_TONES.check;
   try {
     const ctx = ensureAudioContext();
@@ -166,6 +174,33 @@ export function playCheckSound(kind = "check") {
   }
 }
 
+function controlLooksCompleted(control) {
+  return control.classList.contains("checked")
+    || control.getAttribute("aria-checked") === "true"
+    || control.getAttribute("aria-pressed") === "true"
+    || control.textContent.trim() === "✓";
+}
+
+function bindTaskCompletionSound() {
+  if (document.documentElement.dataset.onekanTaskCompleteSoundBound) return;
+  document.documentElement.dataset.onekanTaskCompleteSoundBound = "1";
+  document.addEventListener("click", (event) => {
+    const control = event.target.closest?.('[data-uw-check="task"], .task-type-check, .row[data-context-kind="task"] .check');
+    if (!control || controlLooksCompleted(control)) return;
+
+    const legacySoundControl = control.matches('[data-uw-check="task"], .task-type-check');
+    if (legacySoundControl) {
+      suppressNextLegacyTaskCheckSound = true;
+      if (suppressLegacyTaskCheckTimer) window.clearTimeout(suppressLegacyTaskCheckTimer);
+      suppressLegacyTaskCheckTimer = window.setTimeout(() => {
+        suppressNextLegacyTaskCheckSound = false;
+        suppressLegacyTaskCheckTimer = null;
+      }, 2500);
+    }
+    playCheckSound("complete");
+  }, true);
+}
+
 function bindSoundToggle() {
   const toggle = document.getElementById("soundEffectsToggle");
   if (!toggle || toggle.dataset.onekanSoundBound) return;
@@ -175,7 +210,11 @@ function bindSoundToggle() {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", bindSoundToggle, { once: true });
+  document.addEventListener("DOMContentLoaded", () => {
+    bindSoundToggle();
+    bindTaskCompletionSound();
+  }, { once: true });
 } else {
   bindSoundToggle();
+  bindTaskCompletionSound();
 }
