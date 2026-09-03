@@ -1,0 +1,38 @@
+name: Focus task state-store migration once
+
+on:
+  push:
+    branches:
+      - refactor/focus-task-state-store
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event.head_commit.message == 'ci: run focus task state-store migration once'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/focus-task-state-store
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply migration
+        run: node scripts/focus-task-state-store-migration-once.mjs
+      - name: Validate migration
+        run: |
+          node --check js/focus-task-card.js
+          node scripts/state-store-regression.mjs
+          node scripts/focus-task-state-store-regression.mjs
+          node scripts/runtime-asset-regression.mjs
+          node scripts/cache-buster-regression.mjs --check-diff main
+      - name: Commit migration
+        run: |
+          git config user.name "greejiu"
+          git config user.email "monggreee@naver.com"
+          git add -A
+          git commit -m "refactor: focus-task-card를 공용 state-store로 이전"
+          git push origin HEAD:refactor/focus-task-state-store
