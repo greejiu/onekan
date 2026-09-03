@@ -17,7 +17,7 @@ assert.match(u,/else if\(sharedDragRow\)\{mode="move";source=item\}/,'list, time
 assert.match(u,/DRAG_MOUSE_DISTANCE=6/,'shared drag must preserve the desktop movement threshold');
 assert.match(u,/TOUCH_SCROLL_DISTANCE=10/,'shared drag must preserve the touch-scroll cancellation threshold');
 assert.match(u,/TOUCH_HOLD_MS=450/,'shared drag must preserve the mobile long-press delay');
-assert.match(u,/const sharedDragRow=!interactive&&movableRow/,'buttons and form controls must stay clickable instead of starting a drag');
+assert.match(u,/const sharedDragRow=!coarsePointer&&!interactive&&movableRow/,'desktop rows must stay draggable while interactive controls and coarse-pointer rows defer to dedicated handles');
 assert.doesNotMatch(u,/mode="time-block-plan"/,'time-block cards must not enter a separate drag mode');
 assert.doesNotMatch(u,/function wireControls\(\)/,'obsolete drag controller must be removed');
 assert.match(u,/g\.planToken=item\.dataset\.timeBlockToken\|\|derivedPlanToken/,'shared move gesture must retain the source time-block assignment token');
