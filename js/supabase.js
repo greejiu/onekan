@@ -1,6 +1,11 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { createStateStoreClient } from "./state-store.js?v=1";
 
 const SUPABASE_URL = "https://mmpsyajgyufdxmmnxqba.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_odr6eVpfut1PbfGcG9vDYQ_pKEVFggA";
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const rawSupabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const stateStoreClient = createStateStoreClient(rawSupabase);
+
+export const supabase = stateStoreClient.client;
+export const onekanStateStore = stateStoreClient.store;
