@@ -1,0 +1,38 @@
+name: App state-store migration once
+
+on:
+  push:
+    branches:
+      - chore/app-state-store-direct
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event.head_commit.message == 'ci: apply app state-store migration once'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/app-state-store-direct
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply migration
+        run: node scripts/app-state-store-migration-once.mjs
+      - name: Validate migration
+        run: |
+          node --check js/app.js
+          node --check js/state-store.js
+          node scripts/state-store-regression.mjs
+          node scripts/app-state-store-regression.mjs
+          node scripts/runtime-asset-regression.mjs
+      - name: Commit migration
+        run: |
+          git config user.name "greejiu"
+          git config user.email "monggreee@naver.com"
+          git add -A
+          git commit -m "refactor: app.js를 공용 state-store 직접 API로 이전"
+          git push origin HEAD:chore/app-state-store-direct
