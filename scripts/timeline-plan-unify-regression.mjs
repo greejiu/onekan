@@ -24,7 +24,7 @@ assert.match(u,/g\.planToken=item\.dataset\.timeBlockToken\|\|derivedPlanToken/,
 assert.doesNotMatch(u,/g\.token/,'the removed drag token alias must never be used');
 assert.match(u,/g\.canUseTimeBlock=Boolean\(g\.kind==="task"\|\|g\.kind==="habit"\|\|g\.kind==="event"\)/,'all planner item kinds, including someday tasks, must enter time-block drop detection');
 assert.match(u,/const derivedPlanToken=g\.canUseTimeBlock&&g\.date\?timeBlockOccurrenceToken/,'dated planner cards must derive the same occurrence token while someday tasks defer it until drop');
-assert.match(u,/\.uw-time-block-v2-section"\)/,'the whole target time-block section must accept planner drops');
+assert.match(u,/const blockSection=pointed\?\.closest\("\.uw-time-block-v2-section\[data-time-block-id\]"\)/,'the whole target time-block section must accept planner drops');
 assert.match(u,/const dateAllowed=date=>Boolean\(date\)&&\(g\.kind!=="habit"\|\|date===g\.date\)/,'habit moves must stay on their occurrence date while sharing the same time and all-day drop rules');
 assert.match(u,/if\(g\.start!==null\|\|g\.kind==="event"\|\|seriesMove\).*saveTimedChange/s,'timed cards dropped between blocks must move to the target block time');
 assert.match(u,/window\.__onekanSuppressItemClickUntil=suppressItemClickUntil/,'drag completion must suppress older click-to-edit handlers');
