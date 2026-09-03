@@ -69,6 +69,10 @@ function decorateIcons() {
   });
 }
 
+function removeTaskNavigation() {
+  $('.sidebar .nav-item[data-page="tasks"]')?.remove();
+}
+
 function makeStaticSectionHeadings() {
   $$(".nav-section-toggle").forEach((toggle) => {
     const label = $(".nav-section-label", toggle)?.textContent?.trim();
@@ -106,6 +110,7 @@ function keepHabitLabel() {
 }
 
 function decorateSidebar() {
+  removeTaskNavigation();
   makeStaticSectionHeadings();
   ensureUtilityDivider();
   keepHabitLabel();
@@ -151,3 +156,7 @@ function init() {
 }
 
 init();
+
+import("./schedule-task-merge.js?v=1").catch((error) => {
+  console.error("일정·할일 통합 화면을 불러오지 못했어요.", error);
+});
