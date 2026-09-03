@@ -41,7 +41,7 @@ assert.doesNotMatch(u,/Override\(state,sourceDate,id\)\?"day":await ask(?:Habit|
 assert.match(u,/function freezeCompletedTaskOccurrences.*freezeTaskOccurrence/,'completed recurring tasks must be snapshotted before a series change');
 assert.match(u,/function freezeCompletedHabitOccurrences.*freezeHabitOccurrence/,'completed habits must be snapshotted before a series change');
 assert.match(u,/if\(next&&habit\)freezeHabitOccurrence/,'completing a habit must freeze that date immediately');
-assert.match(u,/if\(t\.recurrence\?\.frequency\)\{completeRepeatingTask\(s,t,new Date\(\)\)\}/,'completing a recurring task must use the completion-based repeat path');
+assert.match(u,/if\(t\.recurrence\?\.frequency\)\{[^}]*completeRepeatingTask\(s,t,new Date\(\)\)/,'completing a recurring task must use the completion-based repeat path');
 assert.match(r,/task\.done = true;[\s\S]*delete task\.recurrence;[\s\S]*state\.tasks\.push\(nextTask\)/,'completion-based repeats must preserve the completed item and create a separate next occurrence');
 assert.match(u,/current\.tasks\.push\(task\);habitOverride\(current,editDate,target\.id,true\)\.hidden=true/,'renaming one habit occurrence must create a one-day task and hide only that habit occurrence');
 assert.doesNotMatch(u,/clearTaskTimingOverrides\(current,id\)/,'a series move must preserve every existing task date override');
