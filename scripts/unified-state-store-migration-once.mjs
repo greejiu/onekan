@@ -32,6 +32,15 @@ let index = fs.readFileSync(indexPath, "utf8");
 index = replaceOrFail(index, './js/unified-workspace.js?v=103', './js/unified-workspace.js?v=104', "unified cache version");
 fs.writeFileSync(indexPath, index);
 
+for (const file of fs.readdirSync("scripts").filter((name) => name.endsWith("-regression.mjs"))) {
+  const path = `scripts/${file}`;
+  const before = fs.readFileSync(path, "utf8");
+  const after = before
+    .replaceAll("unified-workspace\\\\.js\\\\?v=103", "unified-workspace\\\\.js\\\\?v=104")
+    .replaceAll("unified-workspace.js?v=103", "unified-workspace.js?v=104");
+  if (after !== before) fs.writeFileSync(path, after);
+}
+
 const directRegression = `import assert from "node:assert/strict";\nimport fs from "node:fs";\n\nconst unified = fs.readFileSync("js/unified-workspace.js", "utf8");\nconst index = fs.readFileSync("index.html", "utf8");\n\nassert.match(unified, /import \\{ onekanStateStore, supabase \\} from "\\.\\/supabase\\.js";/);\nassert.match(unified, /onekanStateStore\\.read\\(\\{userId:user\\.id\\}\\)/);\nassert.match(unified, /onekanStateStore\\.mutate\\(current=>\\{/);\nassert.match(unified, /\\{userId:user\\.id,source:"unified"\\}/);\nassert.doesNotMatch(unified, /supabase\\.from\\(["']onekan_state["']\\)/);\nassert.doesNotMatch(unified, /document\\.dispatchEvent\\(new CustomEvent\\("onekan:state-changed",\\{detail:\\{source:"unified"/);\nassert.match(unified, /const previous=state;state=next;try\\{mutator\\(next\\);return next\\}finally\\{state=previous\\}/);\nassert.match(unified, /\\$\\("#reloadCloudBtn"\\)\\?\\.click\\(\\)/);\nassert.match(index, /unified-workspace\\.js\\?v=104/);\nconsole.log("unified workspace direct state-store regression: ok");\n`;
 fs.writeFileSync("scripts/unified-state-store-regression.mjs", directRegression);
 
