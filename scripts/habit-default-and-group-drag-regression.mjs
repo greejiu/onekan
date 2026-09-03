@@ -17,7 +17,7 @@ assert.match(app, /GROUP_DRAG_TOUCH_HOLD_MS = 450;/, 'mobile group drag must use
 assert.match(app, /groupList\.addEventListener\("pointerdown"/, 'group drag must use delegated pointer handling');
 assert.doesNotMatch(app, /data-event-group-drag[^>]*disabled/, 'every group must be reorderable');
 assert.match(app, /group\.id === "default"/, 'default group deletion protection must follow its identity, not its position');
-assert.match(index, /app\.js\?v=43/);
-assert.match(index, /repeat-overview\.js\?v=10/);
+assert.match(index, /app\.js\?v=\d+/, 'app.js must keep a numeric cache-busting version');
+assert.match(index, /repeat-overview\.js\?v=\d+/, 'repeat overview must keep a numeric cache-busting version');
 
 console.log('habit default and group drag regression: ok');
