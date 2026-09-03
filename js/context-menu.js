@@ -223,6 +223,13 @@ function newId() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function taskSubtasks(task) {
+  if (!Array.isArray(task?.subtasks)) return [];
+  return task.subtasks
+    .filter((step) => step && typeof step === "object" && String(step.title || "").trim())
+    .map((step) => ({ id: String(step.id || ""), title: String(step.title || "").trim() }));
+}
+
 function hideMenu() {
   $("#globalContextMenu")?.classList.remove("open");
   currentTarget = null;
@@ -317,6 +324,11 @@ function showMenu(x, y, target, state) {
   const canToggleHabit = target.kind === "task" && (item?.isHabit || (item?.recurrence?.frequency && item.recurrence.frequency !== "none"));
   habitToggle?.classList.toggle("hidden", !canToggleHabit);
   if (habitToggle && canToggleHabit) habitToggle.textContent = item?.isHabit ? "할일로 만들기" : "습관으로 만들기";
+  const subtasksButton = menu.querySelector('[data-context-action="subtasks"]');
+  const canManageSubtasks = target.kind === "task" && item && !item.done;
+  const subtaskCount = canManageSubtasks ? taskSubtasks(item).length : 0;
+  subtasksButton?.classList.toggle("hidden", !canManageSubtasks);
+  if (subtasksButton && canManageSubtasks) subtasksButton.textContent = subtaskCount ? `하위 할일 관리 (${subtaskCount})` : "＋ 하위 할일 추가";
   $$('[data-context-schedule]', menu).forEach((element) => element.classList.toggle("hidden", !schedulable(target.kind)));
   menu.querySelector('[data-context-action="duplicate"]')?.classList.toggle("hidden", !duplicable(target.kind));
   const heroDday = menu.querySelector('[data-context-action="hero-dday"]');
@@ -692,6 +704,93 @@ async function toggleHabitTarget() {
   }
 }
 
+function createSubtaskEditorRow(step = {}) {
+  const row = document.createElement("div");
+  row.className = "context-subtask-row";
+  row.dataset.contextSubtaskRow = "1";
+  row.dataset.subtaskId = String(step.id || "");
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.maxLength = 120;
+  input.value = String(step.title || "");
+  input.placeholder = "작은 행동 입력";
+  input.setAttribute("aria-label", "하위 할일");
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "context-subtask-remove";
+  remove.dataset.contextSubtaskRemove = "1";
+  remove.setAttribute("aria-label", "하위 할일 삭제");
+  remove.textContent = "×";
+
+  row.append(input, remove);
+  return row;
+}
+
+function addSubtaskEditorRow(step = {}, { focus = false } = {}) {
+  const list = $("#contextSubtaskList");
+  if (!list) return;
+  const row = createSubtaskEditorRow(step);
+  list.appendChild(row);
+  if (focus) requestAnimationFrame(() => $("input", row)?.focus());
+}
+
+async function openSubtaskDialog() {
+  const target = currentTarget;
+  hideMenu();
+  if (!target || target.kind !== "task") return;
+  try {
+    const loaded = await readState();
+    const task = loaded ? getItem(loaded.state, target) : null;
+    if (!task || task.done) return;
+    const dialog = $("#contextSubtaskDialog");
+    const form = $("#contextSubtaskForm");
+    const list = $("#contextSubtaskList");
+    if (!dialog || !form || !list) return;
+    form.dataset.taskId = task.id;
+    $("#contextSubtaskTaskTitle").textContent = task.title || "이름 없는 할일";
+    list.replaceChildren();
+    const steps = taskSubtasks(task);
+    if (steps.length) steps.forEach((step) => addSubtaskEditorRow(step));
+    else addSubtaskEditorRow();
+    dialog.showModal();
+    requestAnimationFrame(() => $("input", list)?.focus());
+  } catch (error) {
+    console.error(error);
+    showToast("하위 할일을 불러오지 못했어요.");
+  }
+}
+
+async function saveTaskSubtasks(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const taskId = form.dataset.taskId || "";
+  const saveButton = $("[data-context-subtask-save]", form);
+  const rows = $$("[data-context-subtask-row]", form)
+    .map((row) => ({ id: row.dataset.subtaskId || "", title: $("input", row)?.value.trim() || "" }))
+    .filter((step) => step.title);
+  if (!taskId) return;
+  if (saveButton) saveButton.disabled = true;
+  try {
+    await writeState((state) => {
+      const task = state.tasks.find((item) => item.id === taskId);
+      if (!task || task.done) return;
+      task.subtasks = rows.map((step) => ({ id: step.id || `focus-subtask-${newId()}`, title: step.title }));
+      const validIds = new Set(task.subtasks.map((step) => step.id));
+      const progress = task.subtaskProgress && typeof task.subtaskProgress === "object" ? task.subtaskProgress : {};
+      task.subtaskProgress = Object.fromEntries(Object.entries(progress).filter(([id]) => validIds.has(id)));
+    });
+    $("#contextSubtaskDialog")?.close();
+    showToast(rows.length ? "하위 할일을 저장했어요." : "하위 할일을 모두 비웠어요.");
+  } catch (error) {
+    console.error(error);
+    showToast("하위 할일을 저장하지 못했어요.");
+  } finally {
+    if (saveButton) saveButton.disabled = false;
+  }
+}
+
 function ensureUI() {
   if ($("#globalContextMenu")) return;
 
@@ -701,6 +800,7 @@ function ensureUI() {
   menu.setAttribute("role", "menu");
   menu.innerHTML = `
     <button type="button" role="menuitem" class="hidden" data-context-action="toggle-habit">습관으로 만들기</button>
+    <button type="button" role="menuitem" class="hidden" data-context-action="subtasks">＋ 하위 할일 추가</button>
     <button type="button" role="menuitem" data-context-action="duplicate">복제</button>
     <button type="button" role="menuitem" class="hidden" data-context-action="hero-dday">⭐ 대표 D-day로 설정</button>
     <button type="button" role="menuitem" class="hidden" data-context-action="secondary-dday">＋ 보조 D-day에 추가</button>
@@ -713,6 +813,29 @@ function ensureUI() {
     <button type="button" role="menuitem" class="hidden" data-context-action="session-time">기록 변경</button>
     <button type="button" role="menuitem" class="danger" data-context-action="delete">삭제</button>`;
   document.body.appendChild(menu);
+
+  const subtaskDialog = document.createElement("dialog");
+  subtaskDialog.id = "contextSubtaskDialog";
+  subtaskDialog.className = "context-subtask-dialog";
+  subtaskDialog.setAttribute("aria-labelledby", "contextSubtaskTitle");
+  subtaskDialog.innerHTML = `
+    <form id="contextSubtaskForm" method="dialog" autocomplete="off">
+      <div class="context-subtask-head">
+        <div>
+          <div class="context-subtask-eyebrow">하위 할일</div>
+          <h2 id="contextSubtaskTitle">작은 행동으로 나누기</h2>
+          <p id="contextSubtaskTaskTitle"></p>
+        </div>
+        <button type="button" class="context-subtask-close" data-context-subtask-cancel aria-label="닫기">×</button>
+      </div>
+      <div class="context-subtask-list" id="contextSubtaskList"></div>
+      <button type="button" class="context-subtask-add" data-context-subtask-add>＋ 항목 추가</button>
+      <div class="context-subtask-actions">
+        <button type="button" class="context-subtask-cancel" data-context-subtask-cancel>취소</button>
+        <button type="submit" class="context-subtask-save" data-context-subtask-save>저장</button>
+      </div>
+    </form>`;
+  document.body.appendChild(subtaskDialog);
 
   const style = document.createElement("style");
   style.id = "globalContextMenuStyle";
@@ -744,7 +867,28 @@ function ensureUI() {
     .time-block .context-inline-edit,.multi-entry .context-inline-edit{height:18px;margin:0;padding:0 4px;font-size:10px}
     .global-context-divider{height:1px;background:var(--line,#d2d7df);margin:4px 2px}
     .global-context-menu .hidden{display:none}
+    .context-subtask-dialog{width:min(480px,calc(100vw - 28px));max-height:min(680px,calc(100dvh - 40px));padding:0;border:1px solid var(--line,#d2d7df);border-radius:18px;background:var(--card,#fff);color:var(--text,#1f2328);box-shadow:0 22px 60px rgba(15,23,42,.24);overflow:hidden}
+    .context-subtask-dialog::backdrop{background:rgba(35,30,42,.28);backdrop-filter:blur(2px)}
+    .context-subtask-dialog form{display:grid;gap:16px;max-height:min(680px,calc(100dvh - 40px));padding:22px;overflow-y:auto}
+    .context-subtask-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .context-subtask-eyebrow{margin-bottom:5px;color:var(--accent,#7666a8);font-size:11px;font-weight:700;letter-spacing:.08em}
+    .context-subtask-head h2{margin:0;font-size:19px;line-height:1.3}
+    .context-subtask-head p{max-width:360px;margin:6px 0 0;color:var(--muted,#6b7280);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+    .context-subtask-close{flex:0 0 auto;width:34px;height:34px;padding:0;border:0;border-radius:50%;background:var(--panel-soft,#f3f5f7);color:var(--muted,#6b7280);font:inherit;font-size:22px;line-height:1;cursor:pointer}
+    .context-subtask-list{display:grid;gap:8px}
+    .context-subtask-row{display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:7px;align-items:center}
+    .context-subtask-row input{width:100%;min-width:0;height:42px;padding:0 12px;border:1px solid var(--line,#d2d7df);border-radius:10px;background:var(--card,#fff);color:var(--text,#1f2328);font:inherit;font-size:13px;outline:none}
+    .context-subtask-row input:focus{border-color:var(--accent,#7666a8);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent,#7666a8) 12%,transparent)}
+    .context-subtask-remove{width:38px;height:38px;padding:0;border:0;border-radius:9px;background:transparent;color:var(--muted,#6b7280);font:inherit;font-size:19px;cursor:pointer}
+    .context-subtask-remove:hover,.context-subtask-remove:focus-visible{background:var(--panel-soft,#f3f5f7);color:var(--danger,#c84a4a);outline:none}
+    .context-subtask-add{justify-self:start;padding:7px 3px;border:0;background:transparent;color:var(--accent-dark,#684789);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+    .context-subtask-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:2px}
+    .context-subtask-actions button{min-width:72px;height:40px;padding:0 15px;border-radius:10px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+    .context-subtask-cancel{border:1px solid var(--line,#d2d7df);background:var(--card,#fff);color:var(--muted,#6b7280)}
+    .context-subtask-save{border:1px solid var(--accent,#7666a8);background:var(--accent,#7666a8);color:#fff}
+    .context-subtask-save:disabled{opacity:.55;cursor:wait}
     @media (pointer:coarse){[data-context-kind][data-context-id]{-webkit-touch-callout:none}}
+    @media (max-width:560px){.context-subtask-dialog form{padding:18px 16px}.context-subtask-row{grid-template-columns:minmax(0,1fr) 42px}.context-subtask-row input{height:46px}.context-subtask-remove{width:42px;height:42px}.context-subtask-actions button{height:44px}}
   `;
   document.head.appendChild(style);
 
@@ -755,6 +899,7 @@ function ensureUI() {
     if (action === "today") moveTarget(0);
     else if (action === "tomorrow") moveTarget(1);
     else if (action === "toggle-habit") toggleHabitTarget();
+    else if (action === "subtasks") openSubtaskDialog();
     else if (action === "duplicate") duplicateTarget();
     else if (action === "hero-dday") toggleHeroDday();
     else if (action === "secondary-dday") toggleHomeDdaySecondary(currentTarget?.kind || "", currentTarget?.id || "");
@@ -792,6 +937,30 @@ function ensureUI() {
     if (heroButton) return changeHomeDdayHero(heroButton.dataset.contextDdayHeroKind || "", heroButton.dataset.contextDdayHeroId || "");
     const secondaryButton = event.target.closest("[data-context-dday-secondary-kind][data-context-dday-secondary-id]");
     if (secondaryButton) toggleHomeDdaySecondary(secondaryButton.dataset.contextDdaySecondaryKind || "", secondaryButton.dataset.contextDdaySecondaryId || "");
+  });
+
+  subtaskDialog.addEventListener("click", (event) => {
+    if (event.target === subtaskDialog) subtaskDialog.close();
+    if (event.target.closest("[data-context-subtask-cancel]")) subtaskDialog.close();
+    if (event.target.closest("[data-context-subtask-add]")) addSubtaskEditorRow({}, { focus: true });
+    const remove = event.target.closest("[data-context-subtask-remove]");
+    if (remove) {
+      remove.closest("[data-context-subtask-row]")?.remove();
+      if (!$("[data-context-subtask-row]", subtaskDialog)) addSubtaskEditorRow({}, { focus: true });
+    }
+  });
+  subtaskDialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !event.target.matches(".context-subtask-row input")) return;
+    event.preventDefault();
+    const row = event.target.closest("[data-context-subtask-row]");
+    const nextInput = row?.nextElementSibling?.querySelector("input");
+    if (nextInput) nextInput.focus();
+    else addSubtaskEditorRow({}, { focus: true });
+  });
+  $("#contextSubtaskForm")?.addEventListener("submit", saveTaskSubtasks);
+  subtaskDialog.addEventListener("close", () => {
+    const form = $("#contextSubtaskForm");
+    if (form) delete form.dataset.taskId;
   });
 
 }
