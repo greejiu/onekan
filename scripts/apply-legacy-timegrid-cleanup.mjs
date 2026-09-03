@@ -51,12 +51,9 @@ const editorEnd = app.indexOf(calendarFilterStart, editorStart);
 if (editorStart < 0 || editorEnd < 0) throw new Error("legacy block editor listener range not found");
 app = `${app.slice(0, editorStart)}${app.slice(editorEnd)}`;
 
-const legacyRenderHomeLine = "  renderTimeGrid();\n";
-requireIncludes(app, legacyRenderHomeLine, "legacy renderHome time-grid call");
-app = app.replace(legacyRenderHomeLine, "");
-
-const colorRefreshPair = "      renderTimeGrid();\n      renderCalendar();";
-if (app.includes(colorRefreshPair)) app = app.replace(colorRefreshPair, "      renderCalendar();");
+requireIncludes(app, "  renderTimeGrid();\n", "legacy renderHome time-grid call");
+app = app.replace("  renderTimeGrid();\n", "");
+app = app.replace("      renderTimeGrid();\n      renderCalendar();", "      renderCalendar();");
 
 if (app.includes("HOME_SLOT_HEIGHT")) {
   const constantLine = "const HOME_SLOT_HEIGHT = 20;\n";
@@ -82,11 +79,55 @@ html = `${html.slice(0, blockEditorStart)}${html.slice(scriptsStart)}`;
 html = html.replace(/\.\/js\/app\.js\?v=(\d+)/, (_, version) => `./js/app.js?v=${Number(version) + 1}`);
 if (html.includes('id="blockEditor"')) throw new Error("legacy block editor markup still remains");
 
-const audit = `import assert from "node:assert/strict";\nimport fs from "node:fs";\nimport path from "node:path";\nimport { fileURLToPath } from "node:url";\n\nconst here = path.dirname(fileURLToPath(import.meta.url));\nconst root = path.resolve(here, "..");\nconst read = (file) => fs.readFileSync(path.join(root, file), "utf8");\n\nconst html = read("index.html");\nconst app = read("js/app.js");\nconst unified = read("js/unified-workspace.js");\n\nassert.match(html, /app\\.js\\?v=\\d+[\\s\\S]*unified-workspace\\.js\\?v=\\d+/, "app.js must load before unified workspace");\nassert.doesNotMatch(html, /id="blockEditor"|id="saveBlockBtn"|id="deleteBlockBtn"/, "legacy block editor markup must stay removed");\n\nfor (const token of [\n  /function renderTimeGrid\\(/,\n  /function openBlockEditor\\(/,\n  /function hasBlockConflict\\(/,\n  /function wireTimelineResize\\(/,\n  /function fillBlockStartOptions\\(/,\n  /editingBlockId/,\n  /#blockEditor/,\n]) {\n  assert.doesNotMatch(app, token, \\`legacy app timeline token must stay removed: \\${token}\\`);\n}\n\nassert.match(unified, /function renderPlanner\\(\\)\\{const card=\\$\\("\\.home-timeline-card"\\);[\\s\\S]*?card\\.innerHTML=\\`<div class="uw-home-planner">/, "unified workspace must own the home planner surface");\nassert.match(unified, /const plannerDropAt=\\(/, "unified workspace must own planner drop behavior");\nassert.match(unified, /data-uw-resize=/, "unified workspace must own timeline resize controls");\nassert.doesNotMatch(unified, /#blockEditor|openBlockEditor\\(/, "unified workspace must not depend on the removed editor");\n\nconsole.log("app legacy timeline removal regression: ok");\n`;
+const audit = [
+  'import assert from "node:assert/strict";',
+  'import fs from "node:fs";',
+  'import path from "node:path";',
+  'import { fileURLToPath } from "node:url";',
+  '',
+  'const here = path.dirname(fileURLToPath(import.meta.url));',
+  'const root = path.resolve(here, "..");',
+  'const read = (file) => fs.readFileSync(path.join(root, file), "utf8");',
+  '',
+  'const html = read("index.html");',
+  'const app = read("js/app.js");',
+  'const unified = read("js/unified-workspace.js");',
+  '',
+  'assert.match(html, /app\\.js\\?v=\\d+[\\s\\S]*unified-workspace\\.js\\?v=\\d+/, "app.js must load before unified workspace");',
+  'assert.doesNotMatch(html, /id="blockEditor"|id="saveBlockBtn"|id="deleteBlockBtn"/, "legacy block editor markup must stay removed");',
+  '',
+  'for (const token of [',
+  '  /function renderTimeGrid\\(/,',
+  '  /function openBlockEditor\\(/,',
+  '  /function hasBlockConflict\\(/,',
+  '  /function wireTimelineResize\\(/,',
+  '  /function fillBlockStartOptions\\(/,',
+  '  /editingBlockId/,',
+  '  /#blockEditor/,',
+  ']) {',
+  '  assert.doesNotMatch(app, token, "legacy app timeline token must stay removed: " + token);',
+  '}',
+  '',
+  'assert.match(unified, /function renderPlanner\\(\\)\\{const card=\\$\\("\\.home-timeline-card"\\);[\\s\\S]*?card\\.innerHTML=/, "unified workspace must own the home planner surface");',
+  'assert.match(unified, /const plannerDropAt=\\(/, "unified workspace must own planner drop behavior");',
+  'assert.match(unified, /data-uw-resize=/, "unified workspace must own timeline resize controls");',
+  'assert.doesNotMatch(unified, /#blockEditor|openBlockEditor\\(/, "unified workspace must not depend on the removed editor");',
+  '',
+  'console.log("app legacy timeline removal regression: ok");',
+  '',
+].join("\n");
 
 let notes = fs.readFileSync(notesPath, "utf8");
 if (!notes.includes("### app.js 레거시 타임라인 물리 제거")) {
-  notes += `\n### app.js 레거시 타임라인 물리 제거\n\n2026-09-04에 현재 홈 시간계획 UI의 소유권이 \\`unified-workspace.js\\`에 있음을 회귀 검사로 확인한 뒤, \\`app.js\\`에 남아 있던 옛 홈 타임그리드 렌더러·드롭·리사이즈·블럭 편집기 서브시스템을 제거했다. \\`index.html\\`의 \\`#blockEditor\\` 마크업도 함께 제거했다.\n\n앞으로 홈 시간계획 기능은 \\`unified-workspace.js\\` / \\`time-block-v2.js\\` 흐름을 기준으로 수정한다. \\`renderTimeGrid()\\`, \\`openBlockEditor()\\`, \\`hasBlockConflict()\\` 같은 app.js 레거시 API를 다시 만들거나 호출하지 않는다.\n`;
+  notes += [
+    "",
+    "### app.js 레거시 타임라인 물리 제거",
+    "",
+    "2026-09-04에 현재 홈 시간계획 UI의 소유권이 `unified-workspace.js`에 있음을 회귀 검사로 확인한 뒤, `app.js`에 남아 있던 옛 홈 타임그리드 렌더러·드롭·리사이즈·블럭 편집기 서브시스템을 제거했다. `index.html`의 `#blockEditor` 마크업도 함께 제거했다.",
+    "",
+    "앞으로 홈 시간계획 기능은 `unified-workspace.js` / `time-block-v2.js` 흐름을 기준으로 수정한다. `renderTimeGrid()`, `openBlockEditor()`, `hasBlockConflict()` 같은 app.js 레거시 API를 다시 만들거나 호출하지 않는다.",
+    "",
+  ].join("\n");
 }
 
 fs.writeFileSync(appPath, app);
