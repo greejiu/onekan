@@ -210,7 +210,6 @@ let state = defaultState();
 let saveChain = Promise.resolve();
 let tickHandle = null;
 let timerFinishing = false;
-let editingBlockId = null;
 let editingSessionId = null;
 let calView = "month";
 let calDayMode = "list";
@@ -221,7 +220,6 @@ let suppressCalendarCellClickUntil = 0;
 const START_MIN = 6 * 60;
 const END_MIN = 22 * 60;
 const SLOT = 30;
-const HOME_SLOT_HEIGHT = 20;
 
 function setSyncStatus(text, isError = false) {
   for (const id of ["#syncStatus", "#mobileSyncStatus"]) {
@@ -384,277 +382,6 @@ function clampStart(minute, duration = 30) {
   return Math.max(START_MIN, Math.min(minute, END_MIN - duration));
 }
 
-function hasBlockConflict(startMinute, duration, excludeId = null) {
-  const end = startMinute + duration;
-  const dayKey = appDayKey();
-  return state.timeBlocks.some((block) => block.date === dayKey && block.id !== excludeId && startMinute < block.startMinute + block.duration && end > block.startMinute);
-}
-
-function addDirectTimeBlock(startMinute, duration = 30) {
-  const dayKey = appDayKey();
-  startMinute = clampStart(startMinute, duration);
-  if (hasBlockConflict(startMinute, duration)) return showToast("이미 시간 계획이 있는 구간이에요. 다른 시간을 골라 주세요.");
-  const block = { id: uid(), taskId: null, sourceTitle: "직접 추가", detail: "새 시간 계획", startMinute, duration, date: dayKey };
-  state.timeBlocks.push(block);
-  save();
-  renderTimeGrid();
-  requestAnimationFrame(() => {
-    const element = document.querySelector(`.time-block[data-block-id="${block.id}"]`);
-    if (element) openBlockEditor(block, element);
-  });
-}
-
-function renderTimeGrid() {
-  const grid = $("#timeGrid");
-  if (!grid) return;
-  const timelineColors = state.ui?.timelineColors || defaultState().ui.timelineColors;
-  document.documentElement.style.setProperty("--timeline-task-color", safeColor(timelineColors.task));
-  document.documentElement.style.setProperty("--timeline-habit-color", safeColor(timelineColors.habit));
-  grid.style.setProperty("--timeline-task-color", safeColor(timelineColors.task));
-  grid.style.setProperty("--timeline-habit-color", safeColor(timelineColors.habit));
-  grid.innerHTML = "";
-  let selecting = false;
-  let selectStart = null;
-  let selectEnd = null;
-  let selectionEl = null;
-
-  const clearSelection = () => {
-    selecting = false;
-    selectStart = selectEnd = null;
-    selectionEl?.remove();
-    selectionEl = null;
-  };
-
-  const paintSelection = () => {
-    if (selectStart === null || selectEnd === null) return;
-    selectionEl?.remove();
-    const start = Math.min(selectStart, selectEnd);
-    const end = Math.max(selectStart, selectEnd);
-    const index = (start - START_MIN) / SLOT;
-    const slot = grid.children[index];
-    if (!slot) return;
-    selectionEl = document.createElement("div");
-    selectionEl.className = "time-selection";
-    selectionEl.style.height = `${((end - start) / SLOT + 1) * HOME_SLOT_HEIGHT - 2}px`;
-    slot.querySelector(".drop-zone").appendChild(selectionEl);
-  };
-
-  for (let minute = START_MIN; minute < END_MIN; minute += SLOT) {
-    const slot = document.createElement("div");
-    slot.className = "time-slot";
-    slot.dataset.minute = minute;
-    slot.innerHTML = `<div class="time-label">${minute % 60 === 0 ? minuteLabel(minute) : ""}</div><div class="drop-zone" tabindex="0" aria-label="${minuteLabel(minute)} 시간 계획 칸"></div>`;
-    const dropZone = slot.querySelector(".drop-zone");
-
-    dropZone.addEventListener("dragover", (event) => { event.preventDefault(); dropZone.classList.add("over"); });
-    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
-    dropZone.addEventListener("drop", (event) => {
-      event.preventDefault();
-      dropZone.classList.remove("over");
-      const blockId = event.dataTransfer.getData("text/time-block-id");
-      if (blockId) {
-        const block = state.timeBlocks.find((item) => item.id === blockId);
-        if (!block) return;
-        const next = clampStart(minute, block.duration);
-        if (hasBlockConflict(next, block.duration, block.id)) return showToast("이미 시간 계획이 있는 구간이에요.");
-        block.startMinute = next;
-        block.date = appDayKey();
-        save();
-        renderTimeGrid();
-        return;
-      }
-
-      const habitId = event.dataTransfer.getData("text/habit-id");
-      if (habitId) {
-        const habit = state.habitTemplates.find((item) => item.id === habitId);
-        if (!habit) return;
-        habit.startMinute = clampStart(minute, Number(habit.duration || SLOT));
-        save();
-        renderTimeGrid();
-        return;
-      }
-
-      const taskId = event.dataTransfer.getData("text/task-id");
-      const task = state.tasks.find((item) => item.id === taskId);
-      if (!task) return;
-      if (hasBlockConflict(minute, 30)) return showToast("이미 시간 계획이 있는 구간이에요.");
-      state.timeBlocks.push({ id: uid(), taskId, sourceTitle: task.title, detail: task.title, startMinute: minute, duration: 30, date: appDayKey() });
-      save();
-      renderTimeGrid();
-    });
-
-    dropZone.addEventListener("pointerdown", (event) => {
-      if ((event.pointerType === "mouse" && event.button !== 0) || event.target.closest(".time-block")) return;
-      selecting = true;
-      selectStart = minute;
-      selectEnd = minute;
-      paintSelection();
-      event.preventDefault();
-    });
-    dropZone.addEventListener("pointerenter", () => {
-      if (selecting) { selectEnd = minute; paintSelection(); }
-    });
-    grid.appendChild(slot);
-  }
-
-  const finishSelection = () => {
-    if (!selecting) return;
-    const start = Math.min(selectStart, selectEnd);
-    const end = Math.max(selectStart, selectEnd);
-    const duration = end - start + SLOT;
-    clearSelection();
-    addDirectTimeBlock(start, Math.min(duration, 240));
-  };
-  grid.onpointerup = finishSelection;
-  grid.onpointerleave = (event) => { if (selecting && !(event.buttons & 1)) finishSelection(); };
-
-  const dayKey = appDayKey();
-  for (const block of state.timeBlocks.filter((item) => item.date === dayKey)) {
-    const index = (block.startMinute - START_MIN) / SLOT;
-    if (index < 0) continue;
-    const slot = grid.children[index];
-    if (!slot) continue;
-    const dropZone = slot.querySelector(".drop-zone");
-    const element = document.createElement("div");
-    element.className = "time-block task-time-block";
-    element.dataset.blockId = block.id;
-    element.draggable = true;
-    element.classList.toggle("compact", Number(block.duration) <= SLOT);
-    element.style.height = `${Math.max(18, (block.duration / SLOT) * HOME_SLOT_HEIGHT - 2)}px`;
-    const task = block.taskId ? state.tasks.find((item) => item.id === block.taskId) : null;
-    element.dataset.contextKind = task ? "task" : "timeBlock";
-    element.dataset.contextId = task?.id || block.id;
-    const taskCheck = task ? `<button class="timeline-type-check task-type-check${task.done ? " checked" : ""}" type="button" aria-label="할일 완료">${task.done ? "✓" : ""}</button>` : '<span class="timeline-type-check task-type-check" aria-hidden="true"></span>';
-    element.classList.toggle("done", Boolean(task?.done));
-    element.innerHTML = `<button class="time-resize-handle top" data-resize-edge="top" type="button" aria-label="시작 시간 조절"></button><div class="time-block-main">${taskCheck}<strong>${esc(block.detail)}</strong></div><small>${minuteLabel(block.startMinute)} · ${block.duration}분</small><button class="time-resize-handle bottom" data-resize-edge="bottom" type="button" aria-label="종료 시간 조절"></button>`;
-    element.addEventListener("dragstart", (event) => { event.dataTransfer.setData("text/time-block-id", block.id); element.classList.add("dragging"); });
-    element.addEventListener("dragend", () => element.classList.remove("dragging"));
-    element.addEventListener("click", (event) => { if (event.target.closest(".time-resize-handle")) return; event.stopPropagation(); openBlockEditor(block, element); });
-    element.querySelector("button.task-type-check")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      task.done = !task.done;
-      task.completedAt = task.done ? new Date().toISOString() : null;
-      if (task.done) playCheckSound("check");
-      save();
-      renderHome();
-      renderCalendar();
-    });
-    wireTimelineResize(element, block, "timeBlock");
-    dropZone.appendChild(element);
-  }
-
-  const checks = state.habitDays[dayKey] || {};
-  for (const habit of state.habitTemplates.filter((item) => Number.isFinite(Number(item.startMinute)))) {
-    const startMinute = clampStart(Number(habit.startMinute), Number(habit.duration || SLOT));
-    const duration = Math.max(SLOT, Number(habit.duration || SLOT));
-    const index = (startMinute - START_MIN) / SLOT;
-    const slot = grid.children[index];
-    if (!slot) continue;
-    const element = document.createElement("div");
-    element.className = `time-block habit-time-block${checks[habit.id] ? " done" : ""}`;
-    element.dataset.habitId = habit.id;
-    element.dataset.contextKind = "habit";
-    element.dataset.contextId = habit.id;
-    element.draggable = true;
-    element.classList.toggle("compact", duration <= SLOT);
-    element.style.height = `${Math.max(18, (duration / SLOT) * HOME_SLOT_HEIGHT - 2)}px`;
-    element.innerHTML = `<button class="time-resize-handle top" data-resize-edge="top" type="button" aria-label="습관 시작 시간 조절"></button><div class="habit-time-main"><button class="habit-time-check timeline-type-check habit-type-check${checks[habit.id] ? " checked" : ""}" type="button" aria-label="습관 완료">${checks[habit.id] ? "✓" : ""}</button><strong>${esc(habit.title)}</strong></div><small>${minuteLabel(startMinute)} · ${duration}분</small><button class="time-resize-handle bottom" data-resize-edge="bottom" type="button" aria-label="습관 종료 시간 조절"></button>`;
-    element.addEventListener("dragstart", (event) => { event.dataTransfer.setData("text/habit-id", habit.id); element.classList.add("dragging"); });
-    element.addEventListener("dragend", () => element.classList.remove("dragging"));
-    element.querySelector(".habit-time-check").addEventListener("click", (event) => {
-      event.stopPropagation();
-      checks[habit.id] = !checks[habit.id];
-      save();
-      renderTimeGrid();
-      renderDashboard();
-    });
-    wireTimelineResize(element, habit, "habit");
-    slot.querySelector(".drop-zone").appendChild(element);
-  }
-}
-
-function wireTimelineResize(element, item, kind) {
-  element.querySelectorAll(".time-resize-handle").forEach((handle) => handle.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "mouse" && event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    element.draggable = false;
-    element.classList.add("resizing");
-    handle.setPointerCapture?.(event.pointerId);
-    const startY = event.clientY;
-    const edge = handle.dataset.resizeEdge || "bottom";
-    const originalStart = Number(item.startMinute);
-    const originalDuration = Math.max(SLOT, Number(item.duration || SLOT));
-    const originalEnd = originalStart + originalDuration;
-    let nextStart = originalStart;
-    let nextDuration = originalDuration;
-    const move = (moveEvent) => {
-      if (moveEvent.pointerId !== event.pointerId) return;
-      const slots = Math.round((moveEvent.clientY - startY) / HOME_SLOT_HEIGHT);
-      if (edge === "top") {
-        nextStart = Math.max(START_MIN, Math.min(originalEnd - SLOT, originalStart + slots * SLOT));
-        nextDuration = originalEnd - nextStart;
-        element.style.transform = `translateY(${((nextStart - originalStart) / SLOT) * HOME_SLOT_HEIGHT}px)`;
-      } else {
-        nextDuration = Math.max(SLOT, Math.min(240, originalDuration + slots * SLOT, END_MIN - originalStart));
-      }
-      element.classList.toggle("compact", nextDuration <= SLOT);
-      element.style.height = `${Math.max(18, (nextDuration / SLOT) * HOME_SLOT_HEIGHT - 2)}px`;
-      const meta = element.querySelector("small");
-      if (meta) meta.textContent = `${minuteLabel(nextStart)} · ${nextDuration}분`;
-    };
-    const cleanup = () => {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", finish);
-      document.removeEventListener("pointercancel", cancel);
-      element.draggable = true;
-      element.classList.remove("resizing");
-    };
-    const cancel = (cancelEvent) => {
-      if (cancelEvent.pointerId !== event.pointerId) return;
-      cleanup();
-      renderTimeGrid();
-    };
-    const finish = (finishEvent) => {
-      if (finishEvent.pointerId !== event.pointerId) return;
-      cleanup();
-      item.startMinute = nextStart;
-      item.duration = nextDuration;
-      save();
-      renderTimeGrid();
-    };
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", finish);
-    document.addEventListener("pointercancel", cancel);
-  }));
-}
-
-function fillBlockStartOptions() {
-  const select = $("#blockStart");
-  if (select.options.length) return;
-  for (let minute = START_MIN; minute < END_MIN; minute += SLOT) {
-    const option = document.createElement("option");
-    option.value = String(minute);
-    option.textContent = minuteLabel(minute);
-    select.appendChild(option);
-  }
-}
-
-function openBlockEditor(block, element) {
-  editingBlockId = block.id;
-  fillBlockStartOptions();
-  $("#blockSource").value = block.taskId ? block.sourceTitle : "직접 추가";
-  $("#blockDetail").value = block.detail;
-  $("#blockStart").value = String(block.startMinute);
-  $("#blockDuration").value = String(block.duration);
-  const pop = $("#blockEditor");
-  const rect = element.getBoundingClientRect();
-  pop.style.left = `${Math.min(innerWidth - 280, Math.max(12, rect.left))}px`;
-  pop.style.top = `${Math.min(innerHeight - 330, rect.bottom + 6)}px`;
-  pop.classList.add("open");
-  setTimeout(() => $("#blockDetail").focus(), 0);
-}
-
 function renderHabits() {
   ensureHabitDay();
   const dayKey = appDayKey();
@@ -810,7 +537,6 @@ function renderHome() {
     return;
   }
   renderTasks();
-  renderTimeGrid();
   renderHabits();
   renderUpcoming();
   renderDashboard();
@@ -1777,7 +1503,6 @@ function bindUI() {
   bindCalendarDirectEntry();
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".more")) $$(".menu.open").forEach((menu) => menu.classList.remove("open"));
-    if (!event.target.closest("#blockEditor") && !event.target.closest(".time-block")) $("#blockEditor").classList.remove("open");
   });
 
   $("#addTaskBtn")?.addEventListener("click", addTask);
@@ -1788,29 +1513,6 @@ function bindUI() {
     minute = Math.ceil(minute / SLOT) * SLOT;
     document.dispatchEvent(new CustomEvent("onekan:open-home-timeline-input", { detail: { startMinute: clampStart(minute, 30), duration: 30 } }));
   });
-  $("#saveBlockBtn").addEventListener("click", () => {
-    const block = state.timeBlocks.find((item) => item.id === editingBlockId);
-    if (!block) return;
-    const nextStart = Number($("#blockStart").value);
-    const nextDuration = Number($("#blockDuration").value);
-    if (hasBlockConflict(nextStart, nextDuration, block.id)) return showToast("이미 시간 계획이 있는 구간이에요. 다른 시간을 골라 주세요.");
-    block.detail = $("#blockDetail").value.trim() || block.sourceTitle || "시간 계획";
-    block.startMinute = nextStart;
-    block.duration = nextDuration;
-    save();
-    $("#blockEditor").classList.remove("open");
-    renderTimeGrid();
-  });
-  $("#deleteBlockBtn").addEventListener("click", async () => {
-    const block = state.timeBlocks.find((item) => item.id === editingBlockId);
-    const confirmed = await confirmAction({ title: "시간 계획을 삭제할까요?", message: `‘${block?.detail || block?.sourceTitle || "선택한 시간 계획"}’\n삭제한 내용은 되돌릴 수 없어요.` });
-    if (!confirmed) return;
-    state.timeBlocks = state.timeBlocks.filter((item) => item.id !== editingBlockId);
-    await save();
-    $("#blockEditor").classList.remove("open");
-    renderTimeGrid();
-  });
-
   $$("#calendarTypeFilter [data-calendar-type]").forEach((button) => button.addEventListener("click", () => {
     const type = button.dataset.calendarType;
     state.ui.calendarFilters ||= defaultState().ui.calendarFilters;
@@ -1898,7 +1600,6 @@ function bindUI() {
       state.ui.timelineColors ||= { ...defaultState().ui.timelineColors };
       state.ui.timelineColors[key] = safeColor(event.target.value);
       save();
-      renderTimeGrid();
       renderCalendar();
     });
   }
