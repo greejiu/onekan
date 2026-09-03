@@ -67,7 +67,7 @@ fs.writeFileSync(indexPath, index);
 
 const popupRegressionPath = "scripts/project-popup-planning-regression.mjs";
 let popupRegression = fs.readFileSync(popupRegressionPath, "utf8");
-popupRegression = replaceOrFail(popupRegression, /project-popup-planning\\.js\\?v=1/.source, /project-popup-planning\\.js\\?v=2/.source, "popup regression cache version");
+popupRegression = replaceOrFail(popupRegression, 'project-popup-planning\\.js\\?v=1', 'project-popup-planning\\.js\\?v=2', "popup regression cache version");
 popupRegression = replaceOrFail(
   popupRegression,
   'assert.match(popup, /undoRepeatingTaskCompletion/);',
