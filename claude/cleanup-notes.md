@@ -38,11 +38,31 @@
 
 따라서 새 기능 구현 시 `project-plan.js` 또는 `#page-plan`을 기준 구현으로 삼지 않는다. 프로젝트 실행 항목 관리는 `project-popup-planning.js` 흐름을 사용한다.
 
+### app.js 타임그리드 감사 결과
+
+`renderHome()`은 `unified-workspace.js`가 로드된 현재 배포에서 `renderTimeGrid()`를 직접 호출하지 않고 조기 반환한다. 다만 `renderTimeGrid()` / `hasBlockConflict()` 계열은 아직 완전한 죽은 코드가 아니다.
+
+`app.js` 안의 시간블록 추가·드래그·리사이즈·완료 처리, `#blockEditor` 저장/삭제, 타임라인 색상 설정 이벤트 핸들러가 여전히 이 함수들을 직접 호출한다. 따라서 함수 정의만 지우면 사용자 조작 시 런타임 오류가 날 수 있다.
+
+정리할 때는 다음 순서로 진행한다.
+
+1. 현재 `unified-workspace.js`가 소유하는 시간계획 편집 흐름과 겹치는 이벤트 핸들러를 먼저 식별한다.
+2. 더 이상 필요한 fallback이 아니면 관련 핸들러와 `#blockEditor` 마크업을 함께 제거한다.
+3. 마지막에 `renderTimeGrid()` / `hasBlockConflict()` / 리사이즈·드롭 헬퍼를 묶어서 제거한다.
+
+즉 이 영역은 "죽은 함수 몇 개"가 아니라 "부분적으로 남은 레거시 타임라인 서브시스템"으로 취급한다.
+
+### 회귀 테스트 CI
+
+회귀 스크립트가 수동 실행에만 머물지 않도록 `.github/workflows/regression.yml`을 추가한다. PR과 `main` push에서 JS 문법 검사, 모든 `*-regression.mjs`, `unified-render-smoke.mjs`를 실행한다.
+
+기존 회귀 스크립트의 `?v=정확한 숫자` 검사는 기능이 그대로여도 캐시 버전만 올라가면 실패하므로, 해당 자산이 숫자 버전을 유지하는지만 검사하도록 바꾼다.
+
 ## 아직 남겨둔 정리 후보
 
-### app.js 레거시 타임그리드
+### app.js 레거시 타임라인 서브시스템
 
-`unified-workspace.js`가 활성화된 현재 흐름에서 사용되지 않는 것으로 보이는 `renderTimeGrid()` / `hasBlockConflict()` 계열은 `app.js` 자체가 큰 파일이라 아직 건드리지 않았다. 실제 호출 그래프와 회귀 범위를 따로 확인한 뒤 제거한다.
+위 감사 결과에 따라 단독 함수 삭제는 보류한다. `unified-workspace.js`로 완전히 이관됐는지 이벤트 흐름까지 확인한 뒤 한 묶음으로 제거한다.
 
 ### 수동 캐시버스팅
 

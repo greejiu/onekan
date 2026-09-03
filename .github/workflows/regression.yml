@@ -1,0 +1,37 @@
+name: Regression checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find js -maxdepth 1 -name '*.js' -print0 | sort -z)
+      - name: Run regression scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test in scripts/*-regression.mjs; do
+            echo "::group::$test"
+            node "$test"
+            echo "::endgroup::"
+          done
+      - name: Run unified render smoke test
+        run: node scripts/unified-render-smoke.mjs

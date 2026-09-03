@@ -10,8 +10,8 @@ const apiFunction = fs.readFileSync("supabase/functions/google-calendar/index.ts
 
 assert.match(index, /id="connectGoogleCalendar"/);
 assert.match(index, /id="googleCalendarList"/);
-assert.match(index, /google-calendar\.css\?v=1/);
-assert.match(index, /unified-workspace\.js\?v=96/);
+assert.match(index, /google-calendar\.css\?v=\d+/, "google calendar css must keep a numeric cache-busting version");
+assert.match(index, /unified-workspace\.js\?v=\d+/, "unified workspace must keep a numeric cache-busting version");
 
 assert.match(integration, /data-google-calendar-visible/);
 assert.match(integration, /visible: !calendar\.visible/);
