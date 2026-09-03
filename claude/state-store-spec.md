@@ -30,11 +30,13 @@
 2. `focus-task-card.js`
    - `onekan_state` 직접 `select / upsert` 제거
    - 하위할일 추가·삭제·체크, 집중 할일 선택을 `mutate()` 한 트랜잭션 흐름에서 처리
+3. `project-popup-planning.js`
+   - 프로젝트 팝업의 할일·습관 추가/완료 저장을 `mutate()`로 이전
+   - 팝업 갱신은 store 커밋 상태를 사용하고, 기존 앱 상태 동기화를 위한 서버 새로고침 트리거는 유지
 
 다음 후보:
-1. `project-popup-planning.js`
-2. `unified-workspace.js`
-3. habit/project 계열 writer
+1. `unified-workspace.js`
+2. habit/project 계열 writer
 
 ## 왜 기존 모듈을 한꺼번에 안 바꾸는가
 
@@ -66,4 +68,4 @@
 - 삭제와 원격 신규 추가 병합
 - 같은 탭 동시 write 직렬화
 - base token DB 미저장
-- `app.js`와 `focus-task-card.js`가 `onekan_state`를 직접 `select / upsert`하지 않음
+- `app.js`, `focus-task-card.js`, `project-popup-planning.js`가 `onekan_state`를 직접 `select / upsert`하지 않음

@@ -15,7 +15,7 @@ const css = read("css/project-popup-planning.css");
 assert.doesNotMatch(index, /data-page="plan"/, "legacy plan sidebar entry must stay removed");
 assert.doesNotMatch(index, /id="page-plan"/, "legacy plan page must stay removed");
 assert.doesNotMatch(sidebar, /removePlanNavigation/, "runtime plan-removal fallback is obsolete after physical cleanup");
-assert.match(sidebar, /project-popup-planning\.js\?v=1/);
+assert.match(sidebar, /project-popup-planning\.js\?v=2/);
 
 assert.match(popup, /section\("task"/);
 assert.match(popup, /section\("habit"/);
@@ -27,6 +27,9 @@ assert.match(popup, /data-project-popup-toggle-task/);
 assert.match(popup, /data-project-popup-toggle-habit/);
 assert.match(popup, /completeRepeatingTask/);
 assert.match(popup, /undoRepeatingTaskCompletion/);
+assert.match(popup, /onekanStateStore\.read/);
+assert.match(popup, /onekanStateStore\.mutate/);
+assert.doesNotMatch(popup, /supabase\.from\(["']onekan_state["']\)/);
 assert.match(popup, /habitDays\[today\]/);
 assert.match(popup, /↻/);
 assert.match(popup, /data-project-linked-body/);
