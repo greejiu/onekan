@@ -2,7 +2,7 @@ import { onekanStateStore, supabase } from "./supabase.js?v=1";
 import { showToast, playCheckSound } from "./ui-feedback.js";
 // 시간 통계·백업 관리 모듈은 원래 홈 메모 카드를 통해 불러와졌다.
 // 메모 카드를 없애면서 이 카드가 대신 그 역할을 이어받는다.
-import "./tracking-stats-loader.js?v=5";
+import "./tracking-stats-loader.js?v=6";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
