@@ -39,7 +39,8 @@ assert.match(workspace, /function automaticTimelineRowSlot\(/, "manual timeline 
 assert.match(workspace, /saveAutomaticTimelineRowChange\(g\.kind,g\.id/, "untimed manual timeline drops must stay in the selected row");
 assert.match(workspace, /exactTimeItem&&exactTimeItem\.closest\("\.uw-timeline"\)===timeline[\s\S]*?dropType:usesRowSlots\?"time-row":"time"/, "dropping over an existing card must target its timeline row before time-block reordering");
 assert.match(workspace, /g\.start===null\|\|g\.duration===TIME_BLOCK_AUTO_SLOT_MINUTES/, "existing 10-minute cards must keep using row capacity rules when dragged");
-assert.match(workspace, /이 30분 줄은 이미 할 일 3개로 꽉 찼어요/, "a full selected row must reject another manual drop");
+assert.match(workspace, /이 시간대엔 더 넣을 자리가 없어요/, "a full selected row must reject another manual drop without claiming that three separate items occupy it");
+assert.doesNotMatch(workspace, /이 30분 줄은 이미 할 일 3개로 꽉 찼어요/, "capacity feedback must not report a misleading item count");
 assert.match(workspace, /saveAutomaticTimeBlockChange\(g\.kind,g\.id[^\n]*g\.duration\)/, "moving an existing timed entry to a block must preserve its duration");
 assert.match(workspace, /function plannedDuration\([^)]*\).*duration===TIME_BLOCK_AUTO_SLOT_MINUTES\|\|duration===15/s, "10- and legacy 15-minute durations must survive rendering");
 assert.match(workspace, /function timelineDisplayMinute\(/, "10-minute cards must share their containing 30-minute visual row");
