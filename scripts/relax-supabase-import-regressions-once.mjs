@@ -5,8 +5,9 @@ const replacements = [
   ['from "\\.\\/supabase\\.js";', 'from "\\.\\/supabase\\.js(?:\\?v=\\d+)?";'],
   ['supabase\\.js"', 'supabase\\.js(?:\\?v=\\d+)?"'],
 ];
+const testFiles = fs.readdirSync("scripts").filter((value) => value.endsWith("-regression.mjs") || value === "unified-render-smoke.mjs");
 let changed = 0;
-for (const name of fs.readdirSync("scripts").filter((value) => value.endsWith("-regression.mjs"))) {
+for (const name of testFiles) {
   const file = path.join("scripts", name);
   const source = fs.readFileSync(file, "utf8");
   let next = source;
@@ -20,4 +21,4 @@ for (const name of fs.readdirSync("scripts").filter((value) => value.endsWith("-
   changed += 1;
   console.log(`relaxed versioned asset assertion: ${file}`);
 }
-console.log(`relaxed ${changed} regression file(s)`);
+console.log(`relaxed ${changed} test file(s)`);
