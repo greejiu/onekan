@@ -1,0 +1,229 @@
+{
+  "generatedAt": "2026-09-04T00:55:33.024Z",
+  "totalReferences": 37,
+  "unexpectedCount": 30,
+  "rows": [
+    {
+      "file": "js/appearance.js",
+      "line": 23,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", user.id).maybeSingle();"
+    },
+    {
+      "file": "js/appearance.js",
+      "line": 41,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state\").upsert({ user_id: user.id, data: current }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/auth.js",
+      "line": 36,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", user.id).maybeSingle();"
+    },
+    {
+      "file": "js/backup-manager.js",
+      "line": 81,
+      "allowed": false,
+      "text": ".from(\"onekan_state\")"
+    },
+    {
+      "file": "js/backup-manager.js",
+      "line": 97,
+      "allowed": false,
+      "text": ".from(\"onekan_state_history\")"
+    },
+    {
+      "file": "js/backup-manager.js",
+      "line": 112,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state_history\").insert({"
+    },
+    {
+      "file": "js/backup-manager.js",
+      "line": 125,
+      "allowed": false,
+      "text": ".from(\"onekan_state_history\")"
+    },
+    {
+      "file": "js/backup-manager.js",
+      "line": 139,
+      "allowed": false,
+      "text": "const { error: preserveError } = await supabase.from(\"onekan_state_history\").insert({"
+    },
+    {
+      "file": "js/backup-manager.js",
+      "line": 148,
+      "allowed": false,
+      "text": ".from(\"onekan_state\")"
+    },
+    {
+      "file": "js/context-menu.js",
+      "line": 40,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", session.user.id).maybeSingle();"
+    },
+    {
+      "file": "js/context-menu.js",
+      "line": 64,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state\").upsert({ user_id: current.user.id, data: current.state }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/direction-context-extension.js",
+      "line": 20,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", session.user.id).maybeSingle();"
+    },
+    {
+      "file": "js/direction-context-extension.js",
+      "line": 33,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state\").upsert({ user_id: loaded.user.id, data: loaded.state }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/load-recovery.js",
+      "line": 23,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", session.user.id).maybeSingle();"
+    },
+    {
+      "file": "js/project-bookmark.js",
+      "line": 355,
+      "allowed": false,
+      "text": ".from(\"onekan_state\")"
+    },
+    {
+      "file": "js/project-context-extension.js",
+      "line": 29,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", session.user.id).maybeSingle();"
+    },
+    {
+      "file": "js/project-context-extension.js",
+      "line": 42,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state\").upsert({ user_id: current.user.id, data: current.state }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/project-direction-tabs.js",
+      "line": 139,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", goalUser.id).maybeSingle();"
+    },
+    {
+      "file": "js/project-direction-tabs.js",
+      "line": 153,
+      "allowed": false,
+      "text": "const { error: migrationError } = await supabase.from(\"onekan_state\").upsert({ user_id: goalUser.id, data: goalState }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/project-direction-tabs.js",
+      "line": 166,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state\").upsert({ user_id: goalUser.id, data: goalState }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/project-period-popover.js",
+      "line": 11,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", session.user.id).maybeSingle();"
+    },
+    {
+      "file": "js/project-period-popover.js",
+      "line": 28,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state\").upsert({ user_id: current.user.id, data: current.state }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/project-status.js",
+      "line": 84,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", user.id).maybeSingle();"
+    },
+    {
+      "file": "js/project-status.js",
+      "line": 99,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state\").upsert({ user_id: user.id, data: state }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/state-store.js",
+      "line": 209,
+      "allowed": true,
+      "text": "const { data, error } = await rawClient.from(\"onekan_state\").select(\"data\").eq(\"user_id\", userId).maybeSingle();"
+    },
+    {
+      "file": "js/state-store.js",
+      "line": 256,
+      "allowed": true,
+      "text": "let builder = rawClient.from(\"onekan_state\").upsert(Array.isArray(payload) ? mergedRows : mergedRows[0], options);"
+    },
+    {
+      "file": "js/state-store.js",
+      "line": 271,
+      "allowed": true,
+      "text": "let builder = rawClient.from(\"onekan_state\").insert(cleanPayload, options);"
+    },
+    {
+      "file": "js/state-store.js",
+      "line": 289,
+      "allowed": true,
+      "text": "const { data, error } = await rawClient.from(\"onekan_state\").select(\"data\").eq(\"user_id\", resolved).maybeSingle();"
+    },
+    {
+      "file": "js/state-store.js",
+      "line": 304,
+      "allowed": true,
+      "text": "const { error } = await rawClient.from(\"onekan_state\").upsert({ user_id: resolved, data: clean }, { onConflict: \"user_id\" });"
+    },
+    {
+      "file": "js/state-store.js",
+      "line": 357,
+      "allowed": true,
+      "text": "if (running) throw new Error(\"Cannot extend an already executing onekan_state write query.\");"
+    },
+    {
+      "file": "js/state-store.js",
+      "line": 373,
+      "allowed": true,
+      "text": "if (table !== \"onekan_state\") return builder;"
+    },
+    {
+      "file": "js/task-completed-groups.js",
+      "line": 57,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", session.user.id).maybeSingle();"
+    },
+    {
+      "file": "js/time-block-v2-settings.js",
+      "line": 51,
+      "allowed": false,
+      "text": ".from(\"onekan_state\")"
+    },
+    {
+      "file": "js/time-block-v2-settings.js",
+      "line": 62,
+      "allowed": false,
+      "text": ".from(\"onekan_state\")"
+    },
+    {
+      "file": "js/tracking-stats.js",
+      "line": 315,
+      "allowed": false,
+      "text": ".from(\"onekan_state\")"
+    },
+    {
+      "file": "js/workspace-pages.js",
+      "line": 23,
+      "allowed": false,
+      "text": "const { data, error } = await supabase.from(\"onekan_state\").select(\"data\").eq(\"user_id\", session.user.id).maybeSingle();"
+    },
+    {
+      "file": "js/workspace-pages.js",
+      "line": 39,
+      "allowed": false,
+      "text": "const { error } = await supabase.from(\"onekan_state\").upsert({ user_id: user.id, data: state }, { onConflict: \"user_id\" });"
+    }
+  ]
+}
