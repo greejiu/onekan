@@ -1,4 +1,4 @@
-import "./interaction-fixes.js";
+import "./interaction-fixes.js?v=39";
 import { supabase } from "./supabase.js";
 
 const authSection = document.querySelector("#auth-section");
