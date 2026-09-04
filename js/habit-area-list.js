@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js";
 
 if (!window.__onekanHabitAreaListInstalled) {
   window.__onekanHabitAreaListInstalled = true;
@@ -66,16 +66,9 @@ if (!window.__onekanHabitAreaListInstalled) {
     if (!host) return;
 
     const request = ++renderRequest;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user || request !== renderRequest) return;
-    const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
-    if (error) {
-      console.error("habit area list load failed", error);
-      return;
-    }
-    if (request !== renderRequest || !shouldRenderAreaView()) return;
+    const state = await onekanStateStore.read();
+    if (!state || request !== renderRequest || !shouldRenderAreaView()) return;
 
-    const state = data?.data && typeof data.data === "object" ? data.data : {};
     const tasks = (Array.isArray(state.tasks) ? state.tasks : [])
       .filter((task) => task?.isHabit && !task.done)
       .sort((a, b) => manualOrderValue(a) - manualOrderValue(b) || String(a.title || "").localeCompare(String(b.title || ""), "ko"));
