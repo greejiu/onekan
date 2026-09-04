@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -17,27 +17,36 @@ let state = null;
 let user = null;
 let taskTab = "all";
 
+function normalizeState(value) {
+  const next = value && typeof value === "object" ? value : {};
+  next.tasks = Array.isArray(next.tasks) ? next.tasks : [];
+  next.eventGroups = Array.isArray(next.eventGroups) ? next.eventGroups : [];
+  next.habitTemplates = Array.isArray(next.habitTemplates) ? next.habitTemplates : [];
+  next.habitDays = next.habitDays && typeof next.habitDays === "object" ? next.habitDays : {};
+  next.projects = Array.isArray(next.projects) ? next.projects : [];
+  return next;
+}
+
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
-  if (error) throw error;
-  user = session.user;
-  state = data?.data && typeof data.data === "object" ? data.data : {};
-  state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
-  state.eventGroups = Array.isArray(state.eventGroups) ? state.eventGroups : [];
-  state.habitTemplates = Array.isArray(state.habitTemplates) ? state.habitTemplates : [];
-  state.habitDays = state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {};
-  state.projects = Array.isArray(state.projects) ? state.projects : [];
+  user = session?.user || null;
+  if (!user) return state = null;
+  const stored = await onekanStateStore.read({ userId: user.id });
+  state = normalizeState(stored);
   return state;
 }
 
 async function writeState(mutator) {
-  await readState();
-  if (!user || !state) return;
-  mutator(state);
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: state }, { onConflict: "user_id" });
-  if (error) throw error;
+  const { data: { session } } = await supabase.auth.getSession();
+  user = session?.user || null;
+  if (!user) return;
+  const committed = await onekanStateStore.mutate((latest) => {
+    const next = normalizeState(latest);
+    mutator(next);
+    return next;
+  }, { userId: user.id, source: "workspace-pages" });
+  if (!committed) return;
+  state = normalizeState(committed);
   $("#reloadCloudBtn")?.click();
   await renderAll();
 }

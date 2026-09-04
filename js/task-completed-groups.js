@@ -1,5 +1,5 @@
 import "./task-input-controls.js?v=3";
-import { supabase } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -52,11 +52,8 @@ function installStyle() {
 }
 
 async function readTasks() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return [];
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
-  if (error) throw error;
-  return Array.isArray(data?.data?.tasks) ? data.data.tasks : [];
+  const stored = await onekanStateStore.read();
+  return Array.isArray(stored?.tasks) ? stored.tasks : [];
 }
 
 function completedSortTime(task) {
