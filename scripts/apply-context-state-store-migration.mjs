@@ -17,8 +17,14 @@ function migrateStateHelpers(file, normalizeBody, sourceExpr) {
   );
 
   const helperPattern = /async function readState\(\) \{[\s\S]*?\n\}\n\nasync function writeState\(mutator(?:, source)?\) \{[\s\S]*?\n\}/;
-  const writeSignature = file === "js/project-context-extension.js" ? "async function writeState(mutator, source)" : "async function writeState(mutator)";
-  const sourceOption = file === "js/project-context-extension.js" ? "source" : JSON.stringify(sourceExpr);
+  const writeSignature = file === "js/project-context-extension.js"
+    ? "async function writeState(mutator, source)"
+    : file === "js/context-menu.js"
+      ? 'async function writeState(mutator, source = "context-menu")'
+      : "async function writeState(mutator)";
+  const sourceOption = file === "js/project-context-extension.js" || file === "js/context-menu.js"
+    ? "source"
+    : JSON.stringify(sourceExpr);
   const replacement = `function normalizeState(value) {\n  const state = value && typeof value === "object" ? value : {};\n${normalizeBody}\n  return state;\n}\n\nasync function readState() {\n  const { data: { session } } = await supabase.auth.getSession();\n  if (!session?.user) return null;\n  const stored = await onekanStateStore.read({ userId: session.user.id });\n  return { user: session.user, state: normalizeState(stored) };\n}\n\n${writeSignature} {\n  const { data: { session } } = await supabase.auth.getSession();\n  if (!session?.user) return false;\n  await onekanStateStore.mutate((latest) => {\n    const state = normalizeState(latest);\n    mutator(state);\n    return state;\n  }, { userId: session.user.id, source: ${sourceOption} });\n  $("#reloadCloudBtn")?.click();\n  return true;\n}`;
   text = replaceOnce(text, helperPattern, replacement, `${file} state helpers`);
   fs.writeFileSync(file, text);
@@ -29,6 +35,20 @@ migrateStateHelpers(
   `  state.tasks = Array.isArray(state.tasks) ? state.tasks : [];\n  state.events = Array.isArray(state.events) ? state.events : [];\n  state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : [{ id: "default", name: "기본", color: "#8fa9c4" }];\n  state.timeBlocks = Array.isArray(state.timeBlocks) ? state.timeBlocks : [];\n  state.habitTemplates = Array.isArray(state.habitTemplates) ? state.habitTemplates : [];\n  state.habitDays = state.habitDays && typeof state.habitDays === "object" ? state.habitDays : {};\n  state.projects = Array.isArray(state.projects) ? state.projects : [];\n  state.directionGoals = Array.isArray(state.directionGoals) ? state.directionGoals : [];\n  state.identities = Array.isArray(state.identities) ? state.identities : [];\n  state.projectGroups = Array.isArray(state.projectGroups) ? state.projectGroups : [];\n  state.sessions = Array.isArray(state.sessions) ? state.sessions : [];\n  state.ui = state.ui && typeof state.ui === "object" ? state.ui : {};\n  state.ui.homeDashboard = state.ui.homeDashboard && typeof state.ui.homeDashboard === "object" ? state.ui.homeDashboard : {};\n  state.ui.homeDashboard.secondaryDdays = Array.isArray(state.ui.homeDashboard.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays.slice(0, 3) : [];`,
   "context-menu",
 );
+
+// This path used to emit a second state-changed event only to override the source.
+// Pass that source through the shared store instead so listeners still receive one event.
+{
+  const file = "js/context-menu.js";
+  let text = fs.readFileSync(file, "utf8");
+  text = replaceOnce(
+    text,
+    /const changed = await writeState\(\(state\) => \{([\s\S]*?didChange = true;\n    )\}\);\n    if \(!changed \|\| !didChange\) return;\n    document\.dispatchEvent\(new CustomEvent\("onekan:state-changed", \{ detail: \{ source: "task-habit-toggle" \} \}\)\);/,
+    'const changed = await writeState((state) => {$1}, "task-habit-toggle");\n    if (!changed || !didChange) return;',
+    "task habit toggle source",
+  );
+  fs.writeFileSync(file, text);
+}
 
 migrateStateHelpers(
   "js/direction-context-extension.js",
