@@ -14,6 +14,7 @@ for (const name of fs.readdirSync("scripts").filter((value) => value.endsWith("-
   // Cache versions are implementation details. When this migration bumps a dependency graph,
   // keep feature regressions focused on the asset being present rather than one exact version.
   next = next.replace(/\\\?v=\d+/g, "\\?v=\\d+");
+  next = next.replace(/(\.js)\?v=\d+/g, "$1?v=");
   if (next === source) continue;
   fs.writeFileSync(file, next);
   changed += 1;
