@@ -1,0 +1,44 @@
+name: Habit workspace state-store migration once
+
+on:
+  push:
+    branches:
+      - refactor/habit-workspace-state-store
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply migration and cache chain
+        env:
+          CACHE_BASE: origin/main
+        run: node scripts/apply-habit-workspace-state-store-migration.mjs
+      - name: Validate migration
+        run: |
+          set -euo pipefail
+          node --check js/repeat-overview.js
+          node --check js/habit-history-view.js
+          node scripts/habit-workspace-state-store-regression.mjs
+          for test in scripts/*-regression.mjs; do node "$test"; done
+          node scripts/cache-buster-regression.mjs --check-diff origin/main
+      - name: Commit migration
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html js/*.js css/*.css scripts/habit-workspace-state-store-regression.mjs
+          if git diff --cached --quiet; then
+            echo "No migration changes to commit"
+            exit 0
+          fi
+          git commit -m "refactor: 습관 워크스페이스를 공용 state-store로 이전"
+          git push origin HEAD:refactor/habit-workspace-state-store
