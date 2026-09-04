@@ -55,11 +55,7 @@ for (const [name, source] of [["project-direction-tabs", projectDirectionTabs], 
   assert.doesNotMatch(source, /dispatchEvent\(new CustomEvent\("onekan:state-changed"/, name + " duplicate state event");
 }
 
-const debtAllowlist = new Set([
-  "backup-manager.js",
-  "time-block-v2-settings.js",
-  "tracking-stats.js",
-]);
+const debtAllowlist = new Set([]);
 const coreAllowlist = new Set(["state-store.js"]);
 const directPattern = /\.from\(\s*["']onekan_state["']\s*\)/g;
 const unexpected = [];

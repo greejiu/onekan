@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 import {
   ensureTimeBlockV2State,
@@ -44,26 +44,27 @@ function esc(value) {
   }[char]));
 }
 
+function normalizeState(value) {
+  return value && typeof value === "object" ? value : {};
+}
+
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return null;
-  const { data, error } = await supabase
-    .from("onekan_state")
-    .select("data")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
-  if (error) throw error;
-  const state = data?.data && typeof data.data === "object" ? data.data : {};
-  return { user: session.user, state };
+  const stored = await onekanStateStore.read({ userId: session.user.id });
+  return { user: session.user, state: normalizeState(stored) };
 }
 
-async function saveState(user, state) {
-  const { error } = await supabase
-    .from("onekan_state")
-    .upsert({ user_id: user.id, data: state }, { onConflict: "user_id" });
-  if (error) throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "time-block-v2" } }));
+async function mutateState(mutator, source = "time-block-v2") {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+  const committed = await onekanStateStore.mutate((latest) => {
+    const state = normalizeState(latest);
+    mutator(state);
+    return state;
+  }, { userId: session.user.id, source });
   $("#reloadCloudBtn")?.click();
+  return { user: session.user, state: normalizeState(committed) };
 }
 
 function ensureSection() {
@@ -153,12 +154,12 @@ async function saveRows() {
   const button = $("#saveTimeBlockV2Btn");
   if (button) button.disabled = true;
   try {
-    const current = await readState();
-    if (!current) return;
-    ensureTimeBlockV2State(current.state);
     const effectiveFrom = appDayKey();
-    setTimeBlockTemplatesForDate(current.state, validation.templates, effectiveFrom);
-    await saveState(current.user, current.state);
+    const committed = await mutateState((state) => {
+      ensureTimeBlockV2State(state);
+      setTimeBlockTemplatesForDate(state, validation.templates, effectiveFrom);
+    });
+    if (!committed) return;
     showToast("기본 타임블럭을 오늘부터 적용했어요.");
     await renderSettings();
   } catch (error) {
@@ -174,10 +175,13 @@ async function renderSettings() {
   const section = ensureSection();
   if (!section || saving) return;
   try {
-    const current = await readState();
+    let current = await readState();
     if (!current) return;
     const changed = ensureTimeBlockV2State(current.state);
-    if (changed) await saveState(current.user, current.state);
+    if (changed) {
+      const committed = await mutateState((state) => { ensureTimeBlockV2State(state); });
+      if (committed) current = committed;
+    }
     const dateKey = appDayKey();
     const templates = timeBlockTemplatesForDate(current.state, dateKey);
     const list = $("#timeBlockV2List", section);

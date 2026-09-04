@@ -1,6 +1,6 @@
 # 공용 state-store — 설계 메모
 
-**상태: 1단계 구현 완료 + 고빈도 writer 직접 이전 진행 중 (2026-09-04).**
+**상태: 1단계 구현 완료 + 런타임 `onekan_state` 직접 접근 이전 완료 (2026-09-04).**
 
 ## 목적
 
@@ -41,9 +41,14 @@
    - 프로젝트·목표 상태 자동 승격/재계산을 `read() / mutate()`로 이전
    - 변경 필요 여부는 읽은 snapshot으로 먼저 확인해 불필요한 자동 저장을 줄임
    - 실제 커밋 시 최신 remote 상태에서 다시 상태를 계산하고 store 이벤트를 사용
+6. 나머지 런타임 상태 모듈
+   - 프로젝트·습관·컨텍스트·인증·설정·통계 모듈을 순차적으로 직접 store API로 이전
+   - `backup-manager.js`의 현재 상태 백업/복원도 store를 거치며, history 테이블은 별도 보관소로 유지
+   - `time-block-v2-settings.js` 저장은 최신 remote 상태에서 mutate하고 `tracking-stats.js`는 read-only store 조회 사용
+   - `scripts/state-store-direct-access-regression.mjs`가 이제 `state-store.js` 외 직접 `onekan_state` 접근을 허용하지 않음
 
 다음 후보:
-1. 나머지 project/habit 계열 writer
+1. 직접 접근 이전 완료. 새 런타임 코드는 공용 state-store API만 사용
 
 ## 왜 기존 모듈을 한꺼번에 안 바꾸는가
 
@@ -62,7 +67,7 @@
 
 - Web Locks API가 없는 브라우저에서는 queue가 **현재 탭 안에서만** 직렬화된다.
 - Web Locks를 써도 다른 기기까지 원자적으로 잠글 수는 없다. 다른 기기에서 정확히 동시에 쓰는 경우 `최신 읽기 → upsert` 사이에 DB 레벨 race가 남는다. 완전한 해결에는 revision/version 기반 optimistic locking 또는 RPC가 필요하다.
-- `onekan_state.update()` / `delete()`를 통한 전체 상태 변경은 아직 3-way merge 대상이 아니다. 현재 주된 전체 상태 writer는 `upsert` 패턴이다.
+- 공용 store 밖의 `onekan_state.update()` / `delete()`는 3-way merge 대상이 아니다. 현재 런타임 모듈은 더 이상 이 직접 경로를 사용하지 않는다.
 - base token은 내부 병합용 임시 값이며 DB 저장 시 제거한다.
 
 ## 검증
@@ -75,4 +80,4 @@
 - 삭제와 원격 신규 추가 병합
 - 같은 탭 동시 write 직렬화
 - base token DB 미저장
-- `app.js`, `focus-task-card.js`, `project-popup-planning.js`, `unified-workspace.js`, `project-status-automation.js`가 `onekan_state`를 직접 `select / upsert`하지 않음
+- `state-store.js` 외 런타임 JS가 `onekan_state`를 직접 `select / insert / update / upsert`하지 않음
