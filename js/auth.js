@@ -1,5 +1,6 @@
 import "./interaction-fixes.js?v=39";
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
+import { stripStateStoreMeta } from "./state-store.js?v=1";
 
 const authSection = document.querySelector("#auth-section");
 const appSection = document.querySelector("#app-section");
@@ -33,10 +34,9 @@ function setAppStatus(text, isError = false) {
 
 async function recoverLoadedState(user) {
   try {
-    const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
-    if (error) throw error;
-    if (data?.data && typeof data.data === "object") {
-      const sharedState = JSON.parse(JSON.stringify(data.data));
+    const stored = await onekanStateStore.read({ userId: user.id });
+    if (stored && typeof stored === "object") {
+      const sharedState = stripStateStoreMeta(stored);
       window.__ONEKAN_APP_STATE__ = sharedState;
       document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "auth-recovery", state: sharedState } }));
     }
