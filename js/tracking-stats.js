@@ -26,6 +26,7 @@ const ITEM_COLORS = [
 const viewState = {
   home: { group: "project", period: "today" },
   tracking: { group: "project", period: "today" },
+  reports: { group: "project", period: "week" },
 };
 
 let refreshTimer = 0;
@@ -80,6 +81,66 @@ function formatDuration(milliseconds) {
   if (hours && rest) return `${hours}시간 ${rest}분`;
   if (hours) return `${hours}시간`;
   return `${minutes}분`;
+}
+
+function fromDateKey(value) {
+  return new Date(`${value}T12:00:00`);
+}
+
+function addDays(value, amount) {
+  const date = fromDateKey(value);
+  date.setDate(date.getDate() + amount);
+  return dateKey(date);
+}
+
+function periodDateKeys(period) {
+  const today = appDate(new Date());
+  if (period === "month") {
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    return Array.from({ length: lastDay }, (_, index) => dateKey(new Date(today.getFullYear(), today.getMonth(), index + 1, 12)));
+  }
+  const day = today.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const mondayKey = dateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + mondayOffset, 12));
+  return Array.from({ length: 7 }, (_, index) => addDays(mondayKey, index));
+}
+
+function completionDate(task) {
+  if (!task?.done) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(task.completedDate || "")) return task.completedDate;
+  if (!task.completedAt && /^\d{4}-\d{2}-\d{2}$/.test(task.date || "")) return task.date;
+  const stamp = task.completedAt || task.date;
+  if (!stamp) return "";
+  const date = new Date(stamp);
+  return Number.isNaN(date.getTime()) ? "" : dateKey(date);
+}
+
+function reportSummary(raw, period) {
+  const state = raw && typeof raw === "object" ? raw : {};
+  const keys = periodDateKeys(period);
+  const allowed = new Set(keys);
+  const sessions = (Array.isArray(state.sessions) ? state.sessions : []).filter((session) => {
+    const stamp = session?.start || session?.end;
+    return stamp && allowed.has(dateKey(stamp));
+  });
+  const tasks = (Array.isArray(state.tasks) ? state.tasks : []).filter((task) => allowed.has(completionDate(task)));
+  let habits = 0;
+  const activeKeys = new Set();
+  for (const key of keys) {
+    const day = state.habitDays?.[key];
+    if (!day || typeof day !== "object") continue;
+    const completed = Object.values(day).filter((value) => value === true).length;
+    habits += completed;
+    if (completed) activeKeys.add(key);
+  }
+  for (const task of tasks) activeKeys.add(completionDate(task));
+  for (const session of sessions) activeKeys.add(dateKey(session.start || session.end));
+  const total = sessions.reduce((sum, session) => sum + durationMs(session), 0);
+  const byDay = keys.map((key) => ({
+    key,
+    duration: sessions.filter((session) => dateKey(session.start || session.end) === key).reduce((sum, session) => sum + durationMs(session), 0),
+  }));
+  return { total, tasks: tasks.length, habits, activeDays: activeKeys.size, byDay };
 }
 
 function sessionSource(state, session) {
@@ -217,6 +278,15 @@ function periodButtons(context) {
     </div>`;
 }
 
+function reportPeriodButtons() {
+  return `
+    <div class="uw-stats-seg" aria-label="리포트 기간">
+      ${["week", "month"].map((value) => `
+        <button type="button" data-onekan-stats-period="${value}" data-stats-context="reports" class="${viewState.reports.period === value ? "active" : ""}" aria-pressed="${viewState.reports.period === value}">${PERIOD_LABELS[value]}</button>
+      `).join("")}
+    </div>`;
+}
+
 function rowsMarkup(rows, total, limit = Infinity) {
   const visible = rows.slice(0, limit);
   if (!visible.length) return '<div class="uw-stats-empty">이 기간에는 아직 시간 기록이 없어요.</div>';
@@ -296,10 +366,60 @@ function renderTracking(raw) {
   `;
 }
 
+function reportMetric(label, value, detail = "") {
+  return `<article class="uw-report-metric"><span>${esc(label)}</span><strong>${esc(value)}</strong>${detail ? `<small>${esc(detail)}</small>` : ""}</article>`;
+}
+
+function reportDayLabel(key, period) {
+  const date = fromDateKey(key);
+  if (period === "week") return new Intl.DateTimeFormat("ko-KR", { weekday: "short" }).format(date);
+  return String(date.getDate());
+}
+
+function reportChartMarkup(summary, period) {
+  const max = Math.max(...summary.byDay.map((day) => day.duration), 0);
+  return summary.byDay.map((day) => {
+    const height = max > 0 ? Math.max(day.duration > 0 ? 7 : 0, day.duration / max * 100) : 0;
+    return `<div class="uw-report-day" title="${esc(day.key)} · ${esc(formatDuration(day.duration))}">
+      <span class="uw-report-day-value">${day.duration ? esc(formatDuration(day.duration)) : ""}</span>
+      <span class="uw-report-day-track" aria-hidden="true"><i style="height:${height.toFixed(2)}%"></i></span>
+      <small>${esc(reportDayLabel(day.key, period))}</small>
+    </div>`;
+  }).join("");
+}
+
+function renderReports(raw) {
+  const root = document.getElementById("reportsPageRoot");
+  if (!root) return;
+  const { group, period } = viewState.reports;
+  const summary = reportSummary(raw, period);
+  const stats = aggregate(raw, group, period);
+  root.innerHTML = `
+    <div class="uw-report-toolbar">
+      <div><strong>${esc(PERIOD_LABELS[period])} 돌아보기</strong><span>기록된 활동만 모아 보여줘요.</span></div>
+      ${reportPeriodButtons()}
+    </div>
+    <div class="uw-report-metrics">
+      ${reportMetric("총 집중시간", formatDuration(summary.total), summary.total ? "차곡차곡 쌓였어요" : "첫 기록을 기다리고 있어요")}
+      ${reportMetric("완료한 할일", `${summary.tasks}개`)}
+      ${reportMetric("완료한 습관", `${summary.habits}회`)}
+      ${reportMetric("활동한 날", `${summary.activeDays}일`, period === "week" ? "이번 주 기준" : "이번 달 기준")}
+    </div>
+    <section class="uw-report-card">
+      <div class="uw-report-card-head"><div><strong>집중 흐름</strong><span>날짜별 시간추적 기록</span></div><strong>총 ${esc(formatDuration(summary.total))}</strong></div>
+      <div class="uw-report-chart-scroll"><div class="uw-report-chart ${period === "month" ? "month" : "week"}" style="--uw-report-days:${summary.byDay.length}">${reportChartMarkup(summary, period)}</div></div>
+    </section>
+    <section class="uw-report-card">
+      <div class="uw-report-card-head"><div><strong>시간을 어디에 썼을까?</strong><span>${esc(PERIOD_LABELS[period])} 시간 분배</span></div>${groupButtons("reports")}</div>
+      <div class="uw-report-breakdown uw-stats-list">${rowsMarkup(stats.rows, stats.total)}</div>
+    </section>`;
+}
+
 function renderAll(raw = latestRawState || {}) {
   latestRawState = raw || {};
   renderHome(latestRawState);
   renderTracking(latestRawState);
+  renderReports(latestRawState);
 }
 
 async function refresh() {
@@ -357,6 +477,7 @@ supabase.auth.onAuthStateChange(() => queueRefresh(0));
 function init() {
   ensureHomePanel();
   ensureTrackingPanel();
+  renderReports({});
   queueRefresh(0);
 }
 
