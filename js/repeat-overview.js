@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
 
@@ -13,7 +13,6 @@ const uid=()=>crypto.randomUUID();
 const dayLabel=(date,long=false)=>new Intl.DateTimeFormat("ko-KR",long?{month:"long",day:"numeric",weekday:"short"}:{month:"numeric",day:"numeric",weekday:"short"}).format(date);
 
 let state=null;
-let user=null;
 let rendering=false;
 let renderTimer=null;
 let habitMode="calendar";
@@ -23,31 +22,34 @@ let habitCalendarLayout="board";
 let habitCursor=fromKey(todayKey());
 const SLOT=30,SLOT_H=20;
 
+function normalizeState(value){
+  const next=value&&typeof value==="object"?value:{};
+  next.tasks=Array.isArray(next.tasks)?next.tasks:[];
+  next.timeBlocks=Array.isArray(next.timeBlocks)?next.timeBlocks:[];
+  next.eventGroups=Array.isArray(next.eventGroups)&&next.eventGroups.length?next.eventGroups:[{id:"default",name:"기본",color:"#8fa9c4"}];
+  next.projects=Array.isArray(next.projects)?next.projects:[];
+  next.ui=next.ui&&typeof next.ui==="object"?next.ui:{};
+  const range=next.ui.timelineRange&&typeof next.ui.timelineRange==="object"?next.ui.timelineRange:{};
+  next.ui.timelineRange={start:Number(range.start)||360,end:Number(range.end)||1320};
+  normalizeCompletionRepeats(next);
+  return next
+}
+
 async function readState(){
-  const {data:{session}}=await supabase.auth.getSession();
-  user=session?.user||null;
-  if(!user)return null;
-  const {data,error}=await supabase.from("onekan_state").select("data").eq("user_id",user.id).maybeSingle();
-  if(error)throw error;
-  state=data?.data&&typeof data.data==="object"?data.data:{};
-  state.tasks=Array.isArray(state.tasks)?state.tasks:[];
-  state.timeBlocks=Array.isArray(state.timeBlocks)?state.timeBlocks:[];
-  state.eventGroups=Array.isArray(state.eventGroups)&&state.eventGroups.length?state.eventGroups:[{id:"default",name:"기본",color:"#8fa9c4"}];
-  state.projects=Array.isArray(state.projects)?state.projects:[];
-  state.ui=state.ui&&typeof state.ui==="object"?state.ui:{};
-  const range=state.ui.timelineRange&&typeof state.ui.timelineRange==="object"?state.ui.timelineRange:{};
-  state.ui.timelineRange={start:Number(range.start)||360,end:Number(range.end)||1320};
-  normalizeCompletionRepeats(state);
+  const stored=await onekanStateStore.read();
+  if(!stored){state=null;return null}
+  state=normalizeState(stored);
   return state
 }
 
 async function writeState(mutator,source="habit-workspace"){
-  await readState();
-  if(!state||!user)return false;
-  mutator(state);
-  const {error}=await supabase.from("onekan_state").upsert({user_id:user.id,data:state},{onConflict:"user_id"});
-  if(error)throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed",{detail:{source}}));
+  const committed=await onekanStateStore.mutate((current)=>{
+    const next=normalizeState(current);
+    mutator(next);
+    return next
+  },{source});
+  if(!committed)return false;
+  state=normalizeState(committed);
   $("#reloadCloudBtn")?.click();
   scheduleRender(80);
   return true
