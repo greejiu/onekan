@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 import { applyProjectStatus, normalizeProjectStatus as normalizeStatus, restartStatusForProject } from "./project-status-automation.js?v=3";
 
@@ -23,25 +23,29 @@ function projectIdFromElement(element) {
   return row.dataset.contextId || row.dataset.projectStatusId || row.dataset.projectId || null;
 }
 
-async function readState() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
-  if (error) throw error;
-  const state = data?.data && typeof data.data === "object" ? data.data : {};
+function normalizeState(value) {
+  const state = value && typeof value === "object" ? value : {};
   state.projects = Array.isArray(state.projects) ? state.projects : [];
   state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
   state.directionGoals = Array.isArray(state.directionGoals) ? state.directionGoals : [];
-  return { user: session.user, state };
+  return state;
+}
+
+async function readState() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+  const stored = await onekanStateStore.read({ userId: session.user.id });
+  return { user: session.user, state: normalizeState(stored) };
 }
 
 async function writeState(mutator, source) {
-  const current = await readState();
-  if (!current) return false;
-  mutator(current.state);
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: current.user.id, data: current.state }, { onConflict: "user_id" });
-  if (error) throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source } }));
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return false;
+  await onekanStateStore.mutate((latest) => {
+    const state = normalizeState(latest);
+    mutator(state);
+    return state;
+  }, { userId: session.user.id, source: source });
   $("#reloadCloudBtn")?.click();
   return true;
 }

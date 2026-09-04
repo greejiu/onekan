@@ -7,7 +7,8 @@ const [html, contextMenu, focusCard] = await Promise.all([
   readFile(new URL("../js/focus-task-card.js", import.meta.url), "utf8"),
 ]);
 
-assert.match(html, /context-menu\.js\?v=37/, "새 하위 할일 메뉴가 바로 배포되도록 캐시 버전을 올려야 합니다.");
+const contextMenuVersion = Number(html.match(/context-menu\.js\?v=(\d+)/)?.[1] || 0);
+assert.ok(contextMenuVersion >= 37, "새 하위 할일 메뉴가 바로 배포되도록 캐시 버전을 유지해야 합니다.");
 assert.match(contextMenu, /data-context-action="subtasks"/, "할일 우클릭 메뉴에 하위 할일 액션이 필요합니다.");
 assert.match(contextMenu, /target\.kind === "task" && item && !item\.done/, "미완료 할일에서만 하위 할일 메뉴를 보여야 합니다.");
 assert.match(contextMenu, /하위 할일 관리 \(\$\{subtaskCount\}\)/, "기존 항목 수가 메뉴에 표시되어야 합니다.");

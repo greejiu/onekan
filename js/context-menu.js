@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { confirmAction, showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -34,12 +34,8 @@ function escapeAttr(value) {
   return String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
 }
 
-async function readState() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
-  if (error) throw error;
-  const state = data?.data && typeof data.data === "object" ? data.data : {};
+function normalizeState(value) {
+  const state = value && typeof value === "object" ? value : {};
   state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
   state.events = Array.isArray(state.events) ? state.events : [];
   state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : [{ id: "default", name: "기본", color: "#8fa9c4" }];
@@ -54,16 +50,24 @@ async function readState() {
   state.ui = state.ui && typeof state.ui === "object" ? state.ui : {};
   state.ui.homeDashboard = state.ui.homeDashboard && typeof state.ui.homeDashboard === "object" ? state.ui.homeDashboard : {};
   state.ui.homeDashboard.secondaryDdays = Array.isArray(state.ui.homeDashboard.secondaryDdays) ? state.ui.homeDashboard.secondaryDdays.slice(0, 3) : [];
-  return { user: session.user, state };
+  return state;
 }
 
-async function writeState(mutator) {
-  const current = await readState();
-  if (!current) return false;
-  mutator(current.state);
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: current.user.id, data: current.state }, { onConflict: "user_id" });
-  if (error) throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "context-menu" } }));
+async function readState() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+  const stored = await onekanStateStore.read({ userId: session.user.id });
+  return { user: session.user, state: normalizeState(stored) };
+}
+
+async function writeState(mutator, source = "context-menu") {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return false;
+  await onekanStateStore.mutate((latest) => {
+    const state = normalizeState(latest);
+    mutator(state);
+    return state;
+  }, { userId: session.user.id, source: source });
   $("#reloadCloudBtn")?.click();
   return true;
 }
@@ -694,9 +698,8 @@ async function toggleHabitTarget() {
       task.isHabit = !task.isHabit;
       becameHabit = task.isHabit;
       didChange = true;
-    });
+    }, "task-habit-toggle");
     if (!changed || !didChange) return;
-    document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "task-habit-toggle" } }));
     showToast(becameHabit ? "습관으로 바꿨어요." : "반복 할일로 바꿨어요.");
   } catch (error) {
     console.error(error);

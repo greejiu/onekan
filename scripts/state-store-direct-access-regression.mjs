@@ -8,6 +8,9 @@ const period = fs.readFileSync("js/project-period-popover.js", "utf8");
 const auth = fs.readFileSync("js/auth.js", "utf8");
 const workspace = fs.readFileSync("js/workspace-pages.js", "utf8");
 const completedGroups = fs.readFileSync("js/task-completed-groups.js", "utf8");
+const contextMenu = fs.readFileSync("js/context-menu.js", "utf8");
+const directionContext = fs.readFileSync("js/direction-context-extension.js", "utf8");
+const projectContext = fs.readFileSync("js/project-context-extension.js", "utf8");
 
 assert.match(appearance, /onekanStateStore\.read\(/);
 assert.match(appearance, /onekanStateStore\.mutate\(/);
@@ -33,12 +36,16 @@ assert.doesNotMatch(workspace, /supabase\.from\(["']onekan_state["']\)/);
 assert.match(completedGroups, /onekanStateStore\.read\(\)/);
 assert.doesNotMatch(completedGroups, /supabase\.(?:auth|from)/);
 
+for (const [name, source] of [["context-menu", contextMenu], ["direction-context", directionContext], ["project-context", projectContext]]) {
+  assert.match(source, /onekanStateStore\.read\(/, name + " shared read");
+  assert.match(source, /onekanStateStore\.mutate\(/, name + " shared mutate");
+  assert.doesNotMatch(source, /supabase\.from\(["']onekan_state["']\)/, name + " direct state access");
+  assert.doesNotMatch(source, /dispatchEvent\(new CustomEvent\("onekan:state-changed"/, name + " duplicate state event");
+}
+
 const debtAllowlist = new Set([
   "backup-manager.js",
-  "context-menu.js",
-  "direction-context-extension.js",
   "project-bookmark.js",
-  "project-context-extension.js",
   "project-direction-tabs.js",
   "project-status.js",
   "time-block-v2-settings.js",
