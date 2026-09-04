@@ -1,13 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const before = 'from "\\.\\/supabase\\.js";';
-const after = 'from "\\.\\/supabase\\.js(?:\\?v=\\d+)?";';
+const replacements = [
+  ['from "\\.\\/supabase\\.js";', 'from "\\.\\/supabase\\.js(?:\\?v=\\d+)?";'],
+  ['supabase\\.js"', 'supabase\\.js(?:\\?v=\\d+)?"'],
+];
 let changed = 0;
 for (const name of fs.readdirSync("scripts").filter((value) => value.endsWith("-regression.mjs"))) {
   const file = path.join("scripts", name);
   const source = fs.readFileSync(file, "utf8");
-  const next = source.split(before).join(after);
+  let next = source;
+  for (const [before, after] of replacements) next = next.split(before).join(after);
   if (next === source) continue;
   fs.writeFileSync(file, next);
   changed += 1;
