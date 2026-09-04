@@ -1,0 +1,41 @@
+name: Area lists cache chain fix once
+
+on:
+  push:
+    branches:
+      - refactor/area-lists-state-store
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fix cache dependency chain
+        env:
+          CACHE_BASE: origin/main
+        run: node scripts/fix-area-list-cache-chain.mjs
+      - name: Validate
+        run: |
+          set -euo pipefail
+          for test in scripts/*-regression.mjs; do node "$test"; done
+          node scripts/cache-buster-regression.mjs --check-diff origin/main
+      - name: Commit fix
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html js/*.js css/*.css
+          if git diff --cached --quiet; then
+            echo "No cache chain changes to commit"
+            exit 0
+          fi
+          git commit -m "fix: 영역별 목록 캐시 의존성 버전 갱신"
+          git push origin HEAD:refactor/area-lists-state-store
