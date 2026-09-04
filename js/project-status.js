@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 import { applyProjectStatus, projectTaskStats, restartStatusForProject } from "./project-status-automation.js?v=3";
 
@@ -77,28 +77,34 @@ function ensureWritableStructure(current) {
     : [{ id: "default", name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR }];
 }
 
+function normalizeProjectState(value) {
+  const next = value && typeof value === "object" ? value : {};
+  ensureWritableStructure(next);
+  return next;
+}
+
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
   user = session?.user || null;
-  if (!user) return null;
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
-  if (error) throw error;
-  state = data?.data && typeof data.data === "object" ? data.data : {};
-  state.projects = Array.isArray(state.projects) ? state.projects : [];
-  state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
-  state.directionGoals = Array.isArray(state.directionGoals) ? state.directionGoals : [];
-  state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length ? state.eventGroups : [{ id: "default", name: DEFAULT_GROUP_LABEL, color: DEFAULT_GROUP_COLOR }];
+  if (!user) {
+    state = null;
+    return null;
+  }
+  const stored = await onekanStateStore.read({ userId: user.id });
+  state = normalizeProjectState(stored);
   return state;
 }
 
 async function writeState(mutator, source = "project-status") {
-  await readState();
-  if (!state || !user) return false;
-  ensureWritableStructure(state);
-  mutator(state);
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: state }, { onConflict: "user_id" });
-  if (error) throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source } }));
+  const { data: { session } } = await supabase.auth.getSession();
+  user = session?.user || null;
+  if (!user) return false;
+  const committed = await onekanStateStore.mutate((latest) => {
+    const next = normalizeProjectState(latest);
+    mutator(next);
+    return next;
+  }, { userId: user.id, source });
+  state = normalizeProjectState(committed);
   $("#reloadCloudBtn")?.click();
   scheduleRender(100);
   return true;
