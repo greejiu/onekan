@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 import { applyGoalStatus, normalizeGoalStatus, restartStatusForGoal } from "./project-status-automation.js?v=3";
 
@@ -14,25 +14,29 @@ function directionTarget(element) {
   return { kind: root.dataset.contextKind, id: root.dataset.contextId };
 }
 
-async function readState() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
-  if (error) throw error;
-  const state = data?.data && typeof data.data === "object" ? data.data : {};
+function normalizeState(value) {
+  const state = value && typeof value === "object" ? value : {};
   state.directionGoals = Array.isArray(state.directionGoals) ? state.directionGoals : [];
   state.identities = Array.isArray(state.identities) ? state.identities : [];
   state.projects = Array.isArray(state.projects) ? state.projects : [];
-  return { user: session.user, state };
+  return state;
+}
+
+async function readState() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+  const stored = await onekanStateStore.read({ userId: session.user.id });
+  return { user: session.user, state: normalizeState(stored) };
 }
 
 async function writeState(mutator) {
-  const loaded = await readState();
-  if (!loaded) return false;
-  mutator(loaded.state);
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: loaded.user.id, data: loaded.state }, { onConflict: "user_id" });
-  if (error) throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "direction-context" } }));
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return false;
+  await onekanStateStore.mutate((latest) => {
+    const state = normalizeState(latest);
+    mutator(state);
+    return state;
+  }, { userId: session.user.id, source: "direction-context" });
   $("#reloadCloudBtn")?.click();
   return true;
 }
