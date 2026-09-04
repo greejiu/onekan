@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 import { applyGoalStatus, goalProjectStats, normalizeGoalStatus, restartStatusForGoal } from "./project-status-automation.js?v=3";
 
@@ -132,40 +132,56 @@ function ensureUi() {
   return { page, head, root, tabs, secondary };
 }
 
+function normalizeDirectionState(value) {
+  const next = value && typeof value === "object" ? value : {};
+  next.directionGoals = Array.isArray(next.directionGoals) ? next.directionGoals : [];
+  next.identities = Array.isArray(next.identities) ? next.identities : [];
+  next.projects = Array.isArray(next.projects) ? next.projects : [];
+  return next;
+}
+
+function normalizeStoredGoalStatuses(current) {
+  let changed = false;
+  current.directionGoals.forEach((goal) => {
+    const normalized = normalizeGoalStatus(goal.status);
+    if (goal.status === normalized) return;
+    goal.status = normalized;
+    changed = true;
+  });
+  return changed;
+}
+
 async function readGoalState() {
   const { data: { session } } = await supabase.auth.getSession();
   goalUser = session?.user || null;
-  if (!goalUser) return null;
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", goalUser.id).maybeSingle();
-  if (error) throw error;
-  goalState = data?.data && typeof data.data === "object" ? data.data : {};
-  goalState.directionGoals = Array.isArray(goalState.directionGoals) ? goalState.directionGoals : [];
-  goalState.identities = Array.isArray(goalState.identities) ? goalState.identities : [];
-  goalState.projects = Array.isArray(goalState.projects) ? goalState.projects : [];
-  let migrated = false;
-  goalState.directionGoals.forEach((goal) => {
-    if (!GOAL_STATUSES.some((status) => status.id === goal.status)) {
-      goal.status = normalizeGoalStatus(goal.status);
-      migrated = true;
-    }
-  });
-  if (migrated) {
-    const { error: migrationError } = await supabase.from("onekan_state").upsert({ user_id: goalUser.id, data: goalState }, { onConflict: "user_id" });
-    if (migrationError) throw migrationError;
+  if (!goalUser) {
+    goalState = null;
+    return null;
+  }
+  const stored = await onekanStateStore.read({ userId: goalUser.id });
+  goalState = normalizeDirectionState(stored);
+  if (normalizeStoredGoalStatuses(goalState)) {
+    const committed = await onekanStateStore.mutate((latest) => {
+      const next = normalizeDirectionState(latest);
+      normalizeStoredGoalStatuses(next);
+      return next;
+    }, { userId: goalUser.id, source: "direction-goals-status-migration" });
+    goalState = normalizeDirectionState(committed);
   }
   return goalState;
 }
 
 async function writeGoalState(mutator, source = "direction-goals") {
-  await readGoalState();
-  if (!goalUser || !goalState) return false;
-  goalState.directionGoals = Array.isArray(goalState.directionGoals) ? goalState.directionGoals : [];
-  goalState.identities = Array.isArray(goalState.identities) ? goalState.identities : [];
-  goalState.projects = Array.isArray(goalState.projects) ? goalState.projects : [];
-  mutator(goalState);
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: goalUser.id, data: goalState }, { onConflict: "user_id" });
-  if (error) throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source } }));
+  const { data: { session } } = await supabase.auth.getSession();
+  goalUser = session?.user || null;
+  if (!goalUser) return false;
+  const committed = await onekanStateStore.mutate((latest) => {
+    const next = normalizeDirectionState(latest);
+    normalizeStoredGoalStatuses(next);
+    mutator(next);
+    return next;
+  }, { userId: goalUser.id, source });
+  goalState = normalizeDirectionState(committed);
   $("#reloadCloudBtn")?.click();
   return true;
 }

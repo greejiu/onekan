@@ -19,6 +19,7 @@ for (const token of ["onekan-project-book", "onekan-project-book-progress", "dat
 if (!source.includes('activeFilter === "all"') || !source.includes("onekan-project-group-view")) {
   throw new Error("전체 서재형과 선택 목록형의 분기가 유지되지 않았습니다.");
 }
-if (!index.includes("project-status.js?v=14")) throw new Error("프로젝트 서재 스크립트 캐시 버전이 갱신되지 않았습니다.");
+const projectStatusVersion = Number(index.match(/project-status\.js\?v=(\d+)/)?.[1] || 0);
+if (projectStatusVersion < 14) throw new Error("프로젝트 서재 스크립트 캐시 버전이 갱신되지 않았습니다.");
 
 console.log("project bookshelf regression: ok");

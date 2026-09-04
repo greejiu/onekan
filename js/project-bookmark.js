@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 
 const ROW_SELECTOR = ".uw-list .uw-item[data-id], .uw-all-day-list .uw-item[data-id]";
 const BOOKMARK_CLASS = "onekan-project-bookmark";
@@ -351,13 +351,8 @@ async function loadState() {
     appState = emptyState();
     return false;
   }
-  const { data, error } = await supabase
-    .from("onekan_state")
-    .select("data")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (error) throw error;
-  appState = normalizeState(data?.data);
+  const stored = await onekanStateStore.read({ userId: user.id });
+  appState = normalizeState(stored);
   return true;
 }
 
