@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
@@ -6,28 +6,24 @@ let activeProjectId = null;
 let activeAnchor = null;
 
 async function readState() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", session.user.id).maybeSingle();
-  if (error) throw error;
-  const state = data?.data && typeof data.data === "object" ? data.data : {};
+  const state = await onekanStateStore.read();
+  if (!state) return null;
   state.projects = Array.isArray(state.projects) ? state.projects : [];
-  return { user: session.user, state };
+  return state;
 }
 
 async function savePeriod(startDate, endDate) {
   const id = activeProjectId;
   if (!id) return;
-  const current = await readState();
-  if (!current) return;
-  const project = current.state.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
-  if (!project) return;
-  project.startDate = startDate || null;
-  project.endDate = endDate || null;
-  project.updatedAt = new Date().toISOString();
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: current.user.id, data: current.state }, { onConflict: "user_id" });
-  if (error) throw error;
-  document.dispatchEvent(new CustomEvent("onekan:state-changed", { detail: { source: "project-period-popover" } }));
+  await onekanStateStore.mutate((current) => {
+    current.projects = Array.isArray(current.projects) ? current.projects : [];
+    const project = current.projects.find((item) => item.id === id && (item.kind === "project" || !item.kind));
+    if (!project) return current;
+    project.startDate = startDate || null;
+    project.endDate = endDate || null;
+    project.updatedAt = new Date().toISOString();
+    return current;
+  }, { source: "project-period-popover" });
 }
 
 function installStyle() {
@@ -105,7 +101,7 @@ async function openPanel(projectId, anchor) {
   activeAnchor = anchor;
   try {
     const current = await readState();
-    const project = current?.state.projects.find((item) => item.id === projectId && (item.kind === "project" || !item.kind));
+    const project = current?.projects.find((item) => item.id === projectId && (item.kind === "project" || !item.kind));
     if (!project || activeProjectId !== projectId) return;
     const start = /^\d{4}-\d{2}-\d{2}$/.test(project.startDate || "") ? project.startDate : "";
     const end = /^\d{4}-\d{2}-\d{2}$/.test(project.endDate || "") ? project.endDate : "";
