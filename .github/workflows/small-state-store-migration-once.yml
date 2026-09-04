@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Repair one-shot generator
+        run: node scripts/fix-small-state-store-migration-script.mjs
       - name: Apply migration and cache chain
         env:
           CACHE_BASE: origin/main
