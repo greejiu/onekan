@@ -12,7 +12,8 @@ for (const name of fs.readdirSync(dir).filter((value) => value.endsWith(".js")).
     rows.push({ file: `js/${name}`, line: index + 1, allowed: allowed.has(name), text: line.trim() });
   });
 }
-console.log(JSON.stringify(rows, null, 2));
 const unexpected = rows.filter((row) => !row.allowed);
-console.log(`unexpected direct oneKan state references: ${unexpected.length}`);
-for (const row of unexpected) console.log(`${row.file}:${row.line}: ${row.text}`);
+const report = { generatedAt: new Date().toISOString(), totalReferences: rows.length, unexpectedCount: unexpected.length, rows };
+fs.mkdirSync("claude", { recursive: true });
+fs.writeFileSync("claude/state-store-direct-access-audit.json", `${JSON.stringify(report, null, 2)}\n`);
+console.log(JSON.stringify(report, null, 2));
