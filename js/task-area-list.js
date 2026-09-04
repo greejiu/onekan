@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js";
 
 if (!window.__onekanTaskAreaListInstalled) {
   window.__onekanTaskAreaListInstalled = true;
@@ -78,15 +78,8 @@ if (!window.__onekanTaskAreaListInstalled) {
   }
 
   async function readState() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return null;
-    const { data, error } = await supabase
-      .from("onekan_state")
-      .select("data")
-      .eq("user_id", session.user.id)
-      .maybeSingle();
-    if (error) throw error;
-    const state = data?.data && typeof data.data === "object" ? data.data : {};
+    const state = await onekanStateStore.read();
+    if (!state) return null;
     state.tasks = Array.isArray(state.tasks) ? state.tasks : [];
     state.eventGroups = Array.isArray(state.eventGroups) && state.eventGroups.length
       ? state.eventGroups
