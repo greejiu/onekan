@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 import { showToast } from "./ui-feedback.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -16,31 +16,38 @@ const minuteValue = (value) => {
   return Number.isFinite(hour) && Number.isFinite(minute) ? clamp(Math.round((hour * 60 + minute) / 30) * 30, 0, 1440) : null;
 };
 
+function normalizeState(value) {
+  const next = value && typeof value === "object" ? value : {};
+  next.ui = next.ui && typeof next.ui === "object" ? next.ui : {};
+  next.ui.homeAppearance = { position: "center", overlay: 28, ...(next.ui.homeAppearance || {}) };
+  next.ui.themeColor = validColor(next.ui.themeColor);
+  const range = next.ui.timelineRange && typeof next.ui.timelineRange === "object" ? next.ui.timelineRange : {};
+  const start = clamp(Math.round((Number(range.start) || 360) / 30) * 30, 0, 1350);
+  const end = clamp(Math.round((Number(range.end) || 1320) / 30) * 30, start + 30, 1440);
+  next.ui.timelineRange = { start, end };
+  return next;
+}
+
 async function readState() {
   const { data: { session } } = await supabase.auth.getSession();
   user = session?.user || null;
-  if (!user) return null;
-  const { data, error } = await supabase.from("onekan_state").select("data").eq("user_id", user.id).maybeSingle();
-  if (error) throw error;
-  state = data?.data && typeof data.data === "object" ? data.data : {};
-  state.ui = state.ui && typeof state.ui === "object" ? state.ui : {};
-  state.ui.homeAppearance = { position: "center", overlay: 28, ...(state.ui.homeAppearance || {}) };
-  state.ui.themeColor = validColor(state.ui.themeColor);
-  const range = state.ui.timelineRange && typeof state.ui.timelineRange === "object" ? state.ui.timelineRange : {};
-  const start = clamp(Math.round((Number(range.start) || 360) / 30) * 30, 0, 1350);
-  const end = clamp(Math.round((Number(range.end) || 1320) / 30) * 30, start + 30, 1440);
-  state.ui.timelineRange = { start, end };
+  if (!user) return state = null;
+  const stored = await onekanStateStore.read({ userId: user.id });
+  state = normalizeState(stored);
   return state;
 }
 
 async function writeAppearance(appearanceChanges = {}, uiChanges = {}) {
   const current = await readState();
   if (!current || !user) return;
-  current.ui.homeAppearance = { ...current.ui.homeAppearance, ...appearanceChanges };
-  current.ui = { ...current.ui, ...uiChanges, homeAppearance: current.ui.homeAppearance };
-  const { error } = await supabase.from("onekan_state").upsert({ user_id: user.id, data: current }, { onConflict: "user_id" });
-  if (error) throw error;
-  state = current;
+  const committed = await onekanStateStore.mutate((latest) => {
+    const next = normalizeState(latest);
+    next.ui.homeAppearance = { ...next.ui.homeAppearance, ...appearanceChanges };
+    next.ui = { ...next.ui, ...uiChanges, homeAppearance: next.ui.homeAppearance };
+    return next;
+  }, { userId: user.id, source: "appearance" });
+  if (!committed) return;
+  state = normalizeState(committed);
   await applyAppearance();
   $("#reloadCloudBtn")?.click();
 }
