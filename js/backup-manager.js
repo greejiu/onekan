@@ -1,4 +1,5 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
+import { stripStateStoreMeta } from "./state-store.js?v=1";
 
 const CSS_ID = "onekanBackupManagerCss";
 const VISIBLE_REASONS = [
@@ -77,13 +78,8 @@ async function resolveUser() {
 async function readCurrentState() {
   const user = await resolveUser();
   if (!user) return null;
-  const { data, error } = await supabase
-    .from("onekan_state")
-    .select("data")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (error) throw error;
-  return data?.data && typeof data.data === "object" ? data.data : {};
+  const stored = await onekanStateStore.read({ userId: user.id });
+  return stripStateStoreMeta(stored);
 }
 
 async function loadBackups() {
@@ -144,11 +140,10 @@ async function restoreBackup(id) {
     if (preserveError) throw preserveError;
   }
 
-  const { error: restoreError } = await supabase
-    .from("onekan_state")
-    .update({ data: backup.data, updated_at: new Date().toISOString() })
-    .eq("user_id", user.id);
-  if (restoreError) throw restoreError;
+  await onekanStateStore.mutate(
+    () => stripStateStoreMeta(backup.data),
+    { userId: user.id, source: "backup-restore" },
+  );
 
   window.alert("백업을 복원했습니다. 화면을 다시 불러옵니다.");
   window.location.reload();

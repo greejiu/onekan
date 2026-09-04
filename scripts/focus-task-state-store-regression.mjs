@@ -9,5 +9,6 @@ assert.match(source, /onekanStateStore\.mutate\(\(current\) => \{/);
 assert.match(source, /source: "focus-task-card"/);
 assert.match(source, /supabase\.auth\.onAuthStateChange/);
 const index = fs.readFileSync("index.html", "utf8");
-assert.match(index, /focus-task-card\.js\?v=3/);
+const focusCardVersion = Number(index.match(/focus-task-card\.js\?v=(\d+)/)?.[1] || 0);
+assert.ok(focusCardVersion >= 3, "focus-task-card cache version must not go backwards");
 console.log("focus task direct state-store regression: ok");

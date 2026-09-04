@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js";
 
 const GROUP_LABELS = {
   project: "프로젝트",
@@ -311,13 +311,8 @@ async function refresh() {
       renderAll({});
       return;
     }
-    const { data, error } = await supabase
-      .from("onekan_state")
-      .select("data")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (error) throw error;
-    renderAll(data?.data || {});
+    const stored = await onekanStateStore.read({ userId: user.id });
+    renderAll(stored || {});
   } catch (error) {
     console.warn("시간 통계를 불러오지 못했습니다.", error);
     renderAll({});

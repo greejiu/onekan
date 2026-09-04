@@ -8,10 +8,10 @@ if (!document.getElementById(STATS_CSS_ID)) {
   document.head.appendChild(link);
 }
 
-import("./tracking-stats.js?v=3").catch((error) => {
+import("./tracking-stats.js?v=4").catch((error) => {
   console.warn("시간 통계 모듈을 불러오지 못했습니다.", error);
 });
 
-import("./backup-manager.js?v=1").catch((error) => {
+import("./backup-manager.js?v=2").catch((error) => {
   console.warn("백업 관리 모듈을 불러오지 못했습니다.", error);
 });
