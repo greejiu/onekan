@@ -1218,7 +1218,7 @@ async function saveAutomaticTimeBlockChange(kind,id,date,blockId,occurrenceSourc
 }
 async function saveAutomaticTimelineRowChange(kind,id,date,rowStart,occurrenceSource=date,planDate="",planToken="",forcedScope=null){
   const slot=automaticTimelineRowSlot(date,rowStart,planToken);
-  if(!slot){showToast("이 30분 줄은 이미 할 일 3개로 꽉 찼어요.");return false}
+  if(!slot){showToast("이 시간대엔 더 넣을 자리가 없어요.");return false}
   await saveTimedChange(kind,id,date,slot.startMinute,slot.duration,occurrenceSource,planDate,planToken,forcedScope);
   return true
 }
