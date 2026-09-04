@@ -1,5 +1,5 @@
-import "./interaction-fixes.js?v=39";
-import { onekanStateStore, supabase } from "./supabase.js";
+import "./interaction-fixes.js?v=40";
+import { onekanStateStore, supabase } from "./supabase.js?v=1";
 import { stripStateStoreMeta } from "./state-store.js?v=1";
 
 const authSection = document.querySelector("#auth-section");

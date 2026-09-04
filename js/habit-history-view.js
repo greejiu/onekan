@@ -1,4 +1,4 @@
-import { onekanStateStore } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js?v=1";
 import { normalizeCompletionRepeats } from "./repeat-after-completion.js?v=1";
 
 const $=(selector,root=document)=>root.querySelector(selector);

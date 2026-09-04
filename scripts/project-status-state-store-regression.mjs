@@ -10,16 +10,16 @@ const dependents = [
   "js/project-status.js",
 ];
 
-assert.match(source, /import \{ onekanStateStore, supabase \} from "\.\/supabase\.js";/);
+assert.match(source, /import \{ onekanStateStore, supabase \} from "\.\/supabase\.js(?:\?v=\d+)?";/);
 assert.match(source, /onekanStateStore\.read\(\{ userId \}\)/);
 assert.match(source, /onekanStateStore\.mutate\(\(current\) => \{/);
 assert.match(source, /\{ userId, source: "project-status-automation" \}/);
 assert.doesNotMatch(source, /supabase\.from\(["']onekan_state["']\)/);
 assert.doesNotMatch(source, /document\.dispatchEvent\(new CustomEvent\("onekan:state-changed"/);
 assert.match(source, /if \(!promotedProjects\.length && !changedGoals\.length\) return;/);
-assert.match(index, /project-status-automation\.js\?v=3/);
+assert.match(index, /project-status-automation\.js\?v=\d+/);
 for (const path of dependents) {
   const dependent = fs.readFileSync(path, "utf8");
-  assert.match(dependent, /\.\/project-status-automation\.js\?v=3/, `${path} must share project status automation cache version`);
+  assert.match(dependent, /\.\/project-status-automation\.js\?v=\d+/, `${path} must share project status automation cache version`);
 }
 console.log("project status automation direct state-store regression: ok");

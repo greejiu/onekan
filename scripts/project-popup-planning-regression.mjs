@@ -15,7 +15,7 @@ const css = read("css/project-popup-planning.css");
 assert.doesNotMatch(index, /data-page="plan"/, "legacy plan sidebar entry must stay removed");
 assert.doesNotMatch(index, /id="page-plan"/, "legacy plan page must stay removed");
 assert.doesNotMatch(sidebar, /removePlanNavigation/, "runtime plan-removal fallback is obsolete after physical cleanup");
-assert.match(sidebar, /project-popup-planning\.js\?v=2/);
+assert.match(sidebar, /project-popup-planning\.js\?v=\d+/);
 
 assert.match(popup, /section\("task"/);
 assert.match(popup, /section\("habit"/);

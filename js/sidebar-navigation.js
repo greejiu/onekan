@@ -147,7 +147,7 @@ function init() {
     }).observe(nav, { childList: true, subtree: true });
   }
 
-  import("./project-popup-planning.js?v=2").catch((error) => {
+  import("./project-popup-planning.js?v=3").catch((error) => {
     console.error("프로젝트 연결 항목 관리 화면을 불러오지 못했어요.", error);
   });
 }

@@ -1,11 +1,11 @@
-import { onekanStateStore, supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js?v=1";
 import { confirmAction, showToast, playCheckSound } from "./ui-feedback.js";
 import {
   ensureGoogleCalendarRange,
   googleCalendarEventsForDate,
   initGoogleCalendar,
   isGoogleCalendarEvent,
-} from "./google-calendar.js?v=1";
+} from "./google-calendar.js?v=2";
 import {
   TIME_BLOCK_AUTO_SLOT_MINUTES,
   TIME_BLOCK_START_ANCHOR,

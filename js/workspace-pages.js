@@ -1,4 +1,4 @@
-import { onekanStateStore, supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js?v=1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];

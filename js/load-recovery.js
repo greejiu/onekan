@@ -1,4 +1,4 @@
-import { onekanStateStore } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js?v=1";
 import { stripStateStoreMeta } from "./state-store.js?v=1";
 
 const STATUS_SELECTORS = ["#syncStatus", "#mobileSyncStatus"];

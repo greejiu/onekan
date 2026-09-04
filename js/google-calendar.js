@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { supabase } from "./supabase.js?v=1";
 import { confirmAction, showToast } from "./ui-feedback.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);

@@ -1,6 +1,6 @@
 # 공용 state-store — 설계 메모
 
-**상태: 1단계 구현 완료 + 런타임 `onekan_state` 직접 접근 이전 완료 (2026-09-04).**
+**상태: 런타임 `onekan_state` 직접 접근 이전 완료 + Supabase 호환 Proxy 런타임 제거 (2026-09-04).**
 
 ## 목적
 
@@ -17,9 +17,9 @@
   - `tasks`, `projects`, `sessions`, `timeBlocks`처럼 `id`가 있는 배열은 항목 단위로 병합한다.
   - 임시 base token은 DB에 저장하기 전에 제거한다.
 - `js/supabase.js`
-  - 기존 모듈이 코드를 당장 전부 바꾸지 않아도 보호를 받을 수 있도록 `onekan_state`의 `select / insert / upsert`를 공용 store를 거치게 한다.
-  - 다른 Supabase 테이블은 기존과 동일하게 동작한다.
-- 새 코드에서는 가능하면 `onekanStateStore.read()` / `onekanStateStore.mutate()` / `onekanStateStore.subscribe()`를 직접 사용한다.
+  - 일반 Supabase 접근은 더 이상 Proxy를 거치지 않고 원본 client를 그대로 export한다.
+  - `onekan_state`만 별도 `onekanStateStore` 인스턴스로 접근한다.
+- 런타임의 `onekan_state` 접근은 `onekanStateStore.read()` / `onekanStateStore.mutate()` / `onekanStateStore.subscribe()`를 사용한다.
 
 ## 직접 이전 현황
 
@@ -46,9 +46,13 @@
    - `backup-manager.js`의 현재 상태 백업/복원도 store를 거치며, history 테이블은 별도 보관소로 유지
    - `time-block-v2-settings.js` 저장은 최신 remote 상태에서 mutate하고 `tracking-stats.js`는 read-only store 조회 사용
    - `scripts/state-store-direct-access-regression.mjs`가 이제 `state-store.js` 외 직접 `onekan_state` 접근을 허용하지 않음
+7. Supabase 호환 Proxy 런타임 제거
+   - `supabase.js`가 원본 Supabase client를 그대로 export하도록 전환
+   - `onekanStateStore`는 원본 client 위에 별도 생성해 상태 접근 책임을 분리
+   - 기존 Proxy 생성 함수는 런타임에서 더 이상 사용하지 않으며 후속 단계에서 dead helper로 정리 가능
 
 다음 후보:
-1. 직접 접근 이전 완료. 새 런타임 코드는 공용 state-store API만 사용
+1. `state-store.js`의 사용 종료된 Proxy helper/deferred writer 코드 물리 삭제
 
 ## 왜 기존 모듈을 한꺼번에 안 바꾸는가
 

@@ -1,4 +1,4 @@
-import { onekanStateStore } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js?v=1";
 
 if (!window.__onekanTaskAreaListInstalled) {
   window.__onekanTaskAreaListInstalled = true;

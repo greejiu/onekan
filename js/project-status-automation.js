@@ -1,4 +1,4 @@
-import { onekanStateStore, supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js?v=1";
 
 const VALID_STATUSES = new Set(["before", "doing", "done", "archived"]);
 
