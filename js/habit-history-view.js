@@ -1,4 +1,4 @@
-import { supabase } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js";
 import { normalizeCompletionRepeats } from "./repeat-after-completion.js?v=1";
 
 const $=(selector,root=document)=>root.querySelector(selector);
@@ -16,11 +16,8 @@ let longPressTimer=null;
 let longPressPoint=null;
 
 async function readSeries(id){
-  const {data:{session}}=await supabase.auth.getSession();
-  if(!session?.user)return null;
-  const {data,error}=await supabase.from("onekan_state").select("data").eq("user_id",session.user.id).maybeSingle();
-  if(error)throw error;
-  const state=data?.data&&typeof data.data==="object"?data.data:{};
+  const state=await onekanStateStore.read();
+  if(!state)return null;
   state.tasks=Array.isArray(state.tasks)?state.tasks:[];
   normalizeCompletionRepeats(state);
   const target=state.tasks.find((task)=>task.id===id&&task.isHabit);
