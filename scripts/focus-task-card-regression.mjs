@@ -55,7 +55,7 @@ assert.match(focus, /placeholder="작은 행동 추가"/, "하위 할일은 작�
 assert.match(focus, /setInterval\(\(\) => scheduleRender\(0, false\), 60000\)/, "남은 시간과 다음 할일은 매분 갱신되어야 합니다.");
 assert.match(uw, /아직 끝나지 않았어요 · \$\{tasks\.length\}개/, "지연된 할일은 부담이 적은 문구로 표시해야 합니다.");
 assert.match(uw, /data-uw-overdue-keep/, "지연된 할일을 그대로 두는 선택이 필요합니다.");
-assert.match(focus, /import\s*\{\s*onekanStateStore\s*,\s*supabase\s*\}\s*from\s*"\.\/supabase\.js"/, "focus-task-card.js는 공용 state-store와 auth용 Supabase를 함께 사용해야 합니다.");
+assert.match(focus, /import\s*\{\s*onekanStateStore\s*,\s*supabase\s*\}\s*from\s*"\.\/supabase\.js(?:\?v=\d+)?"/, "focus-task-card.js는 공용 state-store와 auth용 Supabase를 함께 사용해야 합니다.");
 assert.doesNotMatch(focus, /supabase\.from\(["']onekan_state["']\)/, "focus-task-card.js가 oneKan 전체 상태를 직접 읽고 쓰면 안 됩니다.");
 assert.match(focus, /tracking-stats-loader\.js/, "옛 메모 카드가 불러오던 시간 통계·백업 모듈 로딩을 이어받아야 합니다.");
 

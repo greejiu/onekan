@@ -1,4 +1,4 @@
-import { onekanStateStore } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js?v=1";
 import { showToast } from "./ui-feedback.js";
 import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
 

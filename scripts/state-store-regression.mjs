@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   STATE_STORE_META_KEY,
-  createStateStoreClient,
+  createOnekanStateStore,
   stripStateStoreMeta,
   threeWayMerge,
 } from "../js/state-store.js";
@@ -90,50 +90,37 @@ class FakeClient {
 }
 
 const raw = new FakeClient(base);
-const { client } = createStateStoreClient(raw);
-const first = await client.from("onekan_state").select("data").eq("user_id", "u1").maybeSingle();
-const appState = {
-  ...first.data.data,
-  tasks: first.data.data.tasks.map((item) => ({ ...item })),
-};
-assert.ok(appState[STATE_STORE_META_KEY]);
+const store = createOnekanStateStore(raw);
+const first = await store.read({ userId: "u1" });
+const repeated = await store.read({ userId: "u1" });
+assert.ok(first[STATE_STORE_META_KEY]);
+assert.equal(first[STATE_STORE_META_KEY], repeated[STATE_STORE_META_KEY]);
 
-const external = await client.from("onekan_state").select("data").eq("user_id", "u1").maybeSingle();
-assert.equal(first.data.data[STATE_STORE_META_KEY], external.data.data[STATE_STORE_META_KEY]);
-external.data.data.tasks[0].subtaskProgress.s1 = true;
-await client.from("onekan_state").upsert(
-  { user_id: "u1", data: external.data.data },
-  { onConflict: "user_id" },
-);
-
-appState.habitDays["2026-09-03"].h1 = true;
-const appSnapshot = JSON.parse(JSON.stringify(appState));
-await client.from("onekan_state").upsert(
-  { user_id: "u1", data: appSnapshot },
-  { onConflict: "user_id" },
-);
+await store.mutate((current) => {
+  current.tasks[0].subtaskProgress.s1 = true;
+  return current;
+}, { userId: "u1", source: "test-external" });
+await store.mutate((current) => {
+  current.habitDays["2026-09-03"].h1 = true;
+  return current;
+}, { userId: "u1", source: "test-app" });
 assert.equal(raw.db.data.tasks[0].subtaskProgress.s1, true);
 assert.equal(raw.db.data.habitDays["2026-09-03"].h1, true);
 assert.equal(raw.db.data[STATE_STORE_META_KEY], undefined);
 
 const concurrentRaw = new FakeClient(base);
-const { client: concurrentClient } = createStateStoreClient(concurrentRaw);
-const firstWriter = await concurrentClient.from("onekan_state").select("data").eq("user_id", "u1").maybeSingle();
-const secondWriter = await concurrentClient.from("onekan_state").select("data").eq("user_id", "u1").maybeSingle();
-firstWriter.data.data.tasks[0].subtaskProgress.s2 = true;
-secondWriter.data.data.ui.sidebarCollapsed = true;
+const concurrentStore = createOnekanStateStore(concurrentRaw);
 await Promise.all([
-  concurrentClient.from("onekan_state").upsert({ user_id: "u1", data: firstWriter.data.data }, { onConflict: "user_id" }),
-  concurrentClient.from("onekan_state").upsert({ user_id: "u1", data: secondWriter.data.data }, { onConflict: "user_id" }),
+  concurrentStore.mutate((current) => {
+    current.tasks[0].subtaskProgress.s2 = true;
+    return current;
+  }, { userId: "u1", source: "test-one" }),
+  concurrentStore.mutate((current) => {
+    current.ui.sidebarCollapsed = true;
+    return current;
+  }, { userId: "u1", source: "test-two" }),
 ]);
 assert.equal(concurrentRaw.db.data.tasks[0].subtaskProgress.s2, true);
 assert.equal(concurrentRaw.db.data.ui.sidebarCollapsed, true);
-
-const legacyRaw = new FakeClient(base);
-const { client: legacyClient } = createStateStoreClient(legacyRaw);
-const untagged = structuredClone(base);
-untagged.ui.sidebarCollapsed = true;
-await legacyClient.from("onekan_state").upsert({ user_id: "u1", data: untagged }, { onConflict: "user_id" });
-assert.equal(legacyRaw.db.data.ui.sidebarCollapsed, true);
 
 console.log("state store regression: ok");

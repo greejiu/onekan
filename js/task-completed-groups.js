@@ -1,5 +1,5 @@
 import "./task-input-controls.js?v=3";
-import { onekanStateStore } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js?v=1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];

@@ -1,4 +1,4 @@
-import { onekanStateStore, supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js?v=1";
 
 const ROW_SELECTOR = ".uw-list .uw-item[data-id], .uw-all-day-list .uw-item[data-id]";
 const BOOKMARK_CLASS = "onekan-project-bookmark";

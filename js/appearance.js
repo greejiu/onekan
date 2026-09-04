@@ -1,4 +1,4 @@
-import { onekanStateStore, supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js?v=1";
 import { showToast } from "./ui-feedback.js";
 
 const $ = (selector) => document.querySelector(selector);

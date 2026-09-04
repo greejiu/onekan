@@ -1,4 +1,4 @@
-import "./auth-guard.js?v=1";
+import "./auth-guard.js?v=2";
 
 // 오늘한칸은 오늘 할일 배치와 시간 계획에 집중한다.
 // 기존 습관/관리 데이터는 Supabase에 그대로 보존하되 숨긴다.
@@ -9,8 +9,8 @@ const deferredModules = [
   "./task-input-controls.js?v=5",
   "./home-timeline-dynamic-columns.js?v=2",
   "./tracking-context-menu.js?v=2",
-  "./habit-area-list.js?v=2",
-  "./task-area-list.js?v=2",
+  "./habit-area-list.js?v=3",
+  "./task-area-list.js?v=3",
 ];
 
 if (!window.__onekanInteractionFixesInstalled) {

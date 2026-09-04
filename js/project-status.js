@@ -1,6 +1,6 @@
-import { onekanStateStore, supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js?v=1";
 import { showToast } from "./ui-feedback.js";
-import { applyProjectStatus, projectTaskStats, restartStatusForProject } from "./project-status-automation.js?v=3";
+import { applyProjectStatus, projectTaskStats, restartStatusForProject } from "./project-status-automation.js?v=4";
 
 const $ = (selector, root = document) => root?.querySelector?.(selector) || null;
 const $$ = (selector, root = document) => [...(root?.querySelectorAll?.(selector) || [])];

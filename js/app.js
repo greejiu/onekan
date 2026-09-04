@@ -1,6 +1,6 @@
-import { onekanStateStore } from "./supabase.js";
+import { onekanStateStore } from "./supabase.js?v=1";
 import { threeWayMerge } from "./state-store.js?v=1";
-import { setupAuth } from "./auth.js?v=2";
+import { setupAuth } from "./auth.js?v=3";
 import { confirmAction, showToast, playCheckSound } from "./ui-feedback.js";
 import { completeRepeatingTask, normalizeCompletionRepeats, undoRepeatingTaskCompletion } from "./repeat-after-completion.js?v=1";
 

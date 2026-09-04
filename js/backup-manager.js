@@ -1,4 +1,4 @@
-import { onekanStateStore, supabase } from "./supabase.js";
+import { onekanStateStore, supabase } from "./supabase.js?v=1";
 import { stripStateStoreMeta } from "./state-store.js?v=1";
 
 const CSS_ID = "onekanBackupManagerCss";
