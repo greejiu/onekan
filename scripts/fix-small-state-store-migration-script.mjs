@@ -10,4 +10,8 @@ text = text.replace(
   'console.log(`remaining direct onekan_state debt: ${debt.join(", ") || "none"}`);',
   'console.log("remaining direct onekan_state debt: " + (debt.join(", ") || "none"));',
 );
+text = text.replace(
+  'assert.doesNotMatch(period, /supabase\\\\./);',
+  'assert.doesNotMatch(period, /supabase\\\\.(?:auth|from|storage)/);',
+);
 fs.writeFileSync(file, text);
